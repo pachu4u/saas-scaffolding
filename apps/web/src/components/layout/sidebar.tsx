@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+import { WorkspaceSwitcher } from './workspace-switcher';
+
 const navItems = [
   {
     label: 'Dashboard',
@@ -132,42 +134,7 @@ export function Sidebar({ tenantName = 'Workspace', tenantSlug, isAdmin }: Sideb
             riogentix
           </span>
         </div>
-        <div
-          className="hover:bg-bg-subtle flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 transition-colors"
-          style={{ background: 'var(--bg-main)' }}
-        >
-          <div
-            className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-xs font-bold text-white"
-            style={{ background: 'var(--brand-secondary)' }}
-          >
-            {tenantName[0]?.toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <div
-              className="truncate text-xs font-semibold"
-              style={{ color: 'var(--text-primary)' }}
-            >
-              {tenantName}
-            </div>
-            {tenantSlug && (
-              <div className="truncate text-xs" style={{ color: 'var(--text-muted)' }}>
-                {tenantSlug}.app
-              </div>
-            )}
-          </div>
-          <svg
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            className="ml-auto h-4 w-4 flex-shrink-0"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            <path
-              fillRule="evenodd"
-              d="M5.293 7.293a1 1 0 0 1 1.414 0L10 10.586l3.293-3.293a1 1 0 1 1 1.414 1.414l-4 4a1 1 0 0 1-1.414 0l-4-4a1 1 0 0 1 0-1.414z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </div>
+        <WorkspaceSwitcher currentName={tenantName} currentSlug={tenantSlug} />
       </div>
 
       {/* Nav */}
