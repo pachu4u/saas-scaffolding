@@ -1,8 +1,95 @@
+'use client';
+
+import { useState, useTransition } from 'react';
+
 import { Badge } from '@/components/ui/badge';
 
-export const metadata = { title: 'Security & SSO — Settings' };
-
 export default function SecurityPage() {
+  // SSO form state
+  const [protocol, setProtocol] = useState<'SAML 2.0' | 'OIDC'>('SAML 2.0');
+  const [idpIssuer, setIdpIssuer] = useState('https://okta.example.com/sso/saml');
+  const [idpSsoUrl, setIdpSsoUrl] = useState('https://okta.example.com/app/acme/sso/saml');
+  const [idpCertificate, setIdpCertificate] = useState(
+    '-----BEGIN CERTIFICATE-----\nMIIDpDCCAoygAwIBAgIGAV2ka+55MA0GCSqGSIb3DQEBDQUAMIG...\n-----END CERTIFICATE-----',
+  );
+  const [ssoMsg, setSsoMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [ssoPending, startSsoTransition] = useTransition();
+
+  // Session policy state
+  const [sessionLifetime, setSessionLifetime] = useState('8 hours');
+  const [enforceSso, setEnforceSso] = useState(true);
+  const [ipAllowlist, setIpAllowlist] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [policyMsg, setPolicyMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [policyPending, startPolicyTransition] = useTransition();
+
+  function saveSso() {
+    setSsoMsg(null);
+    startSsoTransition(async () => {
+      try {
+        const res = await fetch('/api/settings/security', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ section: 'sso', protocol, idpIssuer, idpSsoUrl, idpCertificate }),
+        });
+        const json = (await res.json()) as { ok?: boolean; error?: string };
+        if (json.ok) {
+          setSsoMsg({ ok: true, text: 'SSO configuration saved.' });
+        } else {
+          setSsoMsg({ ok: false, text: json.error ?? 'Failed to save' });
+        }
+      } catch {
+        setSsoMsg({ ok: false, text: 'Request failed' });
+      }
+    });
+  }
+
+  function savePolicy() {
+    setPolicyMsg(null);
+    startPolicyTransition(async () => {
+      try {
+        const res = await fetch('/api/settings/security', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            section: 'session',
+            sessionLifetime,
+            enforceSso,
+            ipAllowlist,
+            mfaRequired,
+          }),
+        });
+        const json = (await res.json()) as { ok?: boolean; error?: string };
+        if (json.ok) {
+          setPolicyMsg({ ok: true, text: 'Session policy saved.' });
+        } else {
+          setPolicyMsg({ ok: false, text: json.error ?? 'Failed to save' });
+        }
+      } catch {
+        setPolicyMsg({ ok: false, text: 'Request failed' });
+      }
+    });
+  }
+
+  const ATTR_MAPPINGS = [
+    {
+      field: 'Email',
+      samlAttr: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
+    },
+    {
+      field: 'First name',
+      samlAttr: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname',
+    },
+    {
+      field: 'Last name',
+      samlAttr: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname',
+    },
+    {
+      field: 'Groups',
+      samlAttr: 'http://schemas.microsoft.com/ws/2008/06/identity/claims/groups',
+    },
+  ];
+
   return (
     <div className="max-w-3xl space-y-6">
       {/* SAML SSO */}
@@ -47,6 +134,8 @@ export default function SecurityPage() {
                   Protocol
                 </label>
                 <select
+                  value={protocol}
+                  onChange={(e) => setProtocol(e.target.value as 'SAML 2.0' | 'OIDC')}
                   className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                   style={{
                     borderColor: 'var(--border-default)',
@@ -67,7 +156,8 @@ export default function SecurityPage() {
                 </label>
                 <input
                   type="text"
-                  defaultValue="https://okta.example.com/sso/saml"
+                  value={idpIssuer}
+                  onChange={(e) => setIdpIssuer(e.target.value)}
                   className="w-full rounded-xl border px-3 py-2 font-mono text-sm outline-none"
                   style={{
                     borderColor: 'var(--border-default)',
@@ -86,7 +176,8 @@ export default function SecurityPage() {
               </label>
               <input
                 type="text"
-                defaultValue="https://okta.example.com/app/acme/sso/saml"
+                value={idpSsoUrl}
+                onChange={(e) => setIdpSsoUrl(e.target.value)}
                 className="w-full rounded-xl border px-3 py-2 font-mono text-sm outline-none"
                 style={{
                   borderColor: 'var(--border-default)',
@@ -104,9 +195,8 @@ export default function SecurityPage() {
               </label>
               <textarea
                 rows={3}
-                defaultValue="-----BEGIN CERTIFICATE-----
-MIIDpDCCAoygAwIBAgIGAV2ka+55MA0GCSqGSIb3DQEBDQUAMIG...
------END CERTIFICATE-----"
+                value={idpCertificate}
+                onChange={(e) => setIdpCertificate(e.target.value)}
                 className="w-full resize-none rounded-xl border px-3 py-2 font-mono text-xs outline-none"
                 style={{
                   borderColor: 'var(--border-default)',
@@ -140,6 +230,7 @@ MIIDpDCCAoygAwIBAgIGAV2ka+55MA0GCSqGSIb3DQEBDQUAMIG...
                     {row.value}
                   </code>
                   <button
+                    onClick={() => void navigator.clipboard.writeText(row.value)}
                     className="hover:bg-bg-subtle flex-shrink-0 rounded-lg border px-2 py-1 text-xs transition-colors"
                     style={{ borderColor: 'var(--border-light)', color: 'var(--text-muted)' }}
                   >
@@ -155,24 +246,7 @@ MIIDpDCCAoygAwIBAgIGAV2ka+55MA0GCSqGSIb3DQEBDQUAMIG...
                 Attribute mapping
               </div>
               <div className="space-y-2">
-                {[
-                  {
-                    field: 'Email',
-                    samlAttr: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
-                  },
-                  {
-                    field: 'First name',
-                    samlAttr: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname',
-                  },
-                  {
-                    field: 'Last name',
-                    samlAttr: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname',
-                  },
-                  {
-                    field: 'Groups',
-                    samlAttr: 'http://schemas.microsoft.com/ws/2008/06/identity/claims/groups',
-                  },
-                ].map((m) => (
+                {ATTR_MAPPINGS.map((m) => (
                   <div key={m.field} className="flex items-center gap-3">
                     <span
                       className="w-20 flex-shrink-0 text-xs font-semibold"
@@ -204,6 +278,17 @@ MIIDpDCCAoygAwIBAgIGAV2ka+55MA0GCSqGSIb3DQEBDQUAMIG...
               </div>
             </div>
           </div>
+          {ssoMsg && (
+            <div
+              className="border-t px-6 py-3 text-xs"
+              style={{
+                borderColor: 'var(--border-light)',
+                color: ssoMsg.ok ? 'var(--status-success)' : '#ef4444',
+              }}
+            >
+              {ssoMsg.text}
+            </div>
+          )}
           <div
             className="flex items-center justify-between border-t px-6 py-4"
             style={{ borderColor: 'var(--border-light)' }}
@@ -214,8 +299,12 @@ MIIDpDCCAoygAwIBAgIGAV2ka+55MA0GCSqGSIb3DQEBDQUAMIG...
             >
               Test connection
             </button>
-            <button className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90">
-              Save SSO configuration
+            <button
+              onClick={saveSso}
+              disabled={ssoPending}
+              className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {ssoPending ? 'Saving…' : 'Save SSO configuration'}
             </button>
           </div>
         </div>
@@ -361,43 +450,56 @@ MIIDpDCCAoygAwIBAgIGAV2ka+55MA0GCSqGSIb3DQEBDQUAMIG...
           }}
         >
           <div className="divide-y" style={{ borderColor: 'var(--border-light)' }}>
+            <div className="flex items-center justify-between px-6 py-4">
+              <div>
+                <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  Session lifetime
+                </div>
+                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  How long before users must re-authenticate
+                </div>
+              </div>
+              <select
+                value={sessionLifetime}
+                onChange={(e) => setSessionLifetime(e.target.value)}
+                className="rounded-lg border px-3 py-1.5 text-xs outline-none"
+                style={{
+                  borderColor: 'var(--border-light)',
+                  background: 'var(--bg-main)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <option>8 hours</option>
+                <option>24 hours</option>
+                <option>7 days</option>
+                <option>30 days</option>
+              </select>
+            </div>
+
             {[
               {
-                label: 'Session lifetime',
-                desc: 'How long before users must re-authenticate',
-                control: (
-                  <select
-                    className="rounded-lg border px-3 py-1.5 text-xs outline-none"
-                    style={{
-                      borderColor: 'var(--border-light)',
-                      background: 'var(--bg-main)',
-                      color: 'var(--text-primary)',
-                    }}
-                  >
-                    <option>8 hours</option>
-                    <option>24 hours</option>
-                    <option>7 days</option>
-                    <option>30 days</option>
-                  </select>
-                ),
-              },
-              {
+                key: 'enforceSso' as const,
                 label: 'Enforce SSO',
                 desc: 'Require all members to sign in via SSO only',
-                control: <Toggle on={true} />,
+                value: enforceSso,
+                set: setEnforceSso,
               },
               {
+                key: 'ipAllowlist' as const,
                 label: 'IP allowlist',
                 desc: 'Restrict access to specific IP ranges',
-                control: <Toggle on={false} />,
+                value: ipAllowlist,
+                set: setIpAllowlist,
               },
               {
+                key: 'mfaRequired' as const,
                 label: 'MFA required',
                 desc: 'Enforce multi-factor authentication for all members',
-                control: <Toggle on={false} />,
+                value: mfaRequired,
+                set: setMfaRequired,
               },
             ].map((policy) => (
-              <div key={policy.label} className="flex items-center justify-between px-6 py-4">
+              <div key={policy.key} className="flex items-center justify-between px-6 py-4">
                 <div>
                   <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                     {policy.label}
@@ -406,26 +508,46 @@ MIIDpDCCAoygAwIBAgIGAV2ka+55MA0GCSqGSIb3DQEBDQUAMIG...
                     {policy.desc}
                   </div>
                 </div>
-                {policy.control}
+                <button
+                  onClick={() => policy.set((v) => !v)}
+                  className="relative h-5 w-10 flex-shrink-0 rounded-full transition-colors"
+                  style={{
+                    background: policy.value ? 'var(--brand-primary)' : 'var(--border-default)',
+                  }}
+                >
+                  <span
+                    className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform"
+                    style={{ left: policy.value ? '22px' : '2px' }}
+                  />
+                </button>
               </div>
             ))}
+          </div>
+          {policyMsg && (
+            <div
+              className="border-t px-6 py-3 text-xs"
+              style={{
+                borderColor: 'var(--border-light)',
+                color: policyMsg.ok ? 'var(--status-success)' : '#ef4444',
+              }}
+            >
+              {policyMsg.text}
+            </div>
+          )}
+          <div
+            className="flex justify-end border-t px-6 py-4"
+            style={{ borderColor: 'var(--border-light)' }}
+          >
+            <button
+              onClick={savePolicy}
+              disabled={policyPending}
+              className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {policyPending ? 'Saving…' : 'Save session policy'}
+            </button>
           </div>
         </div>
       </section>
     </div>
-  );
-}
-
-function Toggle({ on }: { on: boolean }) {
-  return (
-    <button
-      className="relative h-5 w-10 flex-shrink-0 rounded-full transition-colors"
-      style={{ background: on ? 'var(--brand-primary)' : 'var(--border-default)' }}
-    >
-      <span
-        className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform"
-        style={{ left: on ? '22px' : '2px' }}
-      />
-    </button>
   );
 }

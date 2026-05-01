@@ -1,6 +1,90 @@
-export const metadata = { title: 'Settings — General' };
+'use client';
+
+import { useState, useTransition } from 'react';
 
 export default function SettingsGeneralPage() {
+  const [name, setName] = useState('Acme Corp');
+  const [slug, setSlug] = useState('acme');
+  const [description, setDescription] = useState('Acme Corporation — enterprise platform team');
+  const [timezone, setTimezone] = useState('UTC (Coordinated Universal Time)');
+  const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  // Notification prefs (local state, persisted via same general API)
+  const [notifPrefs, setNotifPrefs] = useState({
+    securityAlerts: true,
+    billingEvents: true,
+    memberActivity: false,
+    webhookFailures: true,
+  });
+  const [notifMsg, setNotifMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [notifPending, startNotifTransition] = useTransition();
+
+  function saveGeneral() {
+    setSaveMsg(null);
+    startTransition(async () => {
+      try {
+        const res = await fetch('/api/settings/general', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, slug, description, timezone }),
+        });
+        const json = (await res.json()) as { ok?: boolean; error?: string };
+        if (json.ok) {
+          setSaveMsg({ ok: true, text: 'Workspace settings saved.' });
+        } else {
+          setSaveMsg({ ok: false, text: json.error ?? 'Failed to save' });
+        }
+      } catch {
+        setSaveMsg({ ok: false, text: 'Request failed' });
+      }
+    });
+  }
+
+  function saveNotifications() {
+    setNotifMsg(null);
+    startNotifTransition(async () => {
+      try {
+        const res = await fetch('/api/settings/general', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notifPrefs }),
+        });
+        const json = (await res.json()) as { ok?: boolean; error?: string };
+        if (json.ok) {
+          setNotifMsg({ ok: true, text: 'Notification preferences saved.' });
+        } else {
+          setNotifMsg({ ok: false, text: json.error ?? 'Failed to save' });
+        }
+      } catch {
+        setNotifMsg({ ok: false, text: 'Request failed' });
+      }
+    });
+  }
+
+  const NOTIF_PREFS = [
+    {
+      key: 'securityAlerts' as const,
+      label: 'Security alerts',
+      desc: 'Unusual sign-ins, new API keys, SCIM token rotation',
+    },
+    {
+      key: 'billingEvents' as const,
+      label: 'Billing events',
+      desc: 'Invoice generated, payment failed, plan changed',
+    },
+    {
+      key: 'memberActivity' as const,
+      label: 'Member activity',
+      desc: 'New invitations accepted, role changes',
+    },
+    {
+      key: 'webhookFailures' as const,
+      label: 'Webhook failures',
+      desc: 'Delivery failures after max retries',
+    },
+  ];
+
   return (
     <div className="max-w-3xl space-y-6">
       {/* Workspace info */}
@@ -30,7 +114,8 @@ export default function SettingsGeneralPage() {
                 </label>
                 <input
                   type="text"
-                  defaultValue="Acme Corp"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                   style={{
                     borderColor: 'var(--border-default)',
@@ -62,7 +147,8 @@ export default function SettingsGeneralPage() {
                   </span>
                   <input
                     type="text"
-                    defaultValue="acme"
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value)}
                     className="flex-1 px-3 py-2 text-sm outline-none"
                     style={{ background: 'var(--bg-main)', color: 'var(--text-primary)' }}
                   />
@@ -78,7 +164,8 @@ export default function SettingsGeneralPage() {
               </label>
               <textarea
                 rows={2}
-                defaultValue="Acme Corporation — enterprise platform team"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 className="w-full resize-none rounded-xl border px-3 py-2 text-sm outline-none"
                 style={{
                   borderColor: 'var(--border-default)',
@@ -95,6 +182,8 @@ export default function SettingsGeneralPage() {
                 Timezone
               </label>
               <select
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
                 className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                 style={{
                   borderColor: 'var(--border-default)',
@@ -110,12 +199,27 @@ export default function SettingsGeneralPage() {
               </select>
             </div>
           </div>
+          {saveMsg && (
+            <div
+              className="border-t px-6 py-3 text-xs"
+              style={{
+                borderColor: 'var(--border-light)',
+                color: saveMsg.ok ? 'var(--status-success)' : '#ef4444',
+              }}
+            >
+              {saveMsg.text}
+            </div>
+          )}
           <div
             className="flex justify-end border-t px-6 py-4"
             style={{ borderColor: 'var(--border-light)' }}
           >
-            <button className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90">
-              Save changes
+            <button
+              onClick={saveGeneral}
+              disabled={isPending}
+              className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {isPending ? 'Saving…' : 'Save changes'}
             </button>
           </div>
         </div>
@@ -206,25 +310,8 @@ export default function SettingsGeneralPage() {
           }}
         >
           <div className="divide-y" style={{ borderColor: 'var(--border-light)' }}>
-            {[
-              {
-                label: 'Security alerts',
-                desc: 'Unusual sign-ins, new API keys, SCIM token rotation',
-                on: true,
-              },
-              {
-                label: 'Billing events',
-                desc: 'Invoice generated, payment failed, plan changed',
-                on: true,
-              },
-              {
-                label: 'Member activity',
-                desc: 'New invitations accepted, role changes',
-                on: false,
-              },
-              { label: 'Webhook failures', desc: 'Delivery failures after max retries', on: true },
-            ].map((pref) => (
-              <div key={pref.label} className="flex items-center justify-between px-6 py-4">
+            {NOTIF_PREFS.map((pref) => (
+              <div key={pref.key} className="flex items-center justify-between px-6 py-4">
                 <div>
                   <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                     {pref.label}
@@ -233,18 +320,47 @@ export default function SettingsGeneralPage() {
                     {pref.desc}
                   </div>
                 </div>
-                {/* Toggle */}
                 <button
-                  className={`relative h-5 w-10 flex-shrink-0 rounded-full transition-colors`}
-                  style={{ background: pref.on ? 'var(--brand-primary)' : 'var(--border-default)' }}
+                  onClick={() =>
+                    setNotifPrefs((prev) => ({ ...prev, [pref.key]: !prev[pref.key] }))
+                  }
+                  className="relative h-5 w-10 flex-shrink-0 rounded-full transition-colors"
+                  style={{
+                    background: notifPrefs[pref.key]
+                      ? 'var(--brand-primary)'
+                      : 'var(--border-default)',
+                  }}
                 >
                   <span
                     className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform"
-                    style={{ left: pref.on ? '22px' : '2px' }}
+                    style={{ left: notifPrefs[pref.key] ? '22px' : '2px' }}
                   />
                 </button>
               </div>
             ))}
+          </div>
+          {notifMsg && (
+            <div
+              className="border-t px-6 py-3 text-xs"
+              style={{
+                borderColor: 'var(--border-light)',
+                color: notifMsg.ok ? 'var(--status-success)' : '#ef4444',
+              }}
+            >
+              {notifMsg.text}
+            </div>
+          )}
+          <div
+            className="flex justify-end border-t px-6 py-4"
+            style={{ borderColor: 'var(--border-light)' }}
+          >
+            <button
+              onClick={saveNotifications}
+              disabled={notifPending}
+              className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {notifPending ? 'Saving…' : 'Save preferences'}
+            </button>
           </div>
         </div>
       </section>
