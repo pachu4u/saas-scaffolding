@@ -335,7 +335,10 @@ export function Sidebar({ tenantName = 'Workspace', tenantSlug, isAdmin }: Sideb
 
       {/* User footer */}
       <div className="flex-shrink-0 border-t p-3" style={{ borderColor: 'var(--border-light)' }}>
-        <div className="hover:bg-bg-main flex cursor-pointer items-center gap-2.5 rounded-xl px-2 py-2 transition-colors">
+        <Link
+          href="/profile"
+          className="hover:bg-bg-main flex cursor-pointer items-center gap-2.5 rounded-xl px-2 py-2 transition-colors"
+        >
           <div className="brand-gradient flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
             U
           </div>
@@ -350,7 +353,7 @@ export function Sidebar({ tenantName = 'Workspace', tenantSlug, isAdmin }: Sideb
               View profile
             </div>
           </div>
-        </div>
+        </Link>
       </div>
     </aside>
   );
