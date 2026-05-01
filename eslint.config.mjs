@@ -8,6 +8,14 @@ export default tseslint.config(
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
   {
+    languageOptions: {
+      parserOptions: {
+        // Automatically finds the nearest tsconfig.json for each file.
+        // Required for typed-linting rules (await-thenable, etc.) in a monorepo.
+        project: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
     plugins: {
       import: importPlugin,
     },
