@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 
 export const metadata = { title: 'Branding — Settings' };
 
@@ -26,6 +26,43 @@ function BrandingPageInner() {
   const [emailReply, setEmailReply] = useState('hello@acme.com');
   const [activePreset, setActivePreset] = useState<string | null>('Cobalt');
   const [activeTab, setActiveTab] = useState<'colors' | 'logo' | 'email' | 'login'>('colors');
+  const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function saveBranding(
+    section: 'colors' | 'logo' | 'email' | 'login',
+    extra: Record<string, string> = {},
+  ) {
+    setSaveMsg(null);
+    startTransition(async () => {
+      try {
+        const body: Record<string, string> = { section, ...extra };
+        if (section === 'colors') {
+          body.primaryColor = primaryColor;
+          body.accentColor = accentColor;
+          body.bgColor = bgColor;
+        } else if (section === 'logo') {
+          body.logoText = logoText;
+        } else if (section === 'email') {
+          body.emailFrom = emailFrom;
+          body.emailReply = emailReply;
+        }
+        const res = await fetch('/api/settings/branding', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const json = (await res.json()) as { ok?: boolean; error?: string };
+        if (json.ok) {
+          setSaveMsg({ ok: true, text: 'Branding settings saved.' });
+        } else {
+          setSaveMsg({ ok: false, text: json.error ?? 'Failed to save' });
+        }
+      } catch {
+        setSaveMsg({ ok: false, text: 'Request failed' });
+      }
+    });
+  }
 
   const applyPreset = (preset: (typeof presetPalettes)[number]) => {
     setPrimaryColor(preset.primary);
@@ -195,15 +232,28 @@ function BrandingPageInner() {
                   </pre>
                 </div>
               </div>
+              {saveMsg && activeTab === 'colors' && (
+                <div
+                  className="border-t px-6 py-3 text-xs"
+                  style={{
+                    borderColor: 'var(--border-light)',
+                    color: saveMsg.ok ? 'var(--status-success)' : '#ef4444',
+                  }}
+                >
+                  {saveMsg.text}
+                </div>
+              )}
               <div
                 className="flex justify-end border-t px-6 py-4"
                 style={{ borderColor: 'var(--border-light)' }}
               >
                 <button
-                  className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                  onClick={() => saveBranding('colors')}
+                  disabled={isPending}
+                  className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                   style={{ background: primaryColor }}
                 >
-                  Save color scheme
+                  {isPending ? 'Saving…' : 'Save color scheme'}
                 </button>
               </div>
             </div>
@@ -352,15 +402,28 @@ function BrandingPageInner() {
                   </div>
                 </div>
               </div>
+              {saveMsg && activeTab === 'logo' && (
+                <div
+                  className="border-t px-6 py-3 text-xs"
+                  style={{
+                    borderColor: 'var(--border-light)',
+                    color: saveMsg.ok ? 'var(--status-success)' : '#ef4444',
+                  }}
+                >
+                  {saveMsg.text}
+                </div>
+              )}
               <div
                 className="flex justify-end border-t px-6 py-4"
                 style={{ borderColor: 'var(--border-light)' }}
               >
                 <button
-                  className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                  onClick={() => saveBranding('logo')}
+                  disabled={isPending}
+                  className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                   style={{ background: primaryColor }}
                 >
-                  Save logo settings
+                  {isPending ? 'Saving…' : 'Save logo settings'}
                 </button>
               </div>
             </div>
@@ -494,6 +557,17 @@ function BrandingPageInner() {
                   </p>
                 </div>
               </div>
+              {saveMsg && activeTab === 'email' && (
+                <div
+                  className="border-t px-6 py-3 text-xs"
+                  style={{
+                    borderColor: 'var(--border-light)',
+                    color: saveMsg.ok ? 'var(--status-success)' : '#ef4444',
+                  }}
+                >
+                  {saveMsg.text}
+                </div>
+              )}
               <div
                 className="flex justify-end gap-2 border-t px-6 py-4"
                 style={{ borderColor: 'var(--border-light)' }}
@@ -505,10 +579,12 @@ function BrandingPageInner() {
                   Send test email
                 </button>
                 <button
-                  className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                  onClick={() => saveBranding('email')}
+                  disabled={isPending}
+                  className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                   style={{ background: primaryColor }}
                 >
-                  Save email settings
+                  {isPending ? 'Saving…' : 'Save email settings'}
                 </button>
               </div>
             </div>
@@ -625,15 +701,28 @@ function BrandingPageInner() {
                   />
                 </div>
               </div>
+              {saveMsg && activeTab === 'login' && (
+                <div
+                  className="border-t px-6 py-3 text-xs"
+                  style={{
+                    borderColor: 'var(--border-light)',
+                    color: saveMsg.ok ? 'var(--status-success)' : '#ef4444',
+                  }}
+                >
+                  {saveMsg.text}
+                </div>
+              )}
               <div
                 className="flex justify-end border-t px-6 py-4"
                 style={{ borderColor: 'var(--border-light)' }}
               >
                 <button
-                  className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                  onClick={() => saveBranding('login')}
+                  disabled={isPending}
+                  className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                   style={{ background: primaryColor }}
                 >
-                  Save login page settings
+                  {isPending ? 'Saving…' : 'Save login page settings'}
                 </button>
               </div>
             </div>

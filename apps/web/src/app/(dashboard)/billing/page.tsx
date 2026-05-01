@@ -1,6 +1,7 @@
 import { auth } from '@platform/auth';
 import { redirect } from 'next/navigation';
 
+import { ManageSubscriptionButton, UpgradePlanButton } from '@/components/billing/billing-buttons';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 
@@ -8,6 +9,7 @@ export const metadata = { title: 'Billing' };
 
 const plans = [
   {
+    code: 'free',
     name: 'Free',
     price: '$0',
     period: '/mo',
@@ -15,6 +17,7 @@ const plans = [
     current: false,
   },
   {
+    code: 'pro',
     name: 'Pro',
     price: '$49',
     period: '/mo',
@@ -29,6 +32,7 @@ const plans = [
     current: true,
   },
   {
+    code: 'enterprise',
     name: 'Enterprise',
     price: 'Custom',
     period: '',
@@ -50,9 +54,15 @@ const invoices = [
   { date: 'Jan 1, 2026', amount: '$49.00', status: 'Paid', id: 'INV-2026-001' },
 ];
 
-export default async function BillingPage() {
+interface BillingPageProps {
+  searchParams: Promise<{ checkout?: string }>;
+}
+
+export default async function BillingPage({ searchParams }: BillingPageProps) {
   const session = await auth();
   if (!session) redirect('/auth/signin');
+
+  const { checkout } = await searchParams;
 
   return (
     <div>
@@ -64,6 +74,68 @@ export default async function BillingPage() {
       />
 
       <main className="space-y-6 p-6">
+        {/* Checkout result banner */}
+        {checkout === 'success' && (
+          <div
+            className="flex items-center gap-3 rounded-2xl border px-5 py-4"
+            style={{
+              background: 'rgba(22,163,74,0.06)',
+              borderColor: 'rgba(22,163,74,0.25)',
+            }}
+          >
+            <svg
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-5 w-5 flex-shrink-0"
+              style={{ color: 'var(--status-success)' }}
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm3.707-9.293a1 1 0 0 0-1.414-1.414L9 10.586 7.707 9.293a1 1 0 0 0-1.414 1.414l2 2a1 1 0 0 0 1.414 0l4-4z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <div>
+              <p className="text-sm font-semibold" style={{ color: 'var(--status-success)' }}>
+                Subscription activated!
+              </p>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                Your plan has been updated. Changes are reflected immediately.
+              </p>
+            </div>
+          </div>
+        )}
+        {checkout === 'cancelled' && (
+          <div
+            className="flex items-center gap-3 rounded-2xl border px-5 py-4"
+            style={{
+              background: 'rgba(245,158,11,0.06)',
+              borderColor: 'rgba(245,158,11,0.25)',
+            }}
+          >
+            <svg
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-5 w-5 flex-shrink-0"
+              style={{ color: 'var(--status-warning)' }}
+            >
+              <path
+                fillRule="evenodd"
+                d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <div>
+              <p className="text-sm font-semibold" style={{ color: 'var(--status-warning)' }}>
+                Checkout cancelled
+              </p>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                No changes were made to your subscription.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Current plan summary */}
         <div
           className="relative overflow-hidden rounded-2xl border p-6"
@@ -132,15 +204,12 @@ export default async function BillingPage() {
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <button className="brand-gradient rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90">
-                Manage subscription
-              </button>
-              <button
-                className="hover:bg-bg-subtle rounded-xl border px-5 py-2.5 text-sm font-semibold transition-colors"
+              <ManageSubscriptionButton className="brand-gradient w-full rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50" />
+              <ManageSubscriptionButton
+                label="Update payment method"
+                className="hover:bg-bg-subtle w-full rounded-xl border px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
                 style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
-              >
-                Update payment method
-              </button>
+              />
             </div>
           </div>
         </div>
@@ -199,21 +268,30 @@ export default async function BillingPage() {
                     </li>
                   ))}
                 </ul>
-                <button
-                  className={`w-full rounded-xl py-2 text-xs font-semibold transition-all ${plan.current ? 'cursor-default opacity-50' : 'hover:opacity-90'}`}
-                  style={
-                    plan.current
-                      ? { background: 'var(--border-default)', color: 'var(--text-muted)' }
-                      : { background: 'var(--brand-primary)', color: '#fff' }
-                  }
-                  disabled={plan.current}
-                >
-                  {plan.current
-                    ? 'Current plan'
-                    : plan.name === 'Enterprise'
-                      ? 'Contact sales'
-                      : `Upgrade to ${plan.name}`}
-                </button>
+                {plan.current ? (
+                  <button
+                    disabled
+                    className="w-full cursor-default rounded-xl py-2 text-xs font-semibold opacity-50"
+                    style={{ background: 'var(--border-default)', color: 'var(--text-muted)' }}
+                  >
+                    Current plan
+                  </button>
+                ) : plan.code === 'enterprise' ? (
+                  <a
+                    href="mailto:sales@riogentix.io"
+                    className="block w-full rounded-xl py-2 text-center text-xs font-semibold hover:opacity-90"
+                    style={{ background: 'var(--brand-primary)', color: '#fff' }}
+                  >
+                    Contact sales
+                  </a>
+                ) : (
+                  <UpgradePlanButton
+                    planCode={plan.code}
+                    label={`Upgrade to ${plan.name}`}
+                    className="w-full rounded-xl py-2 text-xs font-semibold hover:opacity-90 disabled:opacity-50"
+                    style={{ background: 'var(--brand-primary)', color: '#fff' }}
+                  />
+                )}
               </div>
             ))}
           </div>
