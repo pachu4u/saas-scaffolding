@@ -1,0 +1,7 @@
+# Default owner
+* @your-org/platform-team
+
+# Critical security paths require security team review
+packages/authz/  @your-org/security-team @your-org/platform-team
+packages/db/     @your-org/security-team @your-org/platform-team
+infra/           @your-org/infrastructure-team @your-org/platform-team

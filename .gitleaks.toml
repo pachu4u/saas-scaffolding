@@ -1,0 +1,23 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "platform-internal-secret"
+description = "Hardcoded platform internal secret"
+regex = '''PLATFORM_INTERNAL_SECRET\s*=\s*["']?[A-Za-z0-9+/]{16,}["']?'''
+tags = ["secret", "platform"]
+
+[allowlist]
+paths = [
+  ".env.example",
+  ".gitleaks.toml",
+  "**/tests/**",
+  "**/*.test.ts",
+  "**/__fixtures__/**",
+]
+regexes = [
+  "change-me-.*",
+  "sk_test_\\.\\.\\.",
+  "whsec_\\.\\.\\.",
+  "pk_test_\\.\\.\\.",
+]

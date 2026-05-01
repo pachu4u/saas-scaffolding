@@ -1,0 +1,11 @@
+{{- if .Values.web.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: web
+spec:
+  maxUnavailable: {{ .Values.web.podDisruptionBudget.maxUnavailable }}
+  selector:
+    matchLabels:
+      app: web
+{{- end }}

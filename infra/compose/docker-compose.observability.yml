@@ -1,0 +1,89 @@
+name: saas-platform
+
+networks:
+  platform:
+    external: true
+
+volumes:
+  grafana-data:
+  loki-data:
+  tempo-data:
+  prometheus-data:
+
+services:
+  # ─── OpenTelemetry Collector ─────────────────────────────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.104.0
+    container_name: otel-collector
+    restart: unless-stopped
+    networks:
+      - platform
+    command: ["--config=/etc/otel-config.yml"]
+    volumes:
+      - ../observability/otel-config.yml:/etc/otel-config.yml:ro
+    ports:
+      - "4317:4317"   # gRPC
+      - "4318:4318"   # HTTP
+
+  # ─── Prometheus ──────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: prometheus
+    restart: unless-stopped
+    networks:
+      - platform
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-remote-write-receiver
+      - --enable-feature=exemplar-storage
+    volumes:
+      - ../observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+  # ─── Loki ────────────────────────────────────────────────────────────────
+  loki:
+    image: grafana/loki:3.1.0
+    container_name: loki
+    restart: unless-stopped
+    networks:
+      - platform
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ../observability/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+
+  # ─── Tempo ───────────────────────────────────────────────────────────────
+  tempo:
+    image: grafana/tempo:2.5.0
+    container_name: tempo
+    restart: unless-stopped
+    networks:
+      - platform
+    command: -config.file=/etc/tempo-config.yml
+    volumes:
+      - ../observability/tempo-config.yml:/etc/tempo-config.yml:ro
+      - tempo-data:/tmp/tempo
+
+  # ─── Grafana ─────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: grafana
+    restart: unless-stopped
+    networks:
+      - platform
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: false
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.lvh.me`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"

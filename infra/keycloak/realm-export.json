@@ -1,0 +1,179 @@
+{
+  "realm": "saas-platform",
+  "enabled": true,
+  "displayName": "SaaS Platform",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "accessTokenLifespan": 300,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "roles": {
+    "realm": [
+      { "name": "platform_super_admin", "description": "Full platform access" },
+      { "name": "platform_support", "description": "Read-only platform support access" }
+    ]
+  },
+  "groups": [
+    {
+      "name": "acme",
+      "attributes": {
+        "tenant_slug": ["acme"]
+      }
+    },
+    {
+      "name": "globex",
+      "attributes": {
+        "tenant_slug": ["globex"]
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "web",
+      "name": "SaaS Platform Web",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "change-me-keycloak-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "redirectUris": [
+        "https://app.lvh.me/*",
+        "https://*.lvh.me/*",
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "https://app.lvh.me",
+        "https://*.lvh.me",
+        "http://localhost:3000"
+      ],
+      "protocol": "openid-connect",
+      "attributes": {
+        "access.token.lifespan": "300",
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "tenant_ids",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups",
+            "jsonType.label": "String",
+            "multivalued": "true"
+          }
+        },
+        {
+          "name": "audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "web",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "platform-admin-cli",
+      "name": "Platform Admin CLI",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "change-me-admin-cli-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "email": "alice@acme.test",
+      "firstName": "Alice",
+      "lastName": "Acme",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "alice123",
+          "temporary": false
+        }
+      ],
+      "groups": ["acme"],
+      "realmRoles": []
+    },
+    {
+      "username": "bob",
+      "email": "bob@globex.test",
+      "firstName": "Bob",
+      "lastName": "Globex",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "bob123",
+          "temporary": false
+        }
+      ],
+      "groups": ["globex"],
+      "realmRoles": []
+    },
+    {
+      "username": "platform-admin",
+      "email": "admin@platform.test",
+      "firstName": "Platform",
+      "lastName": "Admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "platform123",
+          "temporary": false
+        }
+      ],
+      "groups": [],
+      "realmRoles": ["platform_super_admin"]
+    }
+  ],
+  "scopeMappings": [],
+  "clientScopeMappings": {},
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "noreply@platform.test",
+    "fromDisplayName": "SaaS Platform"
+  },
+  "eventsEnabled": true,
+  "eventsListeners": ["jboss-logging"],
+  "enabledEventTypes": [
+    "LOGIN", "LOGOUT", "LOGIN_ERROR", "REGISTER", "REGISTER_ERROR",
+    "UPDATE_PASSWORD", "UPDATE_PASSWORD_ERROR", "UPDATE_PROFILE"
+  ],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true
+}

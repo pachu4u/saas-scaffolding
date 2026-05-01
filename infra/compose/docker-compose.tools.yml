@@ -1,0 +1,57 @@
+name: saas-platform
+
+networks:
+  platform:
+    external: true
+
+services:
+  # ─── Mailpit (dev SMTP + inbox UI) ───────────────────────────────────────
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: mailpit
+    restart: unless-stopped
+    networks:
+      - platform
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ACCEPT_ANY: true
+      MP_SMTP_AUTH_ALLOW_INSECURE: true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mailpit.rule=Host(`mail.lvh.me`)"
+      - "traefik.http.routers.mailpit.entrypoints=websecure"
+      - "traefik.http.routers.mailpit.tls=true"
+      - "traefik.http.services.mailpit.loadbalancer.server.port=8025"
+
+  # ─── Stripe CLI (webhook forwarding) ────────────────────────────────────
+  stripe-cli:
+    image: stripe/stripe-cli:latest
+    container_name: stripe-cli
+    networks:
+      - platform
+    environment:
+      STRIPE_API_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
+      STRIPE_DEVICE_NAME: saas-platform-local
+    command:
+      - listen
+      - --forward-to
+      - web:3000/api/billing/webhook
+      - --skip-verify
+
+  # ─── pgAdmin ─────────────────────────────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: pgadmin
+    restart: unless-stopped
+    networks:
+      - platform
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DISABLE_POSTFIX: true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pgadmin.rule=Host(`pgadmin.lvh.me`)"
+      - "traefik.http.routers.pgadmin.entrypoints=websecure"
+      - "traefik.http.routers.pgadmin.tls=true"
+      - "traefik.http.services.pgadmin.loadbalancer.server.port=80"

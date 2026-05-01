@@ -1,0 +1,41 @@
+{
+  "name": "@platform/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.18.0",
+    "@platform/auth": "workspace:*",
+    "@platform/authz": "workspace:*",
+    "@platform/billing": "workspace:*",
+    "@platform/config": "workspace:*",
+    "@platform/db": "workspace:*",
+    "@platform/logger": "workspace:*",
+    "@platform/notifications": "workspace:*",
+    "@platform/observability": "workspace:*",
+    "@platform/scim": "workspace:*",
+    "@platform/tenant": "workspace:*",
+    "@platform/ui": "workspace:*",
+    "next": "^15.0.0",
+    "next-auth": "^5.0.0-beta.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.40",
+    "prettier-plugin-tailwindcss": "^0.6.5",
+    "tailwindcss": "^3.4.7",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.0"
+  }
+}

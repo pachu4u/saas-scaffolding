@@ -1,0 +1,26 @@
+platform:
+  domain: "your-domain.com"
+
+web:
+  replicaCount: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+
+workers:
+  replicaCount: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 15
+
+# Use external managed services in prod
+appdb:
+  enabled: false
+
+redis:
+  enabled: false
+
+external-secrets:
+  enabled: true

@@ -1,0 +1,38 @@
+apiVersion: v2
+name: saas-platform
+description: Enterprise SaaS Platform — Helm umbrella chart
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+dependencies:
+  - name: postgresql
+    version: "15.5.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    alias: appdb
+    condition: appdb.enabled
+
+  - name: redis
+    version: "19.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+
+  - name: keycloak
+    version: "21.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: keycloak.enabled
+
+  - name: traefik
+    version: "28.x"
+    repository: "https://helm.traefik.io/traefik"
+    condition: traefik.enabled
+
+  - name: cert-manager
+    version: "v1.15.x"
+    repository: "https://charts.jetstack.io"
+    condition: cert-manager.enabled
+
+  - name: external-secrets
+    version: "0.10.x"
+    repository: "https://charts.external-secrets.io"
+    condition: external-secrets.enabled

@@ -1,0 +1,339 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [citext, pgcrypto, uuid_ossp(map: "uuid-ossp")]
+}
+
+// ─── Identity & Tenancy ──────────────────────────────────────────────────────
+
+model Tenant {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug          String   @unique @db.Citext
+  name          String
+  status        TenantStatus @default(ACTIVE)
+  plan          String   @default("free")
+  customDomains String[] @map("custom_domains")
+  branding      Json     @default("{}") @db.JsonB
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenantUsers       TenantUser[]
+  roleBindings      RoleBinding[]
+  subscription      Subscription?
+  usageEvents       UsageEvent[]
+  scimTokens        ScimToken[]
+  webhookEndpoints  WebhookEndpoint[]
+  auditLogs         AuditLog[]
+  notes             Note[]
+  idempotencyKeys   IdempotencyKey[]
+
+  @@map("tenants")
+}
+
+model User {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  externalId String   @unique @map("external_id")
+  email      String   @unique @db.Citext
+  status     UserStatus @default(ACTIVE)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenantUsers        TenantUser[]
+  roleBindings       RoleBinding[]
+  externalIdentities ExternalIdentity[]
+  auditLogs          AuditLog[]
+
+  @@map("users")
+}
+
+model TenantUser {
+  tenantId String   @map("tenant_id") @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  status   TenantUserStatus @default(ACTIVE)
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, userId])
+  @@map("tenant_users")
+}
+
+// ─── Authorization ───────────────────────────────────────────────────────────
+
+model Role {
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String? @map("tenant_id") @db.Uuid
+  name       String
+  isSystem   Boolean @default(false) @map("is_system")
+
+  permissions RolePermission[]
+  bindings    RoleBinding[]
+
+  @@unique([tenantId, name])
+  @@map("roles")
+}
+
+model Permission {
+  id   String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code String @unique
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model RoleBinding {
+  tenantId String @map("tenant_id") @db.Uuid
+  userId   String @map("user_id") @db.Uuid
+  roleId   String @map("role_id") @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, userId, roleId])
+  @@map("role_bindings")
+}
+
+// ─── Entitlements & Billing ──────────────────────────────────────────────────
+
+model Plan {
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String @unique
+  name           String
+  features       Json   @default("{}") @db.JsonB
+  priceIdStripe  String? @map("price_id_stripe")
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  tenantId               String   @id @map("tenant_id") @db.Uuid
+  planId                 String   @map("plan_id") @db.Uuid
+  status                 SubscriptionStatus @default(ACTIVE)
+  stripeCustomerId       String?  @map("stripe_customer_id")
+  stripeSubscriptionId   String?  @map("stripe_subscription_id")
+  currentPeriodEnd       DateTime? @map("current_period_end")
+  trialEndsAt            DateTime? @map("trial_ends_at")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model UsageEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  kind       String
+  quantity   Int      @default(1)
+  occurredAt DateTime @default(now()) @map("occurred_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, kind, occurredAt])
+  @@map("usage_events")
+}
+
+// ─── SCIM ────────────────────────────────────────────────────────────────────
+
+model ScimToken {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  name        String
+  hashedToken String    @map("hashed_token")
+  scopes      String[]
+  createdAt   DateTime  @default(now()) @map("created_at")
+  lastUsedAt  DateTime? @map("last_used_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("scim_tokens")
+}
+
+model ExternalIdentity {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  userId   String @map("user_id") @db.Uuid
+  idp      String
+  idpUserId String @map("idp_user_id")
+  raw      Json   @default("{}") @db.JsonB
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, idp, idpUserId])
+  @@map("external_identities")
+}
+
+// ─── Audit ───────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id           BigInt   @id @default(autoincrement())
+  tenantId     String   @map("tenant_id") @db.Uuid
+  actorUserId  String?  @map("actor_user_id") @db.Uuid
+  action       String
+  resourceType String   @map("resource_type")
+  resourceId   String   @map("resource_id")
+  before       Json?    @db.JsonB
+  after        Json?    @db.JsonB
+  ip           String?
+  userAgent    String?  @map("user_agent")
+  occurredAt   DateTime @default(now()) @map("occurred_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actor  User?  @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, occurredAt])
+  @@index([actorUserId])
+  @@map("audit_log")
+}
+
+// ─── Async / Idempotency ─────────────────────────────────────────────────────
+
+model Job {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String?   @map("tenant_id") @db.Uuid
+  queue        String
+  payload      Json      @db.JsonB
+  status       JobStatus @default(PENDING)
+  attempts     Int       @default(0)
+  scheduledFor DateTime  @default(now()) @map("scheduled_for")
+  lastError    String?   @map("last_error")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([queue, status, scheduledFor])
+  @@map("jobs")
+}
+
+model IdempotencyKey {
+  key          String   @id
+  tenantId     String   @map("tenant_id") @db.Uuid
+  requestHash  String   @map("request_hash")
+  response     Json?    @db.JsonB
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
+
+// ─── Webhooks ────────────────────────────────────────────────────────────────
+
+model WebhookEndpoint {
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId String   @map("tenant_id") @db.Uuid
+  url      String
+  secret   String
+  events   String[]
+  status   WebhookEndpointStatus @default(ACTIVE)
+
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@map("webhook_endpoints")
+}
+
+model WebhookDelivery {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  endpointId  String    @map("endpoint_id") @db.Uuid
+  eventId     String    @map("event_id")
+  status      WebhookDeliveryStatus @default(PENDING)
+  attempts    Int       @default(0)
+  lastError   String?   @map("last_error")
+  nextRetryAt DateTime? @map("next_retry_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId, status])
+  @@map("webhook_deliveries")
+}
+
+// ─── Demo table (Phase 6) ────────────────────────────────────────────────────
+
+model Note {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  body      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("notes")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum TenantUserStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  PAUSED
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  DEAD
+}
+
+enum WebhookEndpointStatus {
+  ACTIVE
+  PAUSED
+  DELETED
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  DEAD
+}
