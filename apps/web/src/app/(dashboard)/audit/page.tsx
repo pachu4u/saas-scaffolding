@@ -136,7 +136,7 @@ export default async function AuditPage() {
         title="Audit Log"
         subtitle="All workspace actions, immutable and searchable"
         userEmail={session.user.email}
-        userName={session.user.name}
+        userName={session.user.name ?? undefined}
         actions={
           <button
             className="hover:bg-bg-subtle rounded-xl border px-4 py-2 text-sm font-semibold transition-colors"

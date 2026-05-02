@@ -87,7 +87,7 @@ export default async function DashboardPage() {
         title="Dashboard"
         subtitle="Welcome back — here's what's happening"
         userEmail={session.user.email}
-        userName={session.user.name}
+        userName={session.user.name ?? undefined}
       />
 
       <main className="space-y-6 p-6">

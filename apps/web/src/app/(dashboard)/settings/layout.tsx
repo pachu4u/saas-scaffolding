@@ -21,7 +21,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
         title="Settings"
         subtitle="Workspace configuration, branding, and security"
         userEmail={session.user.email}
-        userName={session.user.name}
+        userName={session.user.name ?? undefined}
       />
       <div
         className="border-b"

@@ -52,9 +52,9 @@ export async function GET(req: NextRequest) {
           },
         },
         auditLogs: {
-          orderBy: { createdAt: 'desc' },
+          orderBy: { occurredAt: 'desc' },
           take: 1,
-          select: { createdAt: true, action: true },
+          select: { occurredAt: true, action: true },
         },
       },
     }),
@@ -64,7 +64,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     users: users.map((u) => ({
       ...u,
-      lastActivity: u.auditLogs[0] ?? null,
+      lastActivity: u.auditLogs[0]
+        ? { action: u.auditLogs[0].action, occurredAt: u.auditLogs[0].occurredAt }
+        : null,
     })),
     total,
     limit,

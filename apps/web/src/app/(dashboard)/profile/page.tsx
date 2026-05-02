@@ -22,11 +22,11 @@ export default async function ProfilePage() {
     where: { externalId: session.user.id },
     include: {
       tenantUsers: {
-        where: { status: { not: 'DELETED' } },
+        where: { status: { not: 'SUSPENDED' } },
         include: {
           tenant: { select: { id: true, name: true, slug: true, plan: true } },
         },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { joinedAt: 'asc' },
       },
     },
   });
@@ -49,7 +49,7 @@ export default async function ProfilePage() {
         title="Profile"
         subtitle="Your account details and workspace memberships"
         userEmail={session.user.email}
-        userName={session.user.name}
+        userName={session.user.name ?? undefined}
       />
 
       <main className="space-y-6 p-6">

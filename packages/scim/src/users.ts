@@ -23,11 +23,14 @@ export function toScimUser(
   };
 }
 
-export async function scimGetUsers(tenantId: string, params: {
-  filter?: string;
-  startIndex: number;
-  count: number;
-}) {
+export async function scimGetUsers(
+  tenantId: string,
+  params: {
+    filter?: string;
+    startIndex: number;
+    count: number;
+  },
+) {
   const { startIndex, count } = params;
 
   const [users, total] = await withTenant(tenantId, async (tx) => {
@@ -43,12 +46,16 @@ export async function scimGetUsers(tenantId: string, params: {
   return { users, total };
 }
 
-export async function scimCreateUser(tenantId: string, data: {
-  userName: string;
-  externalId?: string;
-  name?: { givenName?: string; familyName?: string };
-  active?: boolean;
-}, actorUserId?: string) {
+export async function scimCreateUser(
+  tenantId: string,
+  data: {
+    userName: string;
+    externalId?: string;
+    name?: { givenName?: string; familyName?: string };
+    active?: boolean;
+  },
+  actorUserId?: string,
+) {
   const email = data.userName.toLowerCase();
 
   // Idempotent: if externalId already exists for this tenant, return existing
@@ -79,13 +86,19 @@ export async function scimCreateUser(tenantId: string, data: {
     await adminDb.externalIdentity.upsert({
       where: { tenantId_idp_idpUserId: { tenantId, idp: 'scim', idpUserId: data.externalId } },
       update: {},
-      create: { tenantId, userId: user.id, idp: 'scim', idpUserId: data.externalId, raw: data as object },
+      create: {
+        tenantId,
+        userId: user.id,
+        idp: 'scim',
+        idpUserId: data.externalId,
+        raw: data as object,
+      },
     });
   }
 
   await auditLog({
     tenantId,
-    actorUserId,
+    ...(actorUserId ? { actorUserId } : {}),
     action: 'scim.user.create',
     resourceType: 'User',
     resourceId: user.id,
@@ -102,7 +115,7 @@ export async function scimDeleteUser(tenantId: string, userId: string, actorUser
 
   await auditLog({
     tenantId,
-    actorUserId,
+    ...(actorUserId ? { actorUserId } : {}),
     action: 'scim.user.delete',
     resourceType: 'User',
     resourceId: userId,

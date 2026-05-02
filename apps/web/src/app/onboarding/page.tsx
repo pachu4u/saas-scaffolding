@@ -3,8 +3,6 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
-export const metadata = { title: 'Welcome — Get Started' };
-
 // ────────────────────────────────────────────────────────────
 // Step definitions
 // ────────────────────────────────────────────────────────────

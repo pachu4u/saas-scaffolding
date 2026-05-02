@@ -62,7 +62,7 @@ export default async function AdminPage() {
         title="Platform Admin"
         subtitle="Global overview across all tenants"
         userEmail={session.user.email}
-        userName={session.user.name}
+        userName={session.user.name ?? undefined}
         actions={
           <Badge variant="purple" dot>
             Super Admin

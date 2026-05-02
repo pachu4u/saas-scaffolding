@@ -11,8 +11,8 @@ import { decodeInviteToken } from '../../route';
  * Validates the invite token and activates the TenantUser membership.
  * Called by the /invite/[token] page server action after the user confirms.
  */
-export async function POST(_req: NextRequest, { params }: { params: { token: string } }) {
-  const { token } = params;
+export async function POST(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
   const { tenantId, userId } = decodeInviteToken(token);
 
   if (!tenantId || !userId) {

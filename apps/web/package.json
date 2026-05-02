@@ -16,6 +16,7 @@
     "@platform/billing": "workspace:*",
     "@platform/config": "workspace:*",
     "@platform/db": "workspace:*",
+    "@platform/jobs": "workspace:*",
     "@platform/logger": "workspace:*",
     "@platform/notifications": "workspace:*",
     "@platform/observability": "workspace:*",

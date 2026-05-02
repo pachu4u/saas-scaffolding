@@ -28,7 +28,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   // Verify endpoint belongs to tenant
   const endpoint = await adminDb.webhookEndpoint.findFirst({
-    where: { id, tenantId: tenantCtx.id },
+    where: { id, tenantId: tenantCtx.tenantId },
   });
   if (!endpoint) return NextResponse.json({ error: 'Endpoint not found' }, { status: 404 });
 

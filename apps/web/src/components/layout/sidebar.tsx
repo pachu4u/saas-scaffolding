@@ -134,7 +134,10 @@ export function Sidebar({ tenantName = 'Workspace', tenantSlug, isAdmin }: Sideb
             riogentix
           </span>
         </div>
-        <WorkspaceSwitcher currentName={tenantName} currentSlug={tenantSlug} />
+        <WorkspaceSwitcher
+          currentName={tenantName}
+          {...(tenantSlug ? { currentSlug: tenantSlug } : {})}
+        />
       </div>
 
       {/* Nav */}

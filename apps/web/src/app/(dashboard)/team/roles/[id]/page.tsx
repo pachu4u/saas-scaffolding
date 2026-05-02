@@ -243,17 +243,18 @@ const membersForRole: Record<string, { name: string; email: string; avatar: stri
   custom_devops: [],
 };
 
-export default function RoleDetailPage({ params }: { params: { id: string } }) {
-  const role = roleData[params.id] ??
+export default async function RoleDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const role = roleData[id] ??
     roleData.tenant_user ?? {
       name: 'Unknown',
       description: '',
       isSystem: true,
       color: 'default' as const,
-      permCount: 0,
+      memberCount: 0,
     };
-  const grants = roleGrants[params.id] ?? new Set<string>();
-  const members = membersForRole[params.id] ?? [];
+  const grants = roleGrants[id] ?? new Set<string>();
+  const members = membersForRole[id] ?? [];
   const totalPerms = permissionGroups.reduce((acc, g) => acc + g.permissions.length, 0);
   const grantedCount = [...grants].length;
 

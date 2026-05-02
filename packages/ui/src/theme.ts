@@ -27,8 +27,8 @@ export function parseBranding(branding: unknown): BrandTheme {
   return {
     primaryColor: (b['primaryColor'] as string) ?? DEFAULT_THEME.primaryColor,
     secondaryColor: (b['secondaryColor'] as string) ?? DEFAULT_THEME.secondaryColor,
-    logoUrl: b['logoUrl'] as string | undefined,
-    faviconUrl: b['faviconUrl'] as string | undefined,
+    ...(b['logoUrl'] ? { logoUrl: b['logoUrl'] as string } : {}),
+    ...(b['faviconUrl'] ? { faviconUrl: b['faviconUrl'] as string } : {}),
     name: (b['name'] as string) ?? DEFAULT_THEME.name,
   };
 }

@@ -1,6 +1,12 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
-import { authenticateScim, scimGetUsers, scimCreateUser, toScimUser, SCIM_SCHEMAS } from '@platform/scim';
+import {
+  authenticateScim,
+  scimGetUsers,
+  scimCreateUser,
+  toScimUser,
+  SCIM_SCHEMAS,
+} from '@platform/scim';
 
 const BASE_URL = process.env['NEXT_PUBLIC_APP_URL'] ?? 'https://app.lvh.me';
 
@@ -36,8 +42,8 @@ export async function POST(req: NextRequest) {
 
   const user = await scimCreateUser(ctx.tenantId, {
     userName,
-    externalId: body['externalId'] as string | undefined,
-    name: body['name'] as { givenName?: string; familyName?: string } | undefined,
+    ...(body['externalId'] ? { externalId: body['externalId'] as string } : {}),
+    ...(body['name'] ? { name: body['name'] as { givenName?: string; familyName?: string } } : {}),
   });
 
   return NextResponse.json(toScimUser(user, scimUrl), { status: 201 });

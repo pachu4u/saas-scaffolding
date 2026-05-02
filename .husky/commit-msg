@@ -1,4 +1,9 @@
 #!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
 
-pnpm commitlint --edit "$1"
+COMMON_DIR=$(git rev-parse --git-common-dir)
+case "$COMMON_DIR" in
+  .git) REPO_ROOT=$(git rev-parse --show-toplevel) ;;
+  *)    REPO_ROOT=$(dirname "$COMMON_DIR") ;;
+esac
+
+"$REPO_ROOT/node_modules/.bin/commitlint" --edit "$1"

@@ -13,6 +13,7 @@ COPY packages/authz/package.json ./packages/authz/
 COPY packages/billing/package.json ./packages/billing/
 COPY packages/config/package.json ./packages/config/
 COPY packages/db/package.json ./packages/db/
+COPY packages/jobs/package.json ./packages/jobs/
 COPY packages/logger/package.json ./packages/logger/
 COPY packages/notifications/package.json ./packages/notifications/
 COPY packages/observability/package.json ./packages/observability/
@@ -38,8 +39,9 @@ RUN pnpm --filter @platform/db db:generate
 
 # Build packages first (dependency order)
 RUN pnpm --filter @platform/config build
-RUN pnpm --filter @platform/logger build
 RUN pnpm --filter @platform/db build
+RUN pnpm --filter @platform/logger build
+RUN pnpm --filter @platform/jobs build
 RUN pnpm --filter @platform/tenant build
 RUN pnpm --filter @platform/authz build
 RUN pnpm --filter @platform/auth build
@@ -49,6 +51,8 @@ RUN pnpm --filter @platform/notifications build
 RUN pnpm --filter @platform/observability build
 RUN pnpm --filter @platform/ui build
 RUN pnpm --filter @platform/web build
+# Ensure public dir exists so the runner COPY doesn't fail
+RUN mkdir -p /app/apps/web/public
 
 # ─── Stage 3: runner ─────────────────────────────────────────────────────────
 FROM gcr.io/distroless/nodejs20-debian12 AS runner

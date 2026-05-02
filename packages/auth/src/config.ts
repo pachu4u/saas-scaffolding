@@ -26,7 +26,7 @@ export const authConfig: NextAuthConfig = {
         token.sub = profile.sub as string;
         token.email = profile.email as string;
         // Keycloak groups claim (mapped to tenant slugs)
-        token.groups = (profile as Record<string, unknown>)['groups'] as string[] ?? [];
+        token.groups = ((profile as Record<string, unknown>)['groups'] as string[]) ?? [];
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
         token.expiresAt = account.expires_at;
@@ -39,7 +39,7 @@ export const authConfig: NextAuthConfig = {
         session.user.id = token.sub as string;
       }
       if (token.groups) {
-        (session as Record<string, unknown>)['groups'] = token.groups;
+        (session as unknown as Record<string, unknown>)['groups'] = token.groups;
       }
       return session;
     },

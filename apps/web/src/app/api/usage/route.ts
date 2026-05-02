@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
   // Aggregate usage events by kind and calendar month
   const events = await adminDb.usageEvent.findMany({
-    where: { tenantId: tenantCtx.id, occurredAt: { gte: since } },
+    where: { tenantId: tenantCtx.tenantId, occurredAt: { gte: since } },
     select: { kind: true, quantity: true, occurredAt: true },
     orderBy: { occurredAt: 'asc' },
   });

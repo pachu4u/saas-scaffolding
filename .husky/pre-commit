@@ -1,4 +1,13 @@
 #!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
 
-pnpm lint-staged
+# Resolve monorepo root from either a regular checkout or a git worktree.
+COMMON_DIR=$(git rev-parse --git-common-dir)
+case "$COMMON_DIR" in
+  .git) REPO_ROOT=$(git rev-parse --show-toplevel) ;;
+  *)    REPO_ROOT=$(dirname "$COMMON_DIR") ;;
+esac
+
+# Run lint-staged from the current directory (worktree root) using the
+# shared node_modules in the monorepo root.  --no-stash avoids stash/restore
+# conflicts that occur on Windows when prettier reformats staged files.
+"$REPO_ROOT/node_modules/.bin/lint-staged" --no-stash

@@ -428,7 +428,9 @@ export default function LandingPage() {
                 style={{
                   background: plan.highlighted ? 'var(--bg-main)' : 'var(--bg-white)',
                   borderColor: plan.highlighted ? 'var(--brand-primary)' : 'var(--border-light)',
-                  ringColor: plan.highlighted ? 'var(--brand-primary)' : undefined,
+                  ['--tw-ring-color' as string]: plan.highlighted
+                    ? 'var(--brand-primary)'
+                    : undefined,
                   boxShadow: plan.highlighted ? 'var(--shadow-brand)' : 'var(--shadow-card)',
                 }}
               >

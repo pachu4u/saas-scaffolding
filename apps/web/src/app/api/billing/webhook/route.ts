@@ -15,8 +15,9 @@ export async function POST(req: NextRequest) {
 
   // Enqueue for async processing with idempotency via Stripe event id
   // The worker verifies the signature and processes the event
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await enqueue(
-    webhookInboundQueue,
+    webhookInboundQueue as any,
     { source: 'stripe', rawBody, signature },
     { priority: 1 },
   );

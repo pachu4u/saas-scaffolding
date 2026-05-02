@@ -2,8 +2,6 @@
 
 import { useState, useTransition } from 'react';
 
-export const metadata = { title: 'Branding — Settings' };
-
 const presetPalettes = [
   { name: 'Cobalt', primary: '#4F7BFF', accent: '#B06CFF', bg: '#F8F6FF' },
   { name: 'Emerald', primary: '#059669', accent: '#7C3AED', bg: '#F0FDF4' },

@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@platform/auth';
-import { adminDb } from '@platform/db';
+import { adminDb, Prisma } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
 
 export const runtime = 'nodejs';
@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest) {
   };
 
   const currentTenant = await adminDb.tenant.findUnique({
-    where: { id: tenantCtx.id },
+    where: { id: tenantCtx.tenantId },
     select: { branding: true },
   });
   const current = (currentTenant?.branding ?? {}) as Record<string, unknown>;
@@ -61,18 +61,20 @@ export async function PATCH(req: NextRequest) {
   }
 
   const tenant = await adminDb.tenant.update({
-    where: { id: tenantCtx.id },
-    data: { branding: merged },
+    where: { id: tenantCtx.tenantId },
+    data: { branding: merged as Prisma.InputJsonValue },
     select: { id: true, branding: true },
   });
 
   await adminDb.auditLog.create({
     data: {
-      tenantId: tenantCtx.id,
+      tenantId: tenantCtx.tenantId,
       action: `settings.security.${body.section ?? 'update'}`,
       resourceType: 'Tenant',
-      resourceId: tenantCtx.id,
-      after: body.section === 'sso' ? { sso: merged.sso } : { sessionPolicy: merged.sessionPolicy },
+      resourceId: tenantCtx.tenantId,
+      after: (body.section === 'sso'
+        ? { sso: merged.sso }
+        : { sessionPolicy: merged.sessionPolicy }) as Prisma.InputJsonValue,
     },
   });
 

@@ -19,7 +19,19 @@ if [[ ! -f ".env" ]]; then
   echo "  ⚠  Edit .env with real secrets before continuing."
 fi
 
-# 3. Bring up platform services
+# Load .env into the current shell so Prisma and other tools can read it
+# Use sed to strip \r (Windows CRLF) and skip comments/blank lines
+while IFS= read -r line; do
+  # Remove carriage returns, skip comments and blank lines
+  line="${line//$'\r'/}"
+  [[ "$line" =~ ^#.*$ || -z "$line" ]] && continue
+  export "$line" 2>/dev/null || true
+done < .env
+
+# 3. Ensure shared Docker network exists
+docker network create platform 2>/dev/null || true
+
+# 4. Bring up platform services
 echo "→ Starting Docker Compose services..."
 docker compose \
   -f infra/compose/docker-compose.yml \

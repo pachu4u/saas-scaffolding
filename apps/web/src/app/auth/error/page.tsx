@@ -22,8 +22,13 @@ const errorMessages: Record<string, { title: string; description: string }> = {
   },
 };
 
-export default function AuthErrorPage({ searchParams }: { searchParams: { error?: string } }) {
-  const errorKey = searchParams.error ?? 'Default';
+export default async function AuthErrorPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error: errorParam } = await searchParams;
+  const errorKey = errorParam ?? 'Default';
   const error = errorMessages[errorKey] ??
     errorMessages.Default ?? {
       title: 'Authentication failed',

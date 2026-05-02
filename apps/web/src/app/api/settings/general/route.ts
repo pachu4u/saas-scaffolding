@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@platform/auth';
-import { adminDb } from '@platform/db';
+import { adminDb, Prisma } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
 
 export const runtime = 'nodejs';
@@ -42,7 +42,7 @@ export async function PATCH(req: NextRequest) {
     }
     // Ensure slug is not already taken by another tenant
     const existing = await adminDb.tenant.findFirst({
-      where: { slug, id: { not: tenantCtx.id } },
+      where: { slug, id: { not: tenantCtx.tenantId } },
       select: { id: true },
     });
     if (existing) {
@@ -52,7 +52,7 @@ export async function PATCH(req: NextRequest) {
 
   // Merge description/timezone into branding JSON
   const currentTenant = await adminDb.tenant.findUnique({
-    where: { id: tenantCtx.id },
+    where: { id: tenantCtx.tenantId },
     select: { branding: true },
   });
   const currentBranding = (currentTenant?.branding ?? {}) as Record<string, unknown>;
@@ -60,23 +60,25 @@ export async function PATCH(req: NextRequest) {
   if (description !== undefined) updatedBranding.description = description;
   if (timezone !== undefined) updatedBranding.timezone = timezone;
 
-  const updateData: Record<string, unknown> = { branding: updatedBranding };
+  const updateData: Record<string, unknown> = {
+    branding: updatedBranding as Prisma.InputJsonValue,
+  };
   if (name !== undefined) updateData.name = name.trim();
   if (slug !== undefined) updateData.slug = slug;
 
   const tenant = await adminDb.tenant.update({
-    where: { id: tenantCtx.id },
-    data: updateData,
+    where: { id: tenantCtx.tenantId },
+    data: updateData as Prisma.TenantUpdateInput,
     select: { id: true, name: true, slug: true, branding: true },
   });
 
   await adminDb.auditLog.create({
     data: {
-      tenantId: tenantCtx.id,
+      tenantId: tenantCtx.tenantId,
       action: 'settings.general.update',
       resourceType: 'Tenant',
-      resourceId: tenantCtx.id,
-      after: updateData,
+      resourceId: tenantCtx.tenantId,
+      after: updateData as Prisma.InputJsonValue,
     },
   });
 

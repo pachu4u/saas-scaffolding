@@ -17,7 +17,7 @@ export default async function WebhooksPage() {
         title="Webhooks"
         subtitle="Send real-time event notifications to your services"
         userEmail={session.user.email}
-        userName={session.user.name}
+        userName={session.user.name ?? undefined}
       />
       <WebhooksClient />
     </div>

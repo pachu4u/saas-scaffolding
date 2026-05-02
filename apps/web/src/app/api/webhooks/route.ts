@@ -8,7 +8,7 @@ import { resolveTenant } from '@platform/tenant';
 
 export const runtime = 'nodejs';
 
-export const WEBHOOK_EVENTS = [
+const WEBHOOK_EVENTS = [
   'tenant.updated',
   'tenant.suspended',
   'user.invited',
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   if (!tenantCtx) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
   const endpoints = await adminDb.webhookEndpoint.findMany({
-    where: { tenantId: tenantCtx.id, status: { not: 'DELETED' } },
+    where: { tenantId: tenantCtx.tenantId, status: { not: 'DELETED' } },
     include: {
       _count: { select: { deliveries: true } },
       deliveries: {
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
   const endpoint = await adminDb.webhookEndpoint.create({
     data: {
-      tenantId: tenantCtx.id,
+      tenantId: tenantCtx.tenantId,
       url: body.url,
       secret,
       events: body.events,

@@ -91,7 +91,7 @@ export default async function AdminTenantsPage() {
         title="Tenants"
         subtitle="All workspaces across the platform"
         userEmail={session.user.email}
-        userName={session.user.name}
+        userName={session.user.name ?? undefined}
         actions={
           <button className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90">
             + Create tenant

@@ -7,7 +7,7 @@ import { env } from '@platform/config';
 
 function makePrismaClient(url?: string) {
   return new PrismaClient({
-    datasourceUrl: url,
+    ...(url !== undefined ? { datasourceUrl: url } : {}),
     log: env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });
 }
@@ -21,8 +21,7 @@ const globalForPrisma = globalThis as unknown as {
 export const db = globalForPrisma.prisma ?? makePrismaClient(env.DATABASE_URL);
 
 export const adminDb =
-  globalForPrisma.adminPrisma ??
-  makePrismaClient(env.DATABASE_URL_MIGRATOR ?? env.DATABASE_URL);
+  globalForPrisma.adminPrisma ?? makePrismaClient(env.DATABASE_URL_MIGRATOR ?? env.DATABASE_URL);
 
 if (env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = db;
@@ -33,7 +32,10 @@ if (env.NODE_ENV !== 'production') {
  * Run a callback with RLS scoped to the given tenantId.
  * Every query inside `fn` is automatically filtered to that tenant.
  */
-export async function withTenant<T>(tenantId: string, fn: (tx: PrismaClient) => Promise<T>): Promise<T> {
+export async function withTenant<T>(
+  tenantId: string,
+  fn: (tx: PrismaClient) => Promise<T>,
+): Promise<T> {
   return db.$transaction(async (tx) => {
     await tx.$executeRaw`SET LOCAL ROLE app`;
     await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;

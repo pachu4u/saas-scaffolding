@@ -1,4 +1,4 @@
-import { adminDb } from '@platform/db';
+import { adminDb, Prisma } from '@platform/db';
 
 import { scrubSecrets } from './index';
 
@@ -22,14 +22,14 @@ export async function auditLog(entry: AuditEntry): Promise<void> {
   await adminDb.auditLog.create({
     data: {
       tenantId: entry.tenantId,
-      actorUserId: entry.actorUserId,
+      actorUserId: entry.actorUserId ?? null,
       action: entry.action,
       resourceType: entry.resourceType,
       resourceId: entry.resourceId,
-      before: entry.before ? (scrubSecrets(entry.before) as object) : undefined,
-      after: entry.after ? (scrubSecrets(entry.after) as object) : undefined,
-      ip: entry.ip,
-      userAgent: entry.userAgent,
+      before: entry.before ? (scrubSecrets(entry.before) as Prisma.InputJsonValue) : Prisma.DbNull,
+      after: entry.after ? (scrubSecrets(entry.after) as Prisma.InputJsonValue) : Prisma.DbNull,
+      ip: entry.ip ?? null,
+      userAgent: entry.userAgent ?? null,
     },
   });
 }

@@ -25,8 +25,8 @@ async function declineInvite(_token: string) {
   redirect('/');
 }
 
-export default async function InvitePage({ params }: { params: { token: string } }) {
-  const { token } = params;
+export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
   const { tenantId, userId } = decodeInviteToken(token);
 
   if (!tenantId || !userId) {

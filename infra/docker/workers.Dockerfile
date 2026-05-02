@@ -29,8 +29,8 @@ COPY packages ./packages
 
 RUN pnpm --filter @platform/db db:generate
 RUN pnpm --filter @platform/config build
-RUN pnpm --filter @platform/logger build
 RUN pnpm --filter @platform/db build
+RUN pnpm --filter @platform/logger build
 RUN pnpm --filter @platform/jobs build
 RUN pnpm --filter @platform/notifications build
 RUN pnpm --filter @platform/billing build

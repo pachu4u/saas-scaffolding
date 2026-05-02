@@ -1,11 +1,14 @@
 import type Stripe from 'stripe';
 
 import { adminDb } from '@platform/db';
+import type { Subscription } from '@platform/db';
 import { enqueue, planChangedQueue } from '@platform/jobs';
 import { logger } from '@platform/logger';
 
 import { stripe } from './client';
 import { env } from '@platform/config';
+
+type SubscriptionStatus = Subscription['status'];
 
 const HANDLED_EVENTS: Set<Stripe.Event['type']> = new Set([
   'customer.subscription.created',
@@ -16,11 +19,7 @@ const HANDLED_EVENTS: Set<Stripe.Event['type']> = new Set([
 ]);
 
 export async function processStripeEvent(rawBody: string, signature: string): Promise<void> {
-  const event = stripe.webhooks.constructEvent(
-    rawBody,
-    signature,
-    env.STRIPE_WEBHOOK_SECRET ?? '',
-  );
+  const event = stripe.webhooks.constructEvent(rawBody, signature, env.STRIPE_WEBHOOK_SECRET ?? '');
 
   if (!HANDLED_EVENTS.has(event.type)) {
     logger.debug({ eventType: event.type }, 'Unhandled Stripe event — skipping');
@@ -43,7 +42,7 @@ export async function processStripeEvent(rawBody: string, signature: string): Pr
   await adminDb.idempotencyKey.create({
     data: {
       key: `stripe:${event.id}`,
-      tenantId: await getTenantIdFromEvent(event) ?? '',
+      tenantId: (await getTenantIdFromEvent(event)) ?? '',
       requestHash: event.id,
       expiresAt,
     },
@@ -97,7 +96,7 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
 
     await adminDb.subscription.update({
       where: { tenantId },
-      data: { status: 'CANCELED' },
+      data: { status: 'CANCELED' as SubscriptionStatus },
     });
 
     await enqueue(planChangedQueue, {
@@ -108,8 +107,8 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
   }
 }
 
-function mapStripeStatus(status: Stripe.Subscription.Status): string {
-  const map: Record<Stripe.Subscription.Status, string> = {
+function mapStripeStatus(status: Stripe.Subscription.Status): SubscriptionStatus {
+  const map: Record<Stripe.Subscription.Status, SubscriptionStatus> = {
     active: 'ACTIVE',
     trialing: 'TRIALING',
     past_due: 'PAST_DUE',

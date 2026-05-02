@@ -23,7 +23,7 @@ async function resolveEndpoint(req: NextRequest, id: string) {
     return { error: NextResponse.json({ error: 'Tenant not found' }, { status: 404 }) };
 
   const endpoint = await adminDb.webhookEndpoint.findFirst({
-    where: { id, tenantId: tenantCtx.id, status: { not: 'DELETED' } },
+    where: { id, tenantId: tenantCtx.tenantId, status: { not: 'DELETED' } },
   });
 
   if (!endpoint)

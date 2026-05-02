@@ -4,7 +4,7 @@ interface TopbarProps {
   title: string;
   subtitle?: string;
   userEmail?: string;
-  userName?: string;
+  userName?: string | undefined;
   actions?: React.ReactNode;
 }
 

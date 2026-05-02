@@ -63,7 +63,8 @@ export async function enqueue<T>(
   opts?: JobsOptions & { idempotencyKey?: string },
 ): Promise<string | undefined> {
   const { idempotencyKey, ...jobOpts } = opts ?? {};
-  const job = await queue.add(queue.name, payload, {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const job = await queue.add(queue.name as any, payload as any, {
     ...jobOpts,
     ...(idempotencyKey ? { jobId: idempotencyKey } : {}),
   });

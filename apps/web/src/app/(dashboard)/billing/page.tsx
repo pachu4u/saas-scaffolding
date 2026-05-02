@@ -70,7 +70,7 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
         title="Billing"
         subtitle="Manage your subscription, plan, and invoices"
         userEmail={session.user.email}
-        userName={session.user.name}
+        userName={session.user.name ?? undefined}
       />
 
       <main className="space-y-6 p-6">
