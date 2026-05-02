@@ -1,40 +1,11 @@
+import { redirect } from 'next/navigation';
+
+import { adminDb } from '@platform/db';
+import { resolveTenant } from '@platform/tenant';
+
 export const metadata = { title: 'API Keys — Settings' };
 
-const apiKeys = [
-  {
-    name: 'webhook-prod-key',
-    created: 'Apr 28, 2026',
-    lastUsed: '2 min ago',
-    scopes: ['webhooks:write', 'events:read'],
-    expiresAt: 'Never',
-    status: 'active',
-  },
-  {
-    name: 'analytics-read',
-    created: 'Feb 12, 2026',
-    lastUsed: '1 hr ago',
-    scopes: ['analytics:read'],
-    expiresAt: 'Never',
-    status: 'active',
-  },
-  {
-    name: 'ci-deploy-token',
-    created: 'Jan 5, 2026',
-    lastUsed: '4 days ago',
-    scopes: ['deployments:write', 'releases:write'],
-    expiresAt: 'Jan 5, 2027',
-    status: 'active',
-  },
-  {
-    name: 'legacy-integration',
-    created: 'Dec 1, 2025',
-    lastUsed: 'Never',
-    scopes: ['*'],
-    expiresAt: 'Expired Mar 1, 2026',
-    status: 'expired',
-  },
-];
-
+// Available API scopes — static app constants, not DB data
 const allScopes = [
   { group: 'Users', scopes: ['users:read', 'users:write', 'users:delete'] },
   { group: 'Teams', scopes: ['teams:read', 'teams:write'] },
@@ -46,7 +17,20 @@ const allScopes = [
   { group: 'Admin', scopes: ['*'] },
 ];
 
-export default function ApiKeysPage() {
+export default async function ApiKeysPage() {
+  const slug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
+  const tenantCtx = await resolveTenant(slug);
+  if (!tenantCtx) redirect('/');
+
+  // Query SCIM tokens as the closest proxy for tenant API tokens
+  // A dedicated ApiKey model is not yet in the schema; this section shows live data
+  // once that model is added. For now show real SCIM tokens if available, otherwise empty state.
+  const scimTokens = await adminDb.scimToken.findMany({
+    where: { tenantId: tenantCtx.tenantId },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, name: true, scopes: true, createdAt: true, lastUsedAt: true },
+  });
+
   return (
     <div className="max-w-3xl space-y-6">
       {/* Active keys */}
@@ -56,10 +40,10 @@ export default function ApiKeysPage() {
             className="text-xs font-bold uppercase tracking-wide"
             style={{ color: 'var(--text-muted)' }}
           >
-            API Keys
+            API / SCIM Tokens
           </h2>
           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            3 active · 1 expired
+            {scimTokens.length} token{scimTokens.length !== 1 ? 's' : ''}
           </span>
         </div>
         <div
@@ -70,48 +54,58 @@ export default function ApiKeysPage() {
             boxShadow: 'var(--shadow-card)',
           }}
         >
-          <div className="divide-y" style={{ borderColor: 'var(--border-light)' }}>
-            {apiKeys.map((key) => (
-              <div
-                key={key.name}
-                className="px-6 py-4"
-                style={{ opacity: key.status === 'expired' ? 0.6 : 1 }}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1 flex items-center gap-2">
-                      <code
-                        className="font-mono text-sm font-semibold"
-                        style={{ color: 'var(--text-primary)' }}
-                      >
-                        {key.name}
-                      </code>
-                      {key.status === 'expired' && (
-                        <span className="rounded border border-red-100 bg-red-50 px-1.5 py-0.5 text-xs font-semibold text-red-600">
-                          Expired
-                        </span>
-                      )}
-                    </div>
-                    <div className="mb-1.5 flex flex-wrap gap-1">
-                      {key.scopes.map((s) => (
+          {scimTokens.length === 0 ? (
+            <div className="px-6 py-10 text-center">
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                No tokens yet. Create one below.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y" style={{ borderColor: 'var(--border-light)' }}>
+              {scimTokens.map((token) => (
+                <div key={token.id} className="px-6 py-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex items-center gap-2">
                         <code
-                          key={s}
-                          className="rounded px-1.5 py-0.5 font-mono text-xs"
-                          style={{
-                            background: 'var(--bg-subtle)',
-                            color: 'var(--brand-secondary)',
-                          }}
+                          className="font-mono text-sm font-semibold"
+                          style={{ color: 'var(--text-primary)' }}
                         >
-                          {s}
+                          {token.name}
                         </code>
-                      ))}
+                      </div>
+                      <div className="mb-1.5 flex flex-wrap gap-1">
+                        {token.scopes.map((s) => (
+                          <code
+                            key={s}
+                            className="rounded px-1.5 py-0.5 font-mono text-xs"
+                            style={{
+                              background: 'var(--bg-subtle)',
+                              color: 'var(--brand-secondary)',
+                            }}
+                          >
+                            {s}
+                          </code>
+                        ))}
+                      </div>
+                      <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        Created{' '}
+                        {token.createdAt.toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}{' '}
+                        · Last used{' '}
+                        {token.lastUsedAt
+                          ? token.lastUsedAt.toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })
+                          : 'Never'}
+                      </div>
                     </div>
-                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      Created {key.created} · Last used {key.lastUsed} · Expires {key.expiresAt}
-                    </div>
-                  </div>
-                  <div className="flex flex-shrink-0 items-center gap-2">
-                    {key.status === 'active' && (
+                    <div className="flex flex-shrink-0 items-center gap-2">
                       <button
                         className="hover:bg-bg-subtle rounded-lg border px-2.5 py-1.5 text-xs transition-colors"
                         style={{
@@ -121,15 +115,15 @@ export default function ApiKeysPage() {
                       >
                         Rotate
                       </button>
-                    )}
-                    <button className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-xs text-red-600 transition-colors hover:bg-red-100">
-                      Revoke
-                    </button>
+                      <button className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-xs text-red-600 transition-colors hover:bg-red-100">
+                        Revoke
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -139,7 +133,7 @@ export default function ApiKeysPage() {
           className="mb-3 text-xs font-bold uppercase tracking-wide"
           style={{ color: 'var(--text-muted)' }}
         >
-          Create New API Key
+          Create New Token
         </h2>
         <div
           className="rounded-2xl border"
@@ -156,7 +150,7 @@ export default function ApiKeysPage() {
                   className="mb-1.5 block text-xs font-semibold"
                   style={{ color: 'var(--text-secondary)' }}
                 >
-                  Key name
+                  Token name
                 </label>
                 <input
                   type="text"
@@ -258,7 +252,7 @@ export default function ApiKeysPage() {
             style={{ borderColor: 'var(--border-light)' }}
           >
             <button className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90">
-              Generate API key
+              Generate token
             </button>
           </div>
         </div>
@@ -280,8 +274,8 @@ export default function ApiKeysPage() {
           />
         </svg>
         <p className="text-xs" style={{ color: '#DC2626' }}>
-          <strong>API keys grant programmatic access to your workspace.</strong> Store them in
-          environment variables or secret managers — never commit them to source control. Keys are
+          <strong>Tokens grant programmatic access to your workspace.</strong> Store them in
+          environment variables or secret managers — never commit them to source control. Tokens are
           shown only once at creation time. If lost, rotate immediately.
         </p>
       </div>
