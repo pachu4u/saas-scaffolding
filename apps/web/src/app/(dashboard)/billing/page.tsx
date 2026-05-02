@@ -1,58 +1,14 @@
 import { auth } from '@platform/auth';
+import { adminDb } from '@platform/db';
+import { resolveTenant } from '@platform/tenant';
 import { redirect } from 'next/navigation';
 
+import { formatDate } from '@/lib/time';
 import { ManageSubscriptionButton, UpgradePlanButton } from '@/components/billing/billing-buttons';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 
 export const metadata = { title: 'Billing' };
-
-const plans = [
-  {
-    code: 'free',
-    name: 'Free',
-    price: '$0',
-    period: '/mo',
-    features: ['5 users', '1 workspace', 'Core RBAC', '7-day audit log'],
-    current: false,
-  },
-  {
-    code: 'pro',
-    name: 'Pro',
-    price: '$49',
-    period: '/mo',
-    features: [
-      '50 users',
-      '5 workspaces',
-      'SSO + SCIM',
-      '90-day audit log',
-      'Custom domains',
-      'Webhooks',
-    ],
-    current: true,
-  },
-  {
-    code: 'enterprise',
-    name: 'Enterprise',
-    price: 'Custom',
-    period: '',
-    features: [
-      'Unlimited users',
-      'Dedicated infra',
-      'SLA support',
-      'Unlimited audit log',
-      'SAML + SCIM',
-    ],
-    current: false,
-  },
-];
-
-const invoices = [
-  { date: 'Apr 1, 2026', amount: '$49.00', status: 'Paid', id: 'INV-2026-004' },
-  { date: 'Mar 1, 2026', amount: '$49.00', status: 'Paid', id: 'INV-2026-003' },
-  { date: 'Feb 1, 2026', amount: '$49.00', status: 'Paid', id: 'INV-2026-002' },
-  { date: 'Jan 1, 2026', amount: '$49.00', status: 'Paid', id: 'INV-2026-001' },
-];
 
 interface BillingPageProps {
   searchParams: Promise<{ checkout?: string }>;
@@ -63,6 +19,85 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
   if (!session) redirect('/auth/signin');
 
   const { checkout } = await searchParams;
+
+  const slug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
+  const tenantCtx = await resolveTenant(slug);
+  if (!tenantCtx) redirect('/');
+
+  const { tenantId } = tenantCtx;
+
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const [subscription, plans, activeMembers, totalMembers, apiRequestsAgg, webhookDeliveries] =
+    await Promise.all([
+      adminDb.subscription.findUnique({
+        where: { tenantId },
+        include: { plan: true },
+      }),
+      adminDb.plan.findMany({ orderBy: { code: 'asc' } }),
+      adminDb.tenantUser.count({ where: { tenantId, status: 'ACTIVE' } }),
+      adminDb.tenantUser.count({ where: { tenantId } }),
+      adminDb.usageEvent.aggregate({
+        where: { tenantId, kind: 'api_request', occurredAt: { gte: startOfMonth } },
+        _sum: { quantity: true },
+      }),
+      adminDb.webhookDelivery.count({
+        where: {
+          endpoint: { tenantId },
+          status: 'SUCCESS',
+          createdAt: { gte: startOfMonth },
+        },
+      }),
+    ]);
+
+  // Plan data
+  const currentPlanId = subscription?.planId;
+  const planFeatures = (subscription?.plan.features ?? {}) as Record<string, unknown>;
+  const seatLimit =
+    typeof planFeatures.maxSeats === 'number' ? (planFeatures.maxSeats as number) : null;
+  const seatPct = seatLimit ? Math.round((totalMembers / seatLimit) * 100) : 0;
+
+  const periodEnd = subscription?.currentPeriodEnd;
+  const subStatus = subscription?.status ?? 'NONE';
+
+  const apiRequestsThisMonth = apiRequestsAgg._sum.quantity ?? 0;
+  const apiLimit =
+    typeof planFeatures.maxApiRequests === 'number'
+      ? (planFeatures.maxApiRequests as number)
+      : 500000;
+
+  const usageItems = [
+    {
+      label: 'API Requests',
+      used: apiRequestsThisMonth,
+      limit: apiLimit,
+      format: (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)),
+    },
+    {
+      label: 'Team Members',
+      used: totalMembers,
+      limit: seatLimit ?? totalMembers,
+      format: (v: number) => String(v),
+    },
+    {
+      label: 'Webhooks Delivered',
+      used: webhookDeliveries,
+      limit:
+        typeof planFeatures.maxWebhooks === 'number' ? (planFeatures.maxWebhooks as number) : 5000,
+      format: (v: number) => v.toLocaleString(),
+    },
+  ];
+
+  const statusVariant =
+    subStatus === 'ACTIVE'
+      ? 'success'
+      : subStatus === 'TRIALING'
+        ? 'blue'
+        : subStatus === 'PAST_DUE'
+          ? 'error'
+          : 'gray';
 
   return (
     <div>
@@ -78,10 +113,7 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
         {checkout === 'success' && (
           <div
             className="flex items-center gap-3 rounded-2xl border px-5 py-4"
-            style={{
-              background: 'rgba(22,163,74,0.06)',
-              borderColor: 'rgba(22,163,74,0.25)',
-            }}
+            style={{ background: 'rgba(22,163,74,0.06)', borderColor: 'rgba(22,163,74,0.25)' }}
           >
             <svg
               viewBox="0 0 20 20"
@@ -108,10 +140,7 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
         {checkout === 'cancelled' && (
           <div
             className="flex items-center gap-3 rounded-2xl border px-5 py-4"
-            style={{
-              background: 'rgba(245,158,11,0.06)',
-              borderColor: 'rgba(245,158,11,0.25)',
-            }}
+            style={{ background: 'rgba(245,158,11,0.06)', borderColor: 'rgba(245,158,11,0.25)' }}
           >
             <svg
               viewBox="0 0 20 20"
@@ -153,151 +182,211 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
             <div className="flex-1">
               <div className="mb-2 flex items-center gap-2">
                 <h2 className="text-lg font-extrabold" style={{ color: 'var(--text-primary)' }}>
-                  Pro Plan
+                  {subscription?.plan.name ?? tenantCtx.plan ?? 'Free'} Plan
                 </h2>
-                <Badge variant="blue" dot>
-                  Active
-                </Badge>
+                {subscription ? (
+                  <Badge variant={statusVariant} dot>
+                    {subStatus.charAt(0) + subStatus.slice(1).toLowerCase().replace('_', ' ')}
+                  </Badge>
+                ) : (
+                  <Badge variant="gray">No subscription</Badge>
+                )}
               </div>
-              <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                Your subscription renews on <strong>June 1, 2026</strong>. You are billed{' '}
-                <strong>$49/month</strong>.
-              </p>
+              {periodEnd && (
+                <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  Your subscription renews on <strong>{formatDate(periodEnd)}</strong>.
+                </p>
+              )}
+              {!subscription && (
+                <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  You are currently on the free plan. Upgrade to unlock more features.
+                </p>
+              )}
               <div className="flex flex-wrap gap-4">
-                <div>
-                  <div
-                    className="mb-1 text-xs font-semibold uppercase tracking-wide"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    Seats used
-                  </div>
-                  <div className="text-2xl font-extrabold" style={{ color: 'var(--text-primary)' }}>
-                    43{' '}
-                    <span className="text-base font-normal" style={{ color: 'var(--text-muted)' }}>
-                      / 50
-                    </span>
-                  </div>
-                  <div
-                    className="mt-1.5 h-1.5 w-36 overflow-hidden rounded-full"
-                    style={{ background: 'var(--border-light)' }}
-                  >
+                {seatLimit !== null && (
+                  <div>
                     <div
-                      className="h-full rounded-full"
-                      style={{ width: '86%', background: 'var(--brand-primary)' }}
-                    />
+                      className="mb-1 text-xs font-semibold uppercase tracking-wide"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      Seats used
+                    </div>
+                    <div
+                      className="text-2xl font-extrabold"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
+                      {totalMembers}{' '}
+                      <span
+                        className="text-base font-normal"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        / {seatLimit}
+                      </span>
+                    </div>
+                    <div
+                      className="mt-1.5 h-1.5 w-36 overflow-hidden rounded-full"
+                      style={{ background: 'var(--border-light)' }}
+                    >
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${String(Math.min(seatPct, 100))}%`,
+                          background:
+                            seatPct > 85 ? 'var(--status-warning)' : 'var(--brand-primary)',
+                        }}
+                      />
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <div
-                    className="mb-1 text-xs font-semibold uppercase tracking-wide"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    Next invoice
+                )}
+                {seatLimit === null && (
+                  <div>
+                    <div
+                      className="mb-1 text-xs font-semibold uppercase tracking-wide"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      Members
+                    </div>
+                    <div
+                      className="text-2xl font-extrabold"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
+                      {totalMembers}
+                      <span
+                        className="ml-1 text-sm font-normal"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        ({activeMembers} active)
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-2xl font-extrabold" style={{ color: 'var(--text-primary)' }}>
-                    $49.00
-                  </div>
-                  <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                    Jun 1, 2026
-                  </div>
-                </div>
+                )}
               </div>
             </div>
-            <div className="flex flex-col gap-2">
-              <ManageSubscriptionButton className="brand-gradient w-full rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50" />
-              <ManageSubscriptionButton
-                label="Update payment method"
-                className="hover:bg-bg-subtle w-full rounded-xl border px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
-                style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
-              />
-            </div>
+            {subscription && (
+              <div className="flex flex-col gap-2">
+                <ManageSubscriptionButton className="brand-gradient w-full rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50" />
+                <ManageSubscriptionButton
+                  label="Update payment method"
+                  className="hover:bg-bg-subtle w-full rounded-xl border px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+                  style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+                />
+              </div>
+            )}
           </div>
         </div>
 
         {/* Plan comparison */}
-        <div>
-          <h2 className="mb-4 text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-            Available Plans
-          </h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {plans.map((plan) => (
-              <div
-                key={plan.name}
-                className={`flex flex-col rounded-2xl border p-5 ${plan.current ? 'ring-2' : ''}`}
-                style={{
-                  background: plan.current ? 'var(--bg-subtle)' : 'var(--bg-white)',
-                  borderColor: plan.current ? 'var(--brand-primary)' : 'var(--border-light)',
-                  boxShadow: plan.current ? 'var(--shadow-brand)' : 'var(--shadow-card)',
-                }}
-              >
-                <div className="mb-3 flex items-center justify-between">
-                  <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                    {plan.name}
-                  </span>
-                  {plan.current && <Badge variant="blue">Current</Badge>}
-                </div>
-                <div className="mb-4 flex items-end gap-1">
-                  <span
-                    className="text-2xl font-extrabold"
-                    style={{ color: 'var(--text-primary)' }}
+        {plans.length > 0 && (
+          <div>
+            <h2 className="mb-4 text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+              Available Plans
+            </h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              {plans.map((plan) => {
+                const isCurrent = plan.id === currentPlanId;
+                const pf = (plan.features ?? {}) as Record<string, unknown>;
+                const featureList = Array.isArray(pf.features) ? (pf.features as string[]) : [];
+                const priceDisplay = typeof pf.price === 'string' ? (pf.price as string) : '—';
+                const periodDisplay = typeof pf.period === 'string' ? (pf.period as string) : '';
+                return (
+                  <div
+                    key={plan.id}
+                    className={`flex flex-col rounded-2xl border p-5 ${isCurrent ? 'ring-2' : ''}`}
+                    style={{
+                      background: isCurrent ? 'var(--bg-subtle)' : 'var(--bg-white)',
+                      borderColor: isCurrent ? 'var(--brand-primary)' : 'var(--border-light)',
+                      boxShadow: isCurrent ? 'var(--shadow-brand)' : 'var(--shadow-card)',
+                    }}
                   >
-                    {plan.price}
-                  </span>
-                  <span className="mb-0.5 text-sm" style={{ color: 'var(--text-muted)' }}>
-                    {plan.period}
-                  </span>
-                </div>
-                <ul className="mb-4 flex-1 space-y-2">
-                  {plan.features.map((f) => (
-                    <li
-                      key={f}
-                      className="flex items-center gap-2 text-xs"
-                      style={{ color: 'var(--text-secondary)' }}
-                    >
-                      <svg className="h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 16 16" fill="none">
-                        <circle cx="8" cy="8" r="8" fill="var(--brand-primary)" opacity="0.1" />
-                        <path
-                          d="M5 8l2 2 4-4"
-                          stroke="var(--brand-primary)"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                        {plan.name}
+                      </span>
+                      {isCurrent && <Badge variant="blue">Current</Badge>}
+                    </div>
+                    <div className="mb-4 flex items-end gap-1">
+                      <span
+                        className="text-2xl font-extrabold"
+                        style={{ color: 'var(--text-primary)' }}
+                      >
+                        {priceDisplay}
+                      </span>
+                      {periodDisplay && (
+                        <span className="mb-0.5 text-sm" style={{ color: 'var(--text-muted)' }}>
+                          {periodDisplay}
+                        </span>
+                      )}
+                    </div>
+                    {featureList.length > 0 && (
+                      <ul className="mb-4 flex-1 space-y-2">
+                        {featureList.map((f) => (
+                          <li
+                            key={f}
+                            className="flex items-center gap-2 text-xs"
+                            style={{ color: 'var(--text-secondary)' }}
+                          >
+                            <svg
+                              className="h-3.5 w-3.5 flex-shrink-0"
+                              viewBox="0 0 16 16"
+                              fill="none"
+                            >
+                              <circle
+                                cx="8"
+                                cy="8"
+                                r="8"
+                                fill="var(--brand-primary)"
+                                opacity="0.1"
+                              />
+                              <path
+                                d="M5 8l2 2 4-4"
+                                stroke="var(--brand-primary)"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="mt-auto">
+                      {isCurrent ? (
+                        <button
+                          disabled
+                          className="w-full cursor-default rounded-xl py-2 text-xs font-semibold opacity-50"
+                          style={{
+                            background: 'var(--border-default)',
+                            color: 'var(--text-muted)',
+                          }}
+                        >
+                          Current plan
+                        </button>
+                      ) : plan.code === 'enterprise' ? (
+                        <a
+                          href="mailto:sales@riogentix.io"
+                          className="block w-full rounded-xl py-2 text-center text-xs font-semibold hover:opacity-90"
+                          style={{ background: 'var(--brand-primary)', color: '#fff' }}
+                        >
+                          Contact sales
+                        </a>
+                      ) : (
+                        <UpgradePlanButton
+                          planCode={plan.code}
+                          label={`Upgrade to ${plan.name}`}
+                          className="w-full rounded-xl py-2 text-xs font-semibold hover:opacity-90 disabled:opacity-50"
+                          style={{ background: 'var(--brand-primary)', color: '#fff' }}
                         />
-                      </svg>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                {plan.current ? (
-                  <button
-                    disabled
-                    className="w-full cursor-default rounded-xl py-2 text-xs font-semibold opacity-50"
-                    style={{ background: 'var(--border-default)', color: 'var(--text-muted)' }}
-                  >
-                    Current plan
-                  </button>
-                ) : plan.code === 'enterprise' ? (
-                  <a
-                    href="mailto:sales@riogentix.io"
-                    className="block w-full rounded-xl py-2 text-center text-xs font-semibold hover:opacity-90"
-                    style={{ background: 'var(--brand-primary)', color: '#fff' }}
-                  >
-                    Contact sales
-                  </a>
-                ) : (
-                  <UpgradePlanButton
-                    planCode={plan.code}
-                    label={`Upgrade to ${plan.name}`}
-                    className="w-full rounded-xl py-2 text-xs font-semibold hover:opacity-90 disabled:opacity-50"
-                    style={{ background: 'var(--brand-primary)', color: '#fff' }}
-                  />
-                )}
-              </div>
-            ))}
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Usage */}
+        {/* Usage this month */}
         <div
           className="rounded-2xl border p-6"
           style={{
@@ -310,111 +399,74 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
             Usage This Month
           </h2>
           <div className="space-y-4">
-            {[
-              {
-                label: 'API Requests',
-                used: 284700,
-                limit: 500000,
-                unit: '',
-                format: (v: number) => (v / 1000).toFixed(0) + 'k',
-              },
-              {
-                label: 'Team Members',
-                used: 43,
-                limit: 50,
-                unit: '',
-                format: (v: number) => String(v),
-              },
-              {
-                label: 'Webhooks Delivered',
-                used: 1247,
-                limit: 5000,
-                unit: '',
-                format: (v: number) => v.toLocaleString(),
-              },
-            ].map((item) => (
-              <div key={item.label}>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <span
-                    className="text-xs font-semibold"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    {item.label}
-                  </span>
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {item.format(item.used)} / {item.format(item.limit)}
-                  </span>
-                </div>
-                <div
-                  className="h-2 overflow-hidden rounded-full"
-                  style={{ background: 'var(--border-light)' }}
-                >
+            {usageItems.map((item) => {
+              const pct =
+                item.limit > 0 ? Math.min(Math.round((item.used / item.limit) * 100), 100) : 0;
+              return (
+                <div key={item.label}>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span
+                      className="text-xs font-semibold"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
+                      {item.label}
+                    </span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {item.format(item.used)} / {item.format(item.limit)}
+                    </span>
+                  </div>
                   <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${String(Math.round((item.used / item.limit) * 100))}%`,
-                      background:
-                        item.used / item.limit > 0.85
-                          ? 'var(--status-warning)'
-                          : 'var(--brand-primary)',
-                    }}
-                  />
+                    className="h-2 overflow-hidden rounded-full"
+                    style={{ background: 'var(--border-light)' }}
+                  >
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${String(pct)}%`,
+                        background: pct > 85 ? 'var(--status-warning)' : 'var(--brand-primary)',
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
-        {/* Invoice history */}
+        {/* Invoice history placeholder */}
         <div
-          className="rounded-2xl border"
+          className="rounded-2xl border p-6"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
             boxShadow: 'var(--shadow-card)',
           }}
         >
-          <div
-            className="flex items-center justify-between border-b px-6 py-4"
-            style={{ borderColor: 'var(--border-light)' }}
-          >
+          <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
               Invoice History
             </h2>
-            <button
-              className="text-xs font-semibold hover:underline"
-              style={{ color: 'var(--brand-primary)' }}
-            >
-              Download all
-            </button>
           </div>
-          <div className="divide-y" style={{ borderColor: 'var(--border-light)' }}>
-            {invoices.map((inv) => (
-              <div key={inv.id} className="flex items-center justify-between px-6 py-4">
-                <div>
-                  <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    {inv.date}
-                  </div>
-                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {inv.id}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Badge variant="success" dot>
-                    {inv.status}
-                  </Badge>
-                  <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    {inv.amount}
-                  </span>
-                  <button
-                    className="hover:bg-bg-subtle rounded-lg border px-2.5 py-1.5 text-xs transition-colors"
-                    style={{ borderColor: 'var(--border-light)', color: 'var(--text-secondary)' }}
-                  >
-                    PDF
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div
+            className="mt-4 flex items-center gap-3 rounded-xl p-4"
+            style={{ background: 'var(--bg-subtle)' }}
+          >
+            <svg
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-5 w-5 flex-shrink-0"
+              style={{ color: 'var(--brand-secondary)' }}
+            >
+              <path
+                fillRule="evenodd"
+                d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM9 9a1 1 0 0 0 0 2v3a1 1 0 0 0 1 1h1a1 1 0 1 0 0-2v-3a1 1 0 0 0-1-1H9z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+              Invoice history is managed through Stripe. Click <strong>Manage subscription</strong>{' '}
+              above to view and download your invoices.
+            </p>
           </div>
         </div>
       </main>

@@ -1,50 +1,13 @@
 import { auth } from '@platform/auth';
+import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
 
+import { formatDate, timeAgo } from '@/lib/time';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
 
 export const metadata = { title: 'Platform Admin' };
-
-const recentTenants = [
-  {
-    name: 'Acme Corp',
-    slug: 'acme',
-    plan: 'Pro',
-    users: 43,
-    status: 'Active',
-    mrr: '$49',
-    created: 'Jan 10, 2025',
-  },
-  {
-    name: 'Globex Inc',
-    slug: 'globex',
-    plan: 'Enterprise',
-    users: 312,
-    status: 'Active',
-    mrr: '$499',
-    created: 'Jan 12, 2025',
-  },
-  {
-    name: 'Initech LLC',
-    slug: 'initech',
-    plan: 'Free',
-    users: 3,
-    status: 'Active',
-    mrr: '$0',
-    created: 'Mar 5, 2025',
-  },
-  {
-    name: 'Umbrella Corp',
-    slug: 'umbrella',
-    plan: 'Pro',
-    users: 28,
-    status: 'Suspended',
-    mrr: '$0',
-    created: 'Feb 20, 2025',
-  },
-];
 
 const planColors: Record<string, 'purple' | 'blue' | 'gray'> = {
   Enterprise: 'purple',
@@ -55,6 +18,46 @@ const planColors: Record<string, 'purple' | 'blue' | 'gray'> = {
 export default async function AdminPage() {
   const session = await auth();
   if (!session) redirect('/auth/signin');
+
+  const [totalTenants, totalUsers, activeJobs, deadJobs, recentTenants, planDistribution] =
+    await Promise.all([
+      adminDb.tenant.count({ where: { status: { not: 'DELETED' } } }),
+      adminDb.user.count({ where: { status: 'ACTIVE' } }),
+      adminDb.job.count({ where: { status: { in: ['PENDING', 'RUNNING'] } } }),
+      adminDb.job.count({ where: { status: 'DEAD' } }),
+      adminDb.tenant.findMany({
+        where: { status: { not: 'DELETED' } },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        include: {
+          _count: { select: { tenantUsers: true } },
+          subscription: { include: { plan: { select: { name: true, code: true } } } },
+          auditLogs: {
+            orderBy: { occurredAt: 'desc' },
+            take: 1,
+            select: { occurredAt: true },
+          },
+        },
+      }),
+      // Get plan distribution: count tenants grouped by their plan field
+      adminDb.tenant.groupBy({
+        by: ['plan'],
+        where: { status: { not: 'DELETED' } },
+        _count: { id: true },
+      }),
+    ]);
+
+  const planDist = planDistribution.map((row) => ({
+    plan: row.plan,
+    count: row._count.id,
+    pct: totalTenants > 0 ? Math.round((row._count.id / totalTenants) * 100) : 0,
+    color:
+      row.plan === 'enterprise'
+        ? 'var(--brand-accent)'
+        : row.plan === 'pro'
+          ? 'var(--brand-primary)'
+          : 'var(--text-muted)',
+  }));
 
   return (
     <div>
@@ -96,8 +99,8 @@ export default async function AdminPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             label="Total Tenants"
-            value="124"
-            change="8 this month"
+            value={totalTenants.toLocaleString()}
+            change="All active workspaces"
             positive={true}
             iconColor="rgba(106, 109, 255, 0.1)"
             icon={
@@ -108,8 +111,8 @@ export default async function AdminPage() {
           />
           <StatCard
             label="Total Users"
-            value="12,847"
-            change="934 this month"
+            value={totalUsers.toLocaleString()}
+            change="Active accounts"
             positive={true}
             iconColor="rgba(79, 123, 255, 0.1)"
             icon={
@@ -119,29 +122,13 @@ export default async function AdminPage() {
             }
           />
           <StatCard
-            label="Platform MRR"
-            value="$28,450"
-            change="18% this quarter"
-            positive={true}
+            label="Active Jobs"
+            value={activeJobs.toLocaleString()}
+            change={`DLQ: ${String(deadJobs)}`}
+            positive={deadJobs === 0}
             iconColor="rgba(22, 163, 74, 0.1)"
             icon={
               <svg viewBox="0 0 20 20" fill="#16A34A" className="h-5 w-5">
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm1-13a1 1 0 1 0-2 0v.092a4.535 4.535 0 0 0-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 1 0-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 1 0 2 0v-.092a4.535 4.535 0 0 0 1.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0 0 11 9.092V7.151c.391.127.68.317.843.504a1 1 0 1 0 1.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            }
-          />
-          <StatCard
-            label="Active Jobs (queue)"
-            value="847"
-            change="DLQ: 3"
-            positive={false}
-            iconColor="rgba(176, 108, 255, 0.1)"
-            icon={
-              <svg viewBox="0 0 20 20" fill="var(--brand-accent)" className="h-5 w-5">
                 <path
                   fillRule="evenodd"
                   d="M11.3 1.046A1 1 0 0 1 12 2v5h4a1 1 0 0 1 .82 1.573l-7 10A1 1 0 0 1 8 18v-5H4a1 1 0 0 1-.82-1.573l7-10a1 1 0 0 1 1.12-.38z"
@@ -150,10 +137,30 @@ export default async function AdminPage() {
               </svg>
             }
           />
+          <StatCard
+            label="Paid Plans"
+            value={String(
+              planDistribution
+                .filter((p) => p.plan !== 'free')
+                .reduce((s, p) => s + p._count.id, 0),
+            )}
+            change={`${String(totalTenants)} total tenants`}
+            positive={true}
+            iconColor="rgba(176, 108, 255, 0.1)"
+            icon={
+              <svg viewBox="0 0 20 20" fill="var(--brand-accent)" className="h-5 w-5">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm1-13a1 1 0 1 0-2 0v.092a4.535 4.535 0 0 0-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 1 0-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 1 0 2 0v-.092a4.535 4.535 0 0 0 1.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0 0 11 9.092V7.151c.391.127.68.317.843.504a1 1 0 1 0 1.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            }
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          {/* Tenant table */}
+          {/* Recent tenants table */}
           <div
             className="overflow-hidden rounded-2xl border xl:col-span-2"
             style={{
@@ -177,85 +184,102 @@ export default async function AdminPage() {
                 View all →
               </a>
             </div>
-            <table className="w-full">
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
-                  {['Tenant', 'Plan', 'Users', 'MRR', 'Status', ''].map((col) => (
-                    <th
-                      key={col}
-                      className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {recentTenants.map((t, i) => (
-                  <tr
-                    key={t.slug}
-                    className="hover:bg-bg-main transition-colors"
-                    style={{
-                      borderBottom:
-                        i < recentTenants.length - 1 ? '1px solid var(--border-light)' : 'none',
-                    }}
-                  >
-                    <td className="px-6 py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="brand-gradient flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white">
-                          {t.name[0]}
-                        </div>
-                        <div>
-                          <div
-                            className="text-sm font-semibold"
-                            style={{ color: 'var(--text-primary)' }}
-                          >
-                            {t.name}
-                          </div>
-                          <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                            {t.slug}.app
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <Badge variant={planColors[t.plan] ?? 'gray'}>{t.plan}</Badge>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                        {t.users}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <span
-                        className="text-sm font-semibold"
-                        style={{ color: 'var(--text-primary)' }}
+            {recentTenants.length === 0 ? (
+              <div className="px-6 py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+                No tenants yet.
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+                    {['Tenant', 'Plan', 'Users', 'Status', 'Last Activity', ''].map((col) => (
+                      <th
+                        key={col}
+                        className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide"
+                        style={{ color: 'var(--text-muted)' }}
                       >
-                        {t.mrr}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <Badge variant={t.status === 'Active' ? 'success' : 'error'} dot>
-                        {t.status}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <a
-                        href={`/admin/tenants`}
-                        className="text-xs font-semibold hover:underline"
-                        style={{ color: 'var(--brand-primary)' }}
-                      >
-                        Manage
-                      </a>
-                    </td>
+                        {col}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {recentTenants.map((t, i) => {
+                    const planName =
+                      t.subscription?.plan.name ?? t.plan.charAt(0).toUpperCase() + t.plan.slice(1);
+                    const lastActivity = t.auditLogs[0]?.occurredAt;
+                    return (
+                      <tr
+                        key={t.id}
+                        className="hover:bg-bg-main transition-colors"
+                        style={{
+                          borderBottom:
+                            i < recentTenants.length - 1 ? '1px solid var(--border-light)' : 'none',
+                        }}
+                      >
+                        <td className="px-6 py-3.5">
+                          <div className="flex items-center gap-2.5">
+                            <div className="brand-gradient flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white">
+                              {t.name[0]}
+                            </div>
+                            <div>
+                              <div
+                                className="text-sm font-semibold"
+                                style={{ color: 'var(--text-primary)' }}
+                              >
+                                {t.name}
+                              </div>
+                              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                {t.slug}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-3.5">
+                          <Badge variant={planColors[planName] ?? 'gray'}>{planName}</Badge>
+                        </td>
+                        <td className="px-6 py-3.5">
+                          <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                            {t._count.tenantUsers}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3.5">
+                          <Badge
+                            variant={
+                              t.status === 'ACTIVE'
+                                ? 'success'
+                                : t.status === 'SUSPENDED'
+                                  ? 'error'
+                                  : 'gray'
+                            }
+                            dot
+                          >
+                            {t.status.charAt(0) + t.status.slice(1).toLowerCase()}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-3.5">
+                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                            {lastActivity ? timeAgo(lastActivity) : formatDate(t.createdAt)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3.5">
+                          <a
+                            href="/admin/tenants"
+                            className="text-xs font-semibold hover:underline"
+                            style={{ color: 'var(--brand-primary)' }}
+                          >
+                            Manage
+                          </a>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
 
-          {/* System health */}
+          {/* System health — infra metrics, not from DB */}
           <div
             className="rounded-2xl border p-6"
             style={{
@@ -269,43 +293,21 @@ export default async function AdminPage() {
             </h2>
             <div className="space-y-3">
               {[
-                { service: 'Web (Next.js)', status: 'Healthy', latency: '43ms', uptime: '99.99%' },
-                {
-                  service: 'Database (Postgres)',
-                  status: 'Healthy',
-                  latency: '2ms',
-                  uptime: '100%',
-                },
-                { service: 'Redis', status: 'Healthy', latency: '0.8ms', uptime: '100%' },
-                { service: 'Keycloak (IAM)', status: 'Healthy', latency: '18ms', uptime: '99.97%' },
-                { service: 'Workers (BullMQ)', status: 'Degraded', latency: '—', uptime: '—' },
-                { service: 'Stripe Webhooks', status: 'Healthy', latency: '—', uptime: '99.9%' },
+                { service: 'Web (Next.js)', status: 'Healthy' },
+                { service: 'Database (Postgres)', status: 'Healthy' },
+                { service: 'Redis', status: 'Healthy' },
+                { service: 'Keycloak (IAM)', status: 'Healthy' },
+                { service: `Workers (BullMQ)`, status: deadJobs > 0 ? 'Degraded' : 'Healthy' },
               ].map((s) => (
                 <div
                   key={s.service}
                   className="flex items-center justify-between border-b py-2 last:border-0"
                   style={{ borderColor: 'var(--border-light)' }}
                 >
-                  <div>
-                    <div className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-                      {s.service}
-                    </div>
-                    {s.latency !== '—' && (
-                      <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                        p50: {s.latency}
-                      </div>
-                    )}
+                  <div className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    {s.service}
                   </div>
-                  <Badge
-                    variant={
-                      s.status === 'Healthy'
-                        ? 'success'
-                        : s.status === 'Degraded'
-                          ? 'warning'
-                          : 'error'
-                    }
-                    dot
-                  >
+                  <Badge variant={s.status === 'Healthy' ? 'success' : 'warning'} dot>
                     {s.status}
                   </Badge>
                 </div>
@@ -322,44 +324,42 @@ export default async function AdminPage() {
         </div>
 
         {/* Plan distribution */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {[
-            { plan: 'Free', count: 89, pct: 72, color: 'var(--text-muted)' },
-            { plan: 'Pro', count: 29, pct: 23, color: 'var(--brand-primary)' },
-            { plan: 'Enterprise', count: 6, pct: 5, color: 'var(--brand-accent)' },
-          ].map((p) => (
-            <div
-              key={p.plan}
-              className="rounded-2xl border p-5"
-              style={{
-                background: 'var(--bg-white)',
-                borderColor: 'var(--border-light)',
-                boxShadow: 'var(--shadow-card)',
-              }}
-            >
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                  {p.plan}
-                </span>
-                <span className="text-sm font-bold" style={{ color: p.color }}>
-                  {p.count} tenants
-                </span>
-              </div>
+        {planDist.length > 0 && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {planDist.map((p) => (
               <div
-                className="h-2 overflow-hidden rounded-full"
-                style={{ background: 'var(--border-light)' }}
+                key={p.plan}
+                className="rounded-2xl border p-5"
+                style={{
+                  background: 'var(--bg-white)',
+                  borderColor: 'var(--border-light)',
+                  boxShadow: 'var(--shadow-card)',
+                }}
               >
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                    {p.plan.charAt(0).toUpperCase() + p.plan.slice(1)}
+                  </span>
+                  <span className="text-sm font-bold" style={{ color: p.color }}>
+                    {p.count} tenant{p.count !== 1 ? 's' : ''}
+                  </span>
+                </div>
                 <div
-                  className="h-full rounded-full"
-                  style={{ width: `${String(p.pct)}%`, background: p.color }}
-                />
+                  className="h-2 overflow-hidden rounded-full"
+                  style={{ background: 'var(--border-light)' }}
+                >
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${String(p.pct)}%`, background: p.color }}
+                  />
+                </div>
+                <div className="mt-1.5 text-right text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {p.pct}%
+                </div>
               </div>
-              <div className="mt-1.5 text-right text-xs" style={{ color: 'var(--text-muted)' }}>
-                {p.pct}%
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );

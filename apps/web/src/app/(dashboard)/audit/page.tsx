@@ -1,113 +1,13 @@
 import { auth } from '@platform/auth';
+import { adminDb } from '@platform/db';
+import { resolveTenant } from '@platform/tenant';
 import { redirect } from 'next/navigation';
 
+import { timeAgo } from '@/lib/time';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 
 export const metadata = { title: 'Audit Log' };
-
-const auditEvents = [
-  {
-    id: 1,
-    action: 'user.invite',
-    resourceType: 'User',
-    resource: 'jane.doe@acme.com',
-    actor: 'Alice Kim',
-    ip: '203.0.113.42',
-    time: '2026-05-01 14:32:11',
-    category: 'team',
-  },
-  {
-    id: 2,
-    action: 'subscription.upgrade',
-    resourceType: 'Subscription',
-    resource: 'pro → enterprise',
-    actor: 'Bob Lee',
-    ip: '203.0.113.17',
-    time: '2026-05-01 13:10:04',
-    category: 'billing',
-  },
-  {
-    id: 3,
-    action: 'scim.user.sync',
-    resourceType: 'User',
-    resource: '47 users (bulk)',
-    actor: 'System',
-    ip: '10.0.0.1',
-    time: '2026-05-01 11:45:00',
-    category: 'scim',
-  },
-  {
-    id: 4,
-    action: 'api_key.create',
-    resourceType: 'ApiKey',
-    resource: 'webhook-prod-key',
-    actor: 'Alice Kim',
-    ip: '203.0.113.42',
-    time: '2026-05-01 10:22:33',
-    category: 'api',
-  },
-  {
-    id: 5,
-    action: 'role_binding.update',
-    resourceType: 'RoleBinding',
-    resource: 'charlie@acme.com → Admin',
-    actor: 'Alice Kim',
-    ip: '203.0.113.42',
-    time: '2026-04-30 17:58:01',
-    category: 'team',
-  },
-  {
-    id: 6,
-    action: 'webhook.delivery.failed',
-    resourceType: 'Webhook',
-    resource: 'POST /ingest',
-    actor: 'System',
-    ip: '10.0.0.1',
-    time: '2026-04-30 16:40:22',
-    category: 'error',
-  },
-  {
-    id: 7,
-    action: 'user.signin',
-    resourceType: 'Session',
-    resource: 'alice@acme.com',
-    actor: 'Alice Kim',
-    ip: '203.0.113.42',
-    time: '2026-04-30 09:01:55',
-    category: 'auth',
-  },
-  {
-    id: 8,
-    action: 'tenant.domain.add',
-    resourceType: 'Domain',
-    resource: 'app.acme.com',
-    actor: 'Bob Lee',
-    ip: '203.0.113.17',
-    time: '2026-04-29 15:30:00',
-    category: 'settings',
-  },
-  {
-    id: 9,
-    action: 'user.suspend',
-    resourceType: 'User',
-    resource: 'frank@acme.com',
-    actor: 'Alice Kim',
-    ip: '203.0.113.42',
-    time: '2026-04-28 11:11:43',
-    category: 'team',
-  },
-  {
-    id: 10,
-    action: 'scim_token.rotate',
-    resourceType: 'ScimToken',
-    resource: 'primary-scim-token',
-    actor: 'Bob Lee',
-    ip: '203.0.113.17',
-    time: '2026-04-27 10:00:00',
-    category: 'security',
-  },
-];
 
 const categoryConfig: Record<
   string,
@@ -126,9 +26,41 @@ const categoryConfig: Record<
   security: { variant: 'warning', label: 'Security' },
 };
 
+function getCategory(action: string): string {
+  const a = action.toLowerCase();
+  if (a.includes('billing') || a.includes('subscription') || a.includes('plan')) return 'billing';
+  if (a.includes('scim')) return 'scim';
+  if (a.includes('fail') || a.includes('error')) return 'error';
+  if (a.includes('webhook') || a.includes('apikey') || a.includes('api_key')) return 'api';
+  if (a.includes('settings') || a.includes('branding') || a.includes('domain')) return 'settings';
+  if (a.includes('signin') || a.includes('signout') || a.includes('session')) return 'auth';
+  if (a.includes('scim') || a.includes('token')) return 'security';
+  return 'team';
+}
+
+const PAGE_SIZE = 25;
+
 export default async function AuditPage() {
   const session = await auth();
   if (!session) redirect('/auth/signin');
+
+  const slug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
+  const tenantCtx = await resolveTenant(slug);
+  if (!tenantCtx) redirect('/');
+
+  const { tenantId } = tenantCtx;
+
+  const [auditLogs, totalCount] = await Promise.all([
+    adminDb.auditLog.findMany({
+      where: { tenantId },
+      orderBy: { occurredAt: 'desc' },
+      take: PAGE_SIZE,
+      include: {
+        actor: { select: { email: true } },
+      },
+    }),
+    adminDb.auditLog.count({ where: { tenantId } }),
+  ]);
 
   return (
     <div>
@@ -208,20 +140,6 @@ export default async function AuditPage() {
             <option>Last 7 days</option>
             <option>Last 30 days</option>
             <option>Last 90 days</option>
-            <option>Custom range</option>
-          </select>
-          <select
-            className="rounded-xl border px-3 py-2 text-sm outline-none"
-            style={{
-              borderColor: 'var(--border-light)',
-              background: 'var(--bg-main)',
-              color: 'var(--text-secondary)',
-            }}
-          >
-            <option>All actors</option>
-            <option>Alice Kim</option>
-            <option>Bob Lee</option>
-            <option>System</option>
           </select>
         </div>
 
@@ -234,86 +152,105 @@ export default async function AuditPage() {
             boxShadow: 'var(--shadow-card)',
           }}
         >
-          <table className="w-full">
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
-                {['Timestamp', 'Action', 'Resource', 'Actor', 'IP Address', 'Category'].map(
-                  (col) => (
-                    <th
-                      key={col}
-                      className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      {col}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {auditEvents.map((event, i) => {
-                const config = categoryConfig[event.category] ??
-                  categoryConfig.api ?? { variant: 'default' as const, label: 'Other', icon: '📋' };
-                return (
-                  <tr
-                    key={event.id}
-                    className="hover:bg-bg-main cursor-pointer transition-colors"
-                    style={{
-                      borderBottom:
-                        i < auditEvents.length - 1 ? '1px solid var(--border-light)' : 'none',
-                    }}
-                  >
-                    <td className="px-6 py-3.5">
-                      <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {event.time}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <code
-                        className="rounded px-2 py-0.5 font-mono text-xs"
-                        style={{ background: 'var(--bg-subtle)', color: 'var(--brand-secondary)' }}
+          {auditLogs.length === 0 ? (
+            <div className="px-6 py-12 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+              No audit events yet. Actions taken in this workspace will appear here.
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+                  {['Timestamp', 'Action', 'Resource', 'Actor', 'IP Address', 'Category'].map(
+                    (col) => (
+                      <th
+                        key={col}
+                        className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide"
+                        style={{ color: 'var(--text-muted)' }}
                       >
-                        {event.action}
-                      </code>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                        <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
-                          {event.resourceType}
-                        </span>{' '}
-                        · {event.resource}
-                      </div>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <div className="brand-gradient flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
-                          {event.actor[0]}
-                        </div>
-                        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                          {event.actor}
+                        {col}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {auditLogs.map((event, i) => {
+                  const category = getCategory(event.action);
+                  const config = categoryConfig[category] ??
+                    categoryConfig.api ?? {
+                      variant: 'default' as const,
+                      label: 'Other',
+                    };
+                  const actorDisplay = event.actor?.email ?? 'System';
+                  const resourceDisplay =
+                    event.resourceId.length > 20
+                      ? event.resourceId.slice(0, 20) + '…'
+                      : event.resourceId;
+                  return (
+                    <tr
+                      key={event.id.toString()}
+                      className="hover:bg-bg-main cursor-pointer transition-colors"
+                      style={{
+                        borderBottom:
+                          i < auditLogs.length - 1 ? '1px solid var(--border-light)' : 'none',
+                      }}
+                    >
+                      <td className="px-6 py-3.5">
+                        <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
+                          {timeAgo(event.occurredAt)}
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <code className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {event.ip}
-                      </code>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <Badge variant={config.variant}>{config.label}</Badge>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                      <td className="px-6 py-3.5">
+                        <code
+                          className="rounded px-2 py-0.5 font-mono text-xs"
+                          style={{
+                            background: 'var(--bg-subtle)',
+                            color: 'var(--brand-secondary)',
+                          }}
+                        >
+                          {event.action}
+                        </code>
+                      </td>
+                      <td className="px-6 py-3.5">
+                        <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                          <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+                            {event.resourceType}
+                          </span>{' '}
+                          · {resourceDisplay}
+                        </div>
+                      </td>
+                      <td className="px-6 py-3.5">
+                        <div className="flex items-center gap-2">
+                          <div className="brand-gradient flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
+                            {actorDisplay[0]?.toUpperCase() ?? '?'}
+                          </div>
+                          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                            {actorDisplay}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-3.5">
+                        <code className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
+                          {event.ip ?? '—'}
+                        </code>
+                      </td>
+                      <td className="px-6 py-3.5">
+                        <Badge variant={config.variant}>{config.label}</Badge>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
 
           <div
             className="flex items-center justify-between border-t px-6 py-4"
             style={{ borderColor: 'var(--border-light)' }}
           >
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Showing 10 of 1,284 events (90-day retention)
+              Showing {auditLogs.length} of {totalCount.toLocaleString()} event
+              {totalCount !== 1 ? 's' : ''}
             </span>
             <div className="flex items-center gap-2">
               <button
@@ -350,9 +287,8 @@ export default async function AuditPage() {
             />
           </svg>
           <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-            Audit log is retained for <strong>90 days</strong> on the Pro plan. Upgrade to
-            Enterprise for unlimited retention. Logs are append-only and cryptographically signed —
-            they cannot be modified or deleted.
+            Logs are append-only and immutable — they cannot be modified or deleted. Upgrade to
+            Enterprise for extended retention periods.
           </p>
         </div>
       </main>

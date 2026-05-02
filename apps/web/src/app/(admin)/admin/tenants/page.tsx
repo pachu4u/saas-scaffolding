@@ -1,79 +1,12 @@
 import { auth } from '@platform/auth';
+import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
 
+import { formatDate, timeAgo } from '@/lib/time';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 
 export const metadata = { title: 'Tenants — Admin' };
-
-const tenants = [
-  {
-    name: 'Acme Corp',
-    slug: 'acme',
-    plan: 'Pro',
-    users: 43,
-    status: 'Active',
-    mrr: '$49',
-    domain: 'app.acme.com',
-    created: 'Jan 10, 2025',
-    lastActivity: '2 min ago',
-  },
-  {
-    name: 'Globex Inc',
-    slug: 'globex',
-    plan: 'Enterprise',
-    users: 312,
-    status: 'Active',
-    mrr: '$499',
-    domain: 'app.globex.com',
-    created: 'Jan 12, 2025',
-    lastActivity: '1 hr ago',
-  },
-  {
-    name: 'Initech LLC',
-    slug: 'initech',
-    plan: 'Free',
-    users: 3,
-    status: 'Active',
-    mrr: '$0',
-    domain: '—',
-    created: 'Mar 5, 2025',
-    lastActivity: '3 days ago',
-  },
-  {
-    name: 'Umbrella Corp',
-    slug: 'umbrella',
-    plan: 'Pro',
-    users: 28,
-    status: 'Suspended',
-    mrr: '$0',
-    domain: '—',
-    created: 'Feb 20, 2025',
-    lastActivity: '2 weeks ago',
-  },
-  {
-    name: 'Stark Industries',
-    slug: 'stark',
-    plan: 'Enterprise',
-    users: 891,
-    status: 'Active',
-    mrr: '$999',
-    domain: 'platform.stark.io',
-    created: 'Dec 1, 2024',
-    lastActivity: '5 min ago',
-  },
-  {
-    name: 'Wayne Enterprises',
-    slug: 'wayne',
-    plan: 'Pro',
-    users: 67,
-    status: 'Active',
-    mrr: '$49',
-    domain: '—',
-    created: 'Nov 15, 2024',
-    lastActivity: '1 hr ago',
-  },
-];
 
 const planColors: Record<string, 'purple' | 'blue' | 'gray'> = {
   Enterprise: 'purple',
@@ -84,6 +17,22 @@ const planColors: Record<string, 'purple' | 'blue' | 'gray'> = {
 export default async function AdminTenantsPage() {
   const session = await auth();
   if (!session) redirect('/auth/signin');
+
+  const tenants = await adminDb.tenant.findMany({
+    where: { status: { not: 'DELETED' } },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      _count: { select: { tenantUsers: true } },
+      subscription: {
+        include: { plan: { select: { id: true, name: true, code: true } } },
+      },
+      auditLogs: {
+        orderBy: { occurredAt: 'desc' },
+        take: 1,
+        select: { occurredAt: true },
+      },
+    },
+  });
 
   return (
     <div>
@@ -124,7 +73,7 @@ export default async function AdminTenantsPage() {
             </svg>
             <input
               type="text"
-              placeholder="Search tenants by name, slug, or domain..."
+              placeholder="Search tenants by name or slug..."
               className="w-full rounded-xl border py-2 pl-9 pr-4 text-sm outline-none"
               style={{
                 borderColor: 'var(--border-light)',
@@ -157,20 +106,6 @@ export default async function AdminTenantsPage() {
             <option>All statuses</option>
             <option>Active</option>
             <option>Suspended</option>
-            <option>Deleted</option>
-          </select>
-          <select
-            className="rounded-xl border px-3 py-2 text-sm outline-none"
-            style={{
-              borderColor: 'var(--border-light)',
-              background: 'var(--bg-main)',
-              color: 'var(--text-secondary)',
-            }}
-          >
-            <option>Sort: Created desc</option>
-            <option>Sort: MRR desc</option>
-            <option>Sort: Users desc</option>
-            <option>Sort: Last activity</option>
           </select>
         </div>
 
@@ -183,152 +118,156 @@ export default async function AdminTenantsPage() {
             boxShadow: 'var(--shadow-card)',
           }}
         >
-          <table className="w-full">
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
-                {[
-                  'Tenant',
-                  'Plan',
-                  'Users',
-                  'MRR',
-                  'Custom Domain',
-                  'Status',
-                  'Created',
-                  'Last activity',
-                  '',
-                ].map((col) => (
-                  <th
-                    key={col}
-                    className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                    style={{ color: 'var(--text-muted)' }}
-                  >
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {tenants.map((t, i) => (
-                <tr
-                  key={t.slug}
-                  className="hover:bg-bg-main transition-colors"
-                  style={{
-                    borderBottom: i < tenants.length - 1 ? '1px solid var(--border-light)' : 'none',
-                  }}
-                >
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2.5">
-                      <div className="brand-gradient flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white">
-                        {t.name[0]}
-                      </div>
-                      <div>
-                        <div
-                          className="text-sm font-semibold"
-                          style={{ color: 'var(--text-primary)' }}
-                        >
-                          {t.name}
-                        </div>
-                        <code className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                          {t.slug}
-                        </code>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <Badge variant={planColors[t.plan] ?? 'gray'}>{t.plan}</Badge>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      {t.users}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span
-                      className="text-sm font-semibold"
-                      style={{ color: 'var(--text-primary)' }}
+          {tenants.length === 0 ? (
+            <div className="px-6 py-12 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+              No tenants found.
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+                  {[
+                    'Tenant',
+                    'Plan',
+                    'Users',
+                    'Custom Domains',
+                    'Status',
+                    'Created',
+                    'Last Activity',
+                    '',
+                  ].map((col) => (
+                    <th
+                      key={col}
+                      className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide"
+                      style={{ color: 'var(--text-muted)' }}
                     >
-                      {t.mrr}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span
-                      className="font-mono text-xs"
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tenants.map((t, i) => {
+                  const planName =
+                    t.subscription?.plan.name ?? t.plan.charAt(0).toUpperCase() + t.plan.slice(1);
+                  const lastActivityDate = t.auditLogs[0]?.occurredAt;
+                  const domains = t.customDomains;
+                  return (
+                    <tr
+                      key={t.id}
+                      className="hover:bg-bg-main transition-colors"
                       style={{
-                        color: t.domain !== '—' ? 'var(--brand-secondary)' : 'var(--text-muted)',
+                        borderBottom:
+                          i < tenants.length - 1 ? '1px solid var(--border-light)' : 'none',
                       }}
                     >
-                      {t.domain}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <Badge variant={t.status === 'Active' ? 'success' : 'error'} dot>
-                      {t.status}
-                    </Badge>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      {t.created}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      {t.lastActivity}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        className="hover:bg-bg-subtle rounded-lg border px-2 py-1 text-xs transition-colors"
-                        style={{
-                          borderColor: 'var(--border-light)',
-                          color: 'var(--text-secondary)',
-                        }}
-                      >
-                        View
-                      </button>
-                      {t.status === 'Active' ? (
-                        <button className="rounded-lg border border-red-100 bg-red-50 px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-100">
-                          Suspend
-                        </button>
-                      ) : (
-                        <button
-                          className="hover:bg-bg-subtle rounded-lg border px-2 py-1 text-xs transition-colors"
-                          style={{
-                            borderColor: 'var(--border-light)',
-                            color: 'var(--text-secondary)',
-                          }}
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="brand-gradient flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white">
+                            {t.name[0]}
+                          </div>
+                          <div>
+                            <div
+                              className="text-sm font-semibold"
+                              style={{ color: 'var(--text-primary)' }}
+                            >
+                              {t.name}
+                            </div>
+                            <code className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                              {t.slug}
+                            </code>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <Badge variant={planColors[planName] ?? 'gray'}>{planName}</Badge>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                          {t._count.tenantUsers}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {domains.length > 0 ? (
+                          <span
+                            className="font-mono text-xs"
+                            style={{ color: 'var(--brand-secondary)' }}
+                          >
+                            {domains[0]}
+                            {domains.length > 1 && ` +${String(domains.length - 1)}`}
+                          </span>
+                        ) : (
+                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                            —
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <Badge
+                          variant={
+                            t.status === 'ACTIVE'
+                              ? 'success'
+                              : t.status === 'SUSPENDED'
+                                ? 'error'
+                                : 'gray'
+                          }
+                          dot
                         >
-                          Reinstate
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                          {t.status.charAt(0) + t.status.slice(1).toLowerCase()}
+                        </Badge>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                          {formatDate(t.createdAt)}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                          {lastActivityDate ? timeAgo(lastActivityDate) : '—'}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            className="hover:bg-bg-subtle rounded-lg border px-2 py-1 text-xs transition-colors"
+                            style={{
+                              borderColor: 'var(--border-light)',
+                              color: 'var(--text-secondary)',
+                            }}
+                          >
+                            View
+                          </button>
+                          {t.status === 'ACTIVE' ? (
+                            <button className="rounded-lg border border-red-100 bg-red-50 px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-100">
+                              Suspend
+                            </button>
+                          ) : (
+                            <button
+                              className="hover:bg-bg-subtle rounded-lg border px-2 py-1 text-xs transition-colors"
+                              style={{
+                                borderColor: 'var(--border-light)',
+                                color: 'var(--text-secondary)',
+                              }}
+                            >
+                              Reinstate
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
 
           <div
             className="flex items-center justify-between border-t px-6 py-4"
             style={{ borderColor: 'var(--border-light)' }}
           >
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Showing 6 of 124 tenants
+              Showing {tenants.length} tenant{tenants.length !== 1 ? 's' : ''}
             </span>
-            <div className="flex items-center gap-2">
-              <button
-                className="hover:bg-bg-subtle rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
-                style={{ borderColor: 'var(--border-light)', color: 'var(--text-secondary)' }}
-              >
-                Previous
-              </button>
-              <button
-                className="hover:bg-bg-subtle rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
-                style={{ borderColor: 'var(--border-light)', color: 'var(--text-secondary)' }}
-              >
-                Next
-              </button>
-            </div>
           </div>
         </div>
       </main>

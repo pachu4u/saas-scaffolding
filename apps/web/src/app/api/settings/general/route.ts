@@ -7,6 +7,38 @@ import { resolveTenant } from '@platform/tenant';
 export const runtime = 'nodejs';
 
 /**
+ * GET /api/settings/general
+ * Returns current workspace name, slug, description, and timezone.
+ */
+export async function GET(req: NextRequest) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const tenantSlug = req.headers.get('x-tenant-slug');
+  if (!tenantSlug) return NextResponse.json({ error: 'No tenant context' }, { status: 400 });
+
+  const tenantCtx = await resolveTenant(tenantSlug);
+  if (!tenantCtx) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+
+  const tenant = await adminDb.tenant.findUnique({
+    where: { id: tenantCtx.tenantId },
+    select: { id: true, name: true, slug: true, branding: true, customDomains: true },
+  });
+
+  if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+
+  const branding = (tenant.branding ?? {}) as Record<string, unknown>;
+
+  return NextResponse.json({
+    name: tenant.name,
+    slug: tenant.slug,
+    description: typeof branding.description === 'string' ? branding.description : '',
+    timezone: typeof branding.timezone === 'string' ? branding.timezone : 'UTC',
+    customDomains: tenant.customDomains,
+  });
+}
+
+/**
  * PATCH /api/settings/general
  * Updates workspace name, slug, description, and timezone.
  */

@@ -1,56 +1,14 @@
 import Link from 'next/link';
+import { notFound, redirect } from 'next/navigation';
+
+import { adminDb } from '@platform/db';
+import { resolveTenant } from '@platform/tenant';
 
 import { Badge } from '@/components/ui/badge';
 
 export const metadata = { title: 'Edit Role' };
 
-const roleData: Record<
-  string,
-  {
-    name: string;
-    description: string;
-    isSystem: boolean;
-    color: 'purple' | 'blue' | 'default' | 'gray' | 'success';
-    memberCount: number;
-  }
-> = {
-  tenant_admin: {
-    name: 'Admin',
-    description: 'Full control over workspace settings, members, billing, and all resources.',
-    isSystem: true,
-    color: 'purple',
-    memberCount: 2,
-  },
-  tenant_billing_admin: {
-    name: 'Billing Admin',
-    description: 'Can manage subscriptions, view invoices, and update payment methods.',
-    isSystem: true,
-    color: 'blue',
-    memberCount: 1,
-  },
-  tenant_user: {
-    name: 'Member',
-    description: 'Standard access to workspace resources. Can create and edit content.',
-    isSystem: true,
-    color: 'default',
-    memberCount: 38,
-  },
-  tenant_viewer: {
-    name: 'Viewer',
-    description: 'Read-only access. Cannot create, edit, or delete anything.',
-    isSystem: true,
-    color: 'gray',
-    memberCount: 2,
-  },
-  custom_devops: {
-    name: 'DevOps',
-    description: 'Custom role for the engineering team.',
-    isSystem: false,
-    color: 'success',
-    memberCount: 5,
-  },
-};
-
+// Static permission catalog — labels/descriptions are app-level constants
 const permissionGroups = [
   {
     resource: 'Members',
@@ -169,94 +127,51 @@ const permissionGroups = [
   },
 ];
 
-// Permissions granted for each role
-const roleGrants: Record<string, Set<string>> = {
-  tenant_admin: new Set([
-    'member:read',
-    'member:invite',
-    'member:remove',
-    'member:suspend',
-    'role:read',
-    'role:assign',
-    'role:manage',
-    'billing:read',
-    'billing:manage',
-    'settings:read',
-    'settings:manage',
-    'branding:manage',
-    'domain:manage',
-    'sso:read',
-    'sso:manage',
-    'scim:manage',
-    'apikey:read',
-    'apikey:create',
-    'apikey:revoke',
-    'audit:read',
-    'audit:export',
-    'webhook:read',
-    'webhook:manage',
-  ]),
-  tenant_billing_admin: new Set(['member:read', 'billing:read', 'billing:manage']),
-  tenant_user: new Set([
-    'member:read',
-    'role:read',
-    'billing:read',
-    'settings:read',
-    'apikey:read',
-    'apikey:create',
-    'audit:read',
-    'webhook:read',
-  ]),
-  tenant_viewer: new Set([
-    'member:read',
-    'role:read',
-    'billing:read',
-    'settings:read',
-    'audit:read',
-  ]),
-  custom_devops: new Set([
-    'member:read',
-    'role:read',
-    'settings:read',
-    'apikey:read',
-    'apikey:create',
-    'apikey:revoke',
-    'audit:read',
-    'audit:export',
-    'webhook:read',
-    'webhook:manage',
-  ]),
+const roleColorMap: Record<string, 'purple' | 'blue' | 'default' | 'gray' | 'success'> = {
+  Admin: 'purple',
+  'Billing Admin': 'blue',
+  Member: 'default',
+  Viewer: 'gray',
 };
 
-const membersForRole: Record<string, { name: string; email: string; avatar: string }[]> = {
-  tenant_admin: [
-    { name: 'Alice Kim', email: 'alice@acme.com', avatar: 'AK' },
-    { name: 'Bob Lee (acting)', email: 'bob@acme.com', avatar: 'BL' },
-  ],
-  tenant_billing_admin: [{ name: 'Bob Lee', email: 'bob@acme.com', avatar: 'BL' }],
-  tenant_user: [
-    { name: 'Charlie Park', email: 'charlie@acme.com', avatar: 'CP' },
-    { name: 'Diana Wu', email: 'diana@acme.com', avatar: 'DW' },
-    { name: 'Eve Santos', email: 'eve@acme.com', avatar: 'ES' },
-  ],
-  tenant_viewer: [{ name: 'Frank Miller', email: 'frank@acme.com', avatar: 'FM' }],
-  custom_devops: [],
-};
+function getRoleColor(
+  name: string,
+  isSystem: boolean,
+): 'purple' | 'blue' | 'default' | 'gray' | 'success' {
+  if (roleColorMap[name]) return roleColorMap[name]!;
+  return isSystem ? 'default' : 'success';
+}
 
 export default async function RoleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const role = roleData[id] ??
-    roleData.tenant_user ?? {
-      name: 'Unknown',
-      description: '',
-      isSystem: true,
-      color: 'default' as const,
-      memberCount: 0,
-    };
-  const grants = roleGrants[id] ?? new Set<string>();
-  const members = membersForRole[id] ?? [];
+
+  const slug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
+  const tenantCtx = await resolveTenant(slug);
+  if (!tenantCtx) redirect('/');
+
+  const { tenantId } = tenantCtx;
+
+  // Fetch role from DB (system roles have tenantId=null, custom roles have tenantId set)
+  const role = await adminDb.role.findFirst({
+    where: { id },
+    include: {
+      permissions: { include: { permission: { select: { id: true, code: true } } } },
+      bindings: {
+        where: { tenantId },
+        include: { user: { select: { id: true, email: true } } },
+        take: 10,
+      },
+      _count: { select: { bindings: { where: { tenantId } } } },
+    },
+  });
+
+  if (!role) notFound();
+
+  const grants = new Set(role.permissions.map((rp) => rp.permission.code));
+  const memberCount = role._count.bindings;
   const totalPerms = permissionGroups.reduce((acc, g) => acc + g.permissions.length, 0);
-  const grantedCount = [...grants].length;
+  const grantedCount = grants.size;
+  const color = getRoleColor(role.name, role.isSystem);
 
   return (
     <div className="space-y-6">
@@ -290,24 +205,13 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
                 <h1 className="text-lg font-extrabold" style={{ color: 'var(--text-primary)' }}>
                   {role.name}
                 </h1>
-                <Badge variant={role.color}>{role.isSystem ? 'System role' : 'Custom role'}</Badge>
+                <Badge variant={color}>{role.isSystem ? 'System role' : 'Custom role'}</Badge>
               </div>
-              {!role.isSystem ? (
-                <input
-                  type="text"
-                  defaultValue={role.description}
-                  className="mt-1 w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                  style={{
-                    borderColor: 'var(--border-light)',
-                    background: 'var(--bg-main)',
-                    color: 'var(--text-secondary)',
-                  }}
-                />
-              ) : (
-                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                  {role.description}
-                </p>
-              )}
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                {role.isSystem
+                  ? 'System-managed role. Permissions can be adjusted but the role cannot be deleted.'
+                  : 'Custom role for your workspace.'}
+              </p>
             </div>
             <div className="flex-shrink-0 text-right">
               <div className="brand-gradient-text text-2xl font-extrabold">{grantedCount}</div>
@@ -352,7 +256,6 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
                     boxShadow: 'var(--shadow-card)',
                   }}
                 >
-                  {/* Group header */}
                   <div
                     className="flex items-center justify-between border-b px-5 py-3.5"
                     style={{ borderColor: 'var(--border-light)', background: 'var(--bg-main)' }}
@@ -367,17 +270,9 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
                       <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                         {groupGranted}/{group.permissions.length} granted
                       </span>
-                      {/* Grant all in group */}
-                      <button
-                        className="text-xs font-semibold hover:underline"
-                        style={{ color: 'var(--brand-primary)' }}
-                      >
-                        {groupGranted === group.permissions.length ? 'Revoke all' : 'Grant all'}
-                      </button>
                     </div>
                   </div>
 
-                  {/* Individual permissions */}
                   <div className="divide-y" style={{ borderColor: 'var(--border-light)' }}>
                     {group.permissions.map((perm) => {
                       const granted = grants.has(perm.code);
@@ -386,9 +281,8 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
                           key={perm.code}
                           className="hover:bg-bg-main flex items-center gap-4 px-5 py-3.5 transition-colors"
                         >
-                          {/* Toggle */}
-                          <button
-                            className="relative h-5 w-9 flex-shrink-0 rounded-full transition-colors"
+                          <div
+                            className="relative h-5 w-9 flex-shrink-0 rounded-full"
                             style={{
                               background: granted
                                 ? 'var(--brand-primary)'
@@ -396,10 +290,10 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
                             }}
                           >
                             <span
-                              className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform"
+                              className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow"
                               style={{ left: granted ? '18px' : '2px' }}
                             />
-                          </button>
+                          </div>
 
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
@@ -497,29 +391,32 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
             >
               Members with this role
             </h3>
-            {members.length > 0 ? (
+            {role.bindings.length > 0 ? (
               <div className="space-y-2">
-                {members.map((m) => (
-                  <div key={m.email} className="flex items-center gap-2.5">
-                    <div className="brand-gradient flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
-                      {m.avatar}
-                    </div>
-                    <div className="min-w-0">
-                      <div
-                        className="truncate text-xs font-semibold"
-                        style={{ color: 'var(--text-primary)' }}
-                      >
-                        {m.name}
+                {role.bindings.map((binding) => {
+                  const initials = binding.user.email.slice(0, 2).toUpperCase();
+                  return (
+                    <div key={binding.userId} className="flex items-center gap-2.5">
+                      <div className="brand-gradient flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
+                        {initials}
                       </div>
-                      <div className="truncate text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {m.email}
+                      <div className="min-w-0">
+                        <div
+                          className="truncate text-xs font-semibold"
+                          style={{ color: 'var(--text-primary)' }}
+                        >
+                          {binding.user.email.split('@')[0]}
+                        </div>
+                        <div className="truncate text-xs" style={{ color: 'var(--text-muted)' }}>
+                          {binding.user.email}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-                {role.memberCount > members.length && (
+                  );
+                })}
+                {memberCount > role.bindings.length && (
                   <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    +{role.memberCount - members.length} more
+                    +{memberCount - role.bindings.length} more
                   </div>
                 )}
               </div>
@@ -537,7 +434,7 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
             </Link>
           </div>
 
-          {/* Inherited by / role hierarchy */}
+          {/* Permission summary */}
           <div
             className="rounded-2xl border p-5"
             style={{
