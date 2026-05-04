@@ -14,7 +14,7 @@ const ROLES = [
   { id: 'tenant_viewer', name: 'Viewer', description: 'Read-only access' },
 ];
 
-export function InviteModal({ onClose }: InviteModalProps) {
+export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
   const [email, setEmail] = useState('');
   const [roleId, setRoleId] = useState('tenant_user');
   const [isPending, startTransition] = useTransition();
@@ -33,7 +33,10 @@ export function InviteModal({ onClose }: InviteModalProps) {
       try {
         const res = await fetch('/api/team/invite', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-tenant-slug': tenantSlug,
+          },
           body: JSON.stringify({ email, roleId }),
         });
         const data = (await res.json()) as { success?: boolean; error?: string };

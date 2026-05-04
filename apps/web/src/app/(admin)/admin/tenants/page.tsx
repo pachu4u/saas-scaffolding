@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
@@ -5,6 +7,7 @@ import { redirect } from 'next/navigation';
 import { formatDate, timeAgo } from '@/lib/time';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
+import { CreateTenantButton } from '@/components/admin/create-tenant-button';
 
 export const metadata = { title: 'Tenants — Admin' };
 
@@ -41,11 +44,7 @@ export default async function AdminTenantsPage() {
         subtitle="All workspaces across the platform"
         userEmail={session.user.email}
         userName={session.user.name ?? undefined}
-        actions={
-          <button className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90">
-            + Create tenant
-          </button>
-        }
+        actions={<CreateTenantButton />}
       />
 
       <main className="space-y-6 p-6">
@@ -228,7 +227,8 @@ export default async function AdminTenantsPage() {
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-end gap-1.5">
-                          <button
+                          <Link
+                            href={`/admin/tenants/${t.id}`}
                             className="hover:bg-bg-subtle rounded-lg border px-2 py-1 text-xs transition-colors"
                             style={{
                               borderColor: 'var(--border-light)',
@@ -236,7 +236,7 @@ export default async function AdminTenantsPage() {
                             }}
                           >
                             View
-                          </button>
+                          </Link>
                           {t.status === 'ACTIVE' ? (
                             <button className="rounded-lg border border-red-100 bg-red-50 px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-100">
                               Suspend

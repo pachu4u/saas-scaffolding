@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { auth } from '@platform/auth';
-import { adminDb } from '@platform/db';
+import { adminDb, withPlatformAdmin } from '@platform/db';
 import { sendEmail } from '@platform/notifications';
 import { resolveTenant } from '@platform/tenant';
 
@@ -40,46 +40,51 @@ export async function POST(req: NextRequest) {
   // Normalise email
   const normalizedEmail = email.trim().toLowerCase();
 
-  // Resolve or create the invited user record
-  let user = await adminDb.user.findUnique({ where: { email: normalizedEmail } });
-  if (!user) {
-    user = await adminDb.user.create({
-      data: {
-        email: normalizedEmail,
-        // externalId will be filled on first SSO login
-        externalId: `pending-${crypto.randomUUID()}`,
-      },
-    });
-  }
-
-  // Upsert TenantUser as INVITED
-  await adminDb.tenantUser.upsert({
-    where: { tenantId_userId: { tenantId: tenantCtx.tenantId, userId: user.id } },
-    create: {
-      tenantId: tenantCtx.tenantId,
-      userId: user.id,
-      status: 'INVITED',
-    },
-    update: { status: 'INVITED' },
-  });
-
-  // Assign requested role
-  const role = await adminDb.role.findFirst({
-    where: { id: roleId, tenantId: tenantCtx.tenantId },
-  });
-  if (role) {
-    await adminDb.roleBinding.upsert({
-      where: {
-        tenantId_userId_roleId: {
-          tenantId: tenantCtx.tenantId,
-          userId: user.id,
-          roleId: role.id,
+  // All writes use withPlatformAdmin to bypass FORCE ROW LEVEL SECURITY
+  const user = await withPlatformAdmin(async (tx) => {
+    // Resolve or create the invited user record
+    let foundUser = await tx.user.findUnique({ where: { email: normalizedEmail } });
+    if (!foundUser) {
+      foundUser = await tx.user.create({
+        data: {
+          email: normalizedEmail,
+          // externalId will be filled on first SSO login
+          externalId: `pending-${crypto.randomUUID()}`,
         },
+      });
+    }
+
+    // Upsert TenantUser as INVITED
+    await tx.tenantUser.upsert({
+      where: { tenantId_userId: { tenantId: tenantCtx.tenantId, userId: foundUser.id } },
+      create: {
+        tenantId: tenantCtx.tenantId,
+        userId: foundUser.id,
+        status: 'INVITED',
       },
-      create: { tenantId: tenantCtx.tenantId, userId: user.id, roleId: role.id },
-      update: {},
+      update: { status: 'INVITED' },
     });
-  }
+
+    // Assign requested role — roles are system-level (tenantId = null), looked up by name
+    const role = await tx.role.findFirst({
+      where: { name: roleId },
+    });
+    if (role) {
+      await tx.roleBinding.upsert({
+        where: {
+          tenantId_userId_roleId: {
+            tenantId: tenantCtx.tenantId,
+            userId: foundUser.id,
+            roleId: role.id,
+          },
+        },
+        create: { tenantId: tenantCtx.tenantId, userId: foundUser.id, roleId: role.id },
+        update: {},
+      });
+    }
+
+    return foundUser;
+  });
 
   // Generate signed invite token (HMAC-SHA256 over userId:tenantId)
   const secret = process.env.INVITE_TOKEN_SECRET ?? 'dev-invite-secret';
@@ -90,18 +95,21 @@ export async function POST(req: NextRequest) {
   const encodedPayload = Buffer.from(payload).toString('base64url');
   const inviteToken = `${encodedPayload}.${token}`;
 
-  const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000';
+  const baseUrl =
+    process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
   const inviteUrl = `${baseUrl}/invite/${inviteToken}`;
 
-  // Audit log
-  await adminDb.auditLog.create({
-    data: {
-      tenantId: tenantCtx.tenantId,
-      action: 'member.invited',
-      resourceType: 'user',
-      resourceId: user.id,
-      after: { email: normalizedEmail, inviteUrl },
-    },
+  // Audit log (platform admin bypass)
+  await withPlatformAdmin(async (tx) => {
+    await tx.auditLog.create({
+      data: {
+        tenantId: tenantCtx.tenantId,
+        action: 'member.invited',
+        resourceType: 'user',
+        resourceId: user.id,
+        after: { email: normalizedEmail, inviteUrl },
+      },
+    });
   });
 
   // Send invite email

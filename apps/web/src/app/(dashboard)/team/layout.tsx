@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { InnerNav } from '@/components/layout/inner-nav';
 import { Topbar } from '@/components/layout/topbar';
+import { InviteButton } from '@/components/team/invite-button';
 
 const teamNav = [
   { label: 'Members', href: '/team' },
@@ -13,6 +14,8 @@ export default async function TeamLayout({ children }: { children: React.ReactNo
   const session = await auth();
   if (!session) redirect('/auth/signin');
 
+  const tenantSlug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
+
   return (
     <div>
       <Topbar
@@ -20,11 +23,7 @@ export default async function TeamLayout({ children }: { children: React.ReactNo
         subtitle="Manage members, roles, and permissions"
         userEmail={session.user.email}
         userName={session.user.name ?? undefined}
-        actions={
-          <button className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90">
-            + Invite member
-          </button>
-        }
+        actions={<InviteButton tenantSlug={tenantSlug} />}
       />
       <div
         className="border-b"

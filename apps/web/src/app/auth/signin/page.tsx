@@ -89,7 +89,8 @@ export default function SignInPage() {
           </form>
 
           <p className="mt-4 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
-            Sign in using your organisation&apos;s identity provider (Keycloak, Okta, Azure AD…)
+            Tenant users and platform admins both sign in with SSO. Platform admins are
+            automatically redirected to the admin area after login.
           </p>
 
           {/* ── Divider ─────────────────────────────────────────────────── */}
@@ -102,12 +103,12 @@ export default function SignInPage() {
               style={{ color: 'var(--text-muted)' }}
             >
               <span className="px-3" style={{ background: 'var(--bg-main)' }}>
-                Platform access
+                Keycloak administration
               </span>
             </div>
           </div>
 
-          {/* ── Platform Admin sign-in ──────────────────────────────────── */}
+          {/* ── Keycloak Admin Console ──────────────────────────────────── */}
           <div
             className="rounded-xl border p-4"
             style={{ borderColor: 'var(--border-default)', background: 'var(--bg-subtle)' }}
@@ -124,12 +125,11 @@ export default function SignInPage() {
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
               <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                Platform Admin
+                Keycloak Admin Console
               </span>
             </div>
             <p className="mb-3 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              Platform administrators authenticate directly via Keycloak. Access the admin console
-              to manage realms, users, and platform settings.
+              Manage realms, users, identity providers, and SSO configuration directly in Keycloak.
             </p>
             <Link
               href="https://auth.lvh.me/admin"

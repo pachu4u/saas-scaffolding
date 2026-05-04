@@ -73,7 +73,7 @@ export function Topbar({ title, subtitle, userEmail, userName, actions }: Topbar
           <form
             action={async () => {
               'use server';
-              await signOut({ redirectTo: '/' });
+              await signOut({ redirectTo: '/auth/signin' });
             }}
           >
             <button

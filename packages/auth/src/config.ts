@@ -35,6 +35,7 @@ export const authConfig: NextAuthConfig = {
         // Keycloak groups claim (mapped to tenant slugs)
         token.groups = ((profile as Record<string, unknown>)['groups'] as string[]) ?? [];
         token.accessToken = account.access_token;
+        token.idToken = account.id_token;
         token.refreshToken = account.refresh_token;
         token.expiresAt = account.expires_at;
       }
