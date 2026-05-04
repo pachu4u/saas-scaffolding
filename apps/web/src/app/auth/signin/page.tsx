@@ -58,17 +58,18 @@ export default function SignInPage() {
             </span>
           </div>
 
-          <h1 className="mb-2 text-2xl font-extrabold" style={{ color: 'var(--text-primary)' }}>
+          {/* ── Tenant sign-in ──────────────────────────────────────────── */}
+          <h1 className="mb-1 text-2xl font-extrabold" style={{ color: 'var(--text-primary)' }}>
             Welcome back
           </h1>
-          <p className="mb-8 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            Sign in to continue to your workspace
+          <p className="mb-6 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            Sign in to your organisation&apos;s workspace
           </p>
 
           <form
             action={async () => {
               'use server';
-              await signIn('keycloak');
+              await signIn('keycloak', { redirectTo: '/dashboard' });
             }}
             className="space-y-4"
           >
@@ -87,7 +88,12 @@ export default function SignInPage() {
             </button>
           </form>
 
-          <div className="relative my-6">
+          <p className="mt-4 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
+            Sign in using your organisation&apos;s identity provider (Keycloak, Okta, Azure AD…)
+          </p>
+
+          {/* ── Divider ─────────────────────────────────────────────────── */}
+          <div className="relative my-8">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t" style={{ borderColor: 'var(--border-light)' }} />
             </div>
@@ -96,18 +102,59 @@ export default function SignInPage() {
               style={{ color: 'var(--text-muted)' }}
             >
               <span className="px-3" style={{ background: 'var(--bg-main)' }}>
-                or
+                Platform access
               </span>
             </div>
           </div>
 
+          {/* ── Platform Admin sign-in ──────────────────────────────────── */}
           <div
-            className="rounded-xl p-4 text-center text-sm"
-            style={{ background: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}
+            className="rounded-xl border p-4"
+            style={{ borderColor: 'var(--border-default)', background: 'var(--bg-subtle)' }}
           >
-            Enterprise customers can sign in with their{' '}
-            <span style={{ color: 'var(--brand-primary)', fontWeight: 600 }}>SAML or OIDC</span>{' '}
-            identity provider configured by their admin.
+            <div className="mb-3 flex items-center gap-2">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.8}
+                className="h-4 w-4 flex-shrink-0"
+                style={{ color: 'var(--brand-accent)' }}
+              >
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                Platform Admin
+              </span>
+            </div>
+            <p className="mb-3 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              Platform administrators authenticate directly via Keycloak. Access the admin console
+              to manage realms, users, and platform settings.
+            </p>
+            <Link
+              href="https://auth.lvh.me/admin"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-xs font-semibold transition-colors hover:bg-white"
+              style={{
+                borderColor: 'var(--border-default)',
+                color: 'var(--text-primary)',
+                background: 'transparent',
+              }}
+            >
+              Open Keycloak Admin Console
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.8}
+                className="h-3.5 w-3.5"
+              >
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </Link>
           </div>
 
           <p className="mt-8 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -120,17 +167,6 @@ export default function SignInPage() {
               Privacy Policy
             </a>
             .
-          </p>
-
-          <p className="mt-4 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
-            New to riogentix?{' '}
-            <Link
-              href="/#pricing"
-              className="font-semibold hover:underline"
-              style={{ color: 'var(--brand-primary)' }}
-            >
-              Start for free
-            </Link>
           </p>
         </div>
       </div>

@@ -35,10 +35,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
       ['platform_super_admin', 'platform_support'].includes(g),
     );
 
+  // Platform admins don't belong in the tenant dashboard — send them to /admin
+  if (isPlatformAdmin) redirect('/admin');
+
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-main)' }}>
-      <Sidebar tenantName={tenantName} tenantSlug={tenantSlug} isAdmin={isPlatformAdmin} />
-      <div className="ml-60">{children}</div>
+      <Sidebar tenantName={tenantName} tenantSlug={tenantSlug} />
+      <div className="ml-56">{children}</div>
     </div>
   );
 }
