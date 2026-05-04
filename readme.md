@@ -1,737 +1,520 @@
-# Enterprise SaaS Scaffolding — Enhanced Plan & Phased Build
+# riogentix — Enterprise SaaS Platform
 
-**Status:** v2 (supersedes `saas_scaffolding_requirements_nextjs_keycloak_scim_stripe.md`)
-**Stack:** Next.js 15 · Keycloak · Postgres · Redis · Stripe · SCIM 2.0 · Traefik · OpenTelemetry · Docker Compose (local) · Kubernetes / Helm (prod)
-**Build philosophy:** every phase ends with a *running, testable* slice. Nothing is built that cannot be smoke-tested the same day.
+A production-ready, multi-tenant SaaS scaffolding that eliminates months of boilerplate. Ships with SSO, RBAC, billing, webhooks, audit logging, SCIM provisioning, async workers, full observability, and a complete admin console — all pre-wired and running locally via Docker in one command.
 
 ---
 
-## Part 1 — Evaluation of the v1 Requirements Document
+## Objective
 
-### What v1 gets right
-- Tenant-first thinking and zero-trust framing are the correct north star.
-- Layered architecture (Edge → App → Platform Services → Data → Async → Observability) is a clean mental model.
-- Calls out the right hard problems early: SCIM idempotency, webhook resilience, RBAC + ABAC + entitlements as three composable layers, audit-log obligation, white-label.
-- Leaves room for future evolution (multi-region, dedicated tenant infra, plugin ecosystem).
+Most SaaS teams spend 3–6 months rebuilding the same infrastructure before writing a single line of product code. riogentix is that infrastructure, production-grade from day one:
 
-### Where v1 is weak (and what v2 fixes)
-| Gap in v1 | Why it matters | Fix in v2 |
-|---|---|---|
-| Tech-agnostic to a fault | A "blueprint" you can't build from is a wishlist. | Concrete, opinionated stack locked in §2 with rationale. |
-| Tenant routing strategy unspecified | Subdomain vs. path radically changes cookies, TLS, and Keycloak realm design. | Subdomain-per-tenant standardized; custom-domain path documented. |
-| Isolation model unspecified | "Strict tenant isolation" is a goal, not a mechanism. | Shared DB + `tenant_id` + Postgres **Row-Level Security** as defense-in-depth. |
-| Data model sketches only 5 tables | Misses roles, permissions, role bindings, entitlements, API keys, webhooks, jobs, idempotency keys. | Expanded data model in §3.4. |
-| Authorization flow handwaved | "Roles → Permissions → Entitlements → Policies → Decision" with no concrete library or claim shape. | Concrete claims, JIT mapping from Keycloak, and an `authz` package signature. |
-| SCIM listed but not designed | SCIM 2.0 has gnarly idempotency and ETag rules. | §4.13 enumerates endpoints, idempotency strategy, and conformance tests. |
-| No build order | Teams attempt big-bang integration and stall. | 18 ordered phases, each with run/test/exit criteria. |
-| No local dev story | Custom domains + TLS locally is its own subproject. | `*.lvh.me` + mkcert wildcard, documented Phase 3. |
-| Observability listed, not specified | "Logs, metrics, traces" can mean anything. | Concrete OTel + Grafana LGTM stack in Phase 10. |
-| Production deployment absent | Says "horizontal scaling" but no manifests or topology. | Helm chart layout, ingress, secrets, and HPA in §6 / Phase 16. |
-| Async layer underspecified | Queue choice, DLQ, idempotency keys, scheduling all missing. | BullMQ on Redis, dedicated worker process, idempotency table. |
-| Compliance vague | "Retention, export, delete" but no flows. | Tenant-scoped export + cryptographic delete documented. |
+- **Multi-tenancy** via subdomain routing + Postgres Row-Level Security
+- **Enterprise auth** (SSO/OIDC via Keycloak, SCIM 2.0 provisioning)
+- **Fine-grained RBAC** with a pluggable permission engine
+- **Billing** with Stripe (Checkout, Customer Portal, webhook handling)
+- **Async job engine** with BullMQ + Redis (retries, DLQ, idempotency)
+- **Full observability** (OpenTelemetry traces, structured logs, Grafana dashboards)
+- **Platform admin console** to manage tenants, users, jobs, and revenue
 
-### What v2 keeps
-The principles, the layered model, the epic list, and the RBAC/ABAC/entitlements three-layer authorization model. Those are good. Everything else is sharpened.
+The goal: clone, configure your domain and Stripe keys, and ship your product.
 
 ---
 
-## Part 2 — Concrete Tech Stack (locked-in decisions)
+## Tech Stack
 
-| Concern | Choice | Why |
-|---|---|---|
-| Frontend + API | **Next.js 15** (App Router, RSC, route handlers) | One framework for UI + tenant-aware API; great DX; first-class TypeScript. |
-| Language | **TypeScript** everywhere | One mental model server + client. |
-| Identity Provider | **Keycloak 24+** | Open-source, OIDC + SAML + SCIM consumer-side, supports realm-per-tenant when needed. |
-| Auth library (app side) | **Auth.js v5** (NextAuth) with Keycloak provider | Mature, App Router-native, JWT or DB sessions. |
-| Database | **Postgres 16** | RLS, partitioning, JSONB, mature ecosystem. |
-| ORM / migrations | **Prisma 5** | Best DX, mature migrations, RLS-compatible via raw SQL escape hatch. |
-| Tenant isolation | **Shared DB + `tenant_id` + Postgres RLS** | Single point of policy enforcement; defense-in-depth even if app code has bugs. |
-| Cache / queue backend | **Redis 7** | Single tool for sessions, rate limit, BullMQ. |
-| Async jobs | **BullMQ** (Node) | First-class Redis queue, delayed jobs, retries, DLQ, repeat. |
-| Reverse proxy / ingress | **Traefik v3** | Auto-discovers Docker labels locally; first-class K8s IngressRoute CRD; same tool local + prod. |
-| TLS (local) | **mkcert** | Trusted local certs, no browser warnings. |
-| TLS (prod) | **cert-manager + Let's Encrypt** | Standard K8s pattern. |
-| Local hostnames | `*.lvh.me` (or `*.localtest.me`) | Wildcard DNS to 127.0.0.1, no `/etc/hosts` edits. |
-| Logging | **pino** (structured JSON) | Fast, JSON, well-supported. |
-| Tracing / metrics SDK | **OpenTelemetry** | Vendor-neutral; one SDK, many backends. |
-| Observability backend (local + prod) | **Grafana LGTM** (Loki + Grafana + Tempo + Mimir/Prom) | Single UI, single org to operate, all OSS. |
-| Billing | **Stripe** (Checkout + Customer Portal + Webhooks) | Enterprise-ready, well-documented webhook signing. |
-| SCIM | **SCIM 2.0** endpoints in Next.js route handlers | Owns provisioning, decoupled from Keycloak. |
-| Email | **Resend** or **SES** | Pluggable through a `@platform/notifications` package. |
-| Secrets (local) | `.env` files, `direnv` optional | Simple. |
-| Secrets (prod) | **External Secrets Operator** + **Vault** (or cloud KMS) | Pull at runtime, never bake into images. |
-| Container build | Multi-stage Dockerfile, **distroless** runtime | Small, secure. |
-| Local orchestration | **Docker Compose** (multiple files merged) | Matches user's "Docker Desktop" requirement. |
-| Prod orchestration | **Kubernetes** + **Helm 3** | Industry standard. |
-| Monorepo | **pnpm workspaces + Turborepo** | Fast, cache-aware, scales to many packages. |
-| Lint / format | **ESLint + Prettier + tsc strict** | Boring, effective. |
-| Tests | **Vitest** (unit) + **Playwright** (e2e) + **k6** (load) | Right tool for each layer. |
-| CI | **GitHub Actions** | Default; swap easily. |
-
-Override any of these later, but lock them now so the phased plan stays concrete.
+| Layer             | Technology                                                       |
+| ----------------- | ---------------------------------------------------------------- |
+| **Framework**     | Next.js 15 (App Router, React Server Components, Server Actions) |
+| **Language**      | TypeScript 5.5 throughout                                        |
+| **Auth**          | Auth.js v5 (next-auth) + Keycloak 24 (OIDC/SAML)                 |
+| **Database**      | PostgreSQL 16 with Prisma 5 ORM + Row-Level Security             |
+| **Cache / Jobs**  | Redis 7 + BullMQ                                                 |
+| **Billing**       | Stripe (Checkout, Customer Portal, webhooks)                     |
+| **Email**         | Resend (swappable via `@platform/notifications`)                 |
+| **Reverse proxy** | Traefik v3 (TLS termination, subdomain routing)                  |
+| **Observability** | OpenTelemetry → Collector → Prometheus + Loki + Tempo + Grafana  |
+| **Monorepo**      | pnpm workspaces + Turborepo                                      |
+| **Containers**    | Docker Compose (dev) + Helm charts (production Kubernetes)       |
+| **Linting / CI**  | ESLint, Prettier, Husky, commitlint, GitHub Actions              |
 
 ---
 
-## Part 3 — Concrete Architecture
-
-### 3.1 Service topology (local Compose, mirrors prod)
-
-```text
-                          ┌──────────────────────┐
-   Browser ── lvh.me ────►│  Traefik (edge)      │  *.lvh.me wildcard, TLS via mkcert
-                          └──────────┬───────────┘
-                                     │
-            ┌────────────────────────┼─────────────────────────────┐
-            ▼                        ▼                             ▼
-    ┌──────────────┐         ┌──────────────┐              ┌────────────────┐
-    │ Next.js web  │◄────────┤  Keycloak    │              │ Grafana (LGTM) │
-    │ (app+api)    │  OIDC   │  + Postgres  │              │  + OTel coll.  │
-    └──────┬───────┘         └──────────────┘              └────────────────┘
-           │
-   ┌───────┼────────┬─────────────────┬───────────────────┐
-   ▼       ▼        ▼                 ▼                   ▼
-┌──────┐ ┌──────┐ ┌────────────┐  ┌────────────┐    ┌──────────────┐
-│ App  │ │Redis │ │ Workers    │  │ Stripe CLI │    │ Mailpit      │
-│ PG   │ │      │ │ (BullMQ)   │  │ (webhooks) │    │ (dev SMTP)   │
-└──────┘ └──────┘ └────────────┘  └────────────┘    └──────────────┘
-```
-
-Key invariant: **Traefik is the only ingress**. Direct ports on services are exposed only to `localhost` for debugging.
-
-### 3.2 Multi-tenancy model
-
-- **Tenant resolution:** Traefik routes `*.lvh.me` to Next.js. A Next.js `middleware.ts` extracts the leftmost label, looks up `tenant.slug → tenant_id` (Redis-cached), and stamps the `tenant_id` into a request-scoped context (`AsyncLocalStorage`).
-- **Reserved subdomains:** `auth.`, `api.`, `admin.`, `app.`, `www.`, `_health.` (no tenant lookup).
-- **Custom domains (white-label):** Same `tenants` table has a `custom_domains[]` column; Traefik's dynamic config reads it to issue per-domain certs.
-- **DB enforcement:** Every tenant-scoped table has a `tenant_id uuid not null` column and a Postgres **RLS policy** of the form:
-  ```sql
-  USING (tenant_id = current_setting('app.tenant_id')::uuid)
-  ```
-  The Prisma client wraps every transaction with `SET LOCAL app.tenant_id = $1` so RLS bites even on programmer error. The platform-admin role uses a separate Prisma client that bypasses RLS via `SET LOCAL ROLE platform_admin`.
-- **Realm strategy:** **Single Keycloak realm** (`saas-platform`). Tenant membership is a group + custom token claim `tenant_ids[]`. Future enterprise SKU can opt into realm-per-tenant.
-
-### 3.3 Authentication & authorization flow
+## Architecture
 
 ```
-Browser → Traefik → Next.js
-                    │
-                    ├─ middleware.ts: resolve tenant from host
-                    ├─ Auth.js handler:
-                    │     ├─ unauthenticated → redirect to Keycloak
-                    │     └─ authenticated   → JWT with claims:
-                    │           sub, email, tenant_ids[],
-                    │           roles_by_tenant{ tenant_id: [role,...] },
-                    │           plan_by_tenant{ tenant_id: "free"|"pro"|"ent" }
-                    ├─ authz layer: 
-                    │     1. Tenant gate:    user has access to current tenant?
-                    │     2. RBAC check:     does role grant resource:action?
-                    │     3. ABAC policies:  same-tenant, ownership, etc.
-                    │     4. Entitlements:   plan permits this feature?
-                    └─ DB call (with `SET LOCAL app.tenant_id`)
+Browser
+  │
+  ▼
+Traefik v3 (TLS termination, *.lvh.me wildcard cert)
+  ├── auth.lvh.me  ──► Keycloak 24 (OIDC / SAML / SCIM IdP)
+  ├── app.lvh.me   ─┐
+  ├── acme.lvh.me  ─┤
+  └── *.lvh.me     ─┴► Next.js 15 (App Router)
+                          │
+                          ├── Middleware: extracts tenant slug from host
+                          │             sets x-tenant-slug header
+                          │
+                          ├── (dashboard) routes — tenant workspace
+                          │     Auth.js session required
+                          │     Tenant resolved via slug → RLS scoped
+                          │
+                          ├── (admin) routes — platform admin console
+                          │     Requires platform_super_admin group in JWT
+                          │
+                          └── /api/* — REST endpoints
+                                │
+                    ┌───────────┴───────────┐
+                    ▼                       ▼
+             PostgreSQL 16              Redis 7
+          (RLS + Prisma ORM)        (BullMQ queues +
+            3 DB roles:              tenant cache +
+            app / migrator /         authz cache)
+            platform_admin                │
+                                          ▼
+                                    BullMQ Workers
+                                  (email, webhooks,
+                                   usage rollup,
+                                   plan changes)
 ```
 
-The `roles_by_tenant` and `plan_by_tenant` claims come from a **Keycloak ProtocolMapper** that calls the platform's `/internal/userinfo-augment` endpoint on token issuance (or are computed locally on first session and cached in Redis with short TTL). Pick one and document it; the plan uses the cached-augment approach.
+### Multi-tenancy Model
 
-### 3.4 Expanded data model
+Every tenant gets a subdomain (`acme.lvh.me`). The middleware extracts the slug from the `Host` header and injects `x-tenant-slug`. All database queries run under Postgres **Row-Level Security** — the `app` role can only see rows matching `current_setting('app.tenant_id')`. Platform-admin operations use `withPlatformAdmin()` which sets `ROLE platform_admin` (BYPASSRLS) inside a transaction.
 
-```sql
--- Identity & tenancy
-tenant(id uuid pk, slug citext unique, name, status, plan,
-       custom_domains text[], branding jsonb, created_at, updated_at)
+### Auth Flow
 
-users(id uuid pk, external_id text unique,        -- Keycloak sub
-      email citext unique, status,
-      created_at, updated_at)
-
-tenant_users(tenant_id, user_id, status, joined_at,
-             PRIMARY KEY (tenant_id, user_id))
-
--- Authorization
-roles(id, tenant_id NULLABLE, name, is_system bool)
-       -- tenant_id NULL = platform/system role
-permissions(id, code text unique)        -- e.g. 'user:create'
-role_permissions(role_id, permission_id)
-role_bindings(tenant_id, user_id, role_id)
-
--- Entitlements & billing
-plans(id, code, name, features jsonb, price_id_stripe)
-subscriptions(tenant_id pk, plan_id, status, stripe_customer_id,
-              stripe_subscription_id, current_period_end,
-              trial_ends_at)
-usage_events(id, tenant_id, kind, quantity, occurred_at)
-              -- partitioned monthly
-
--- SCIM
-scim_tokens(id, tenant_id, name, hashed_token, scopes[],
-            created_at, last_used_at)
-external_identities(id, tenant_id, user_id, idp text, idp_user_id,
-                    raw jsonb, UNIQUE(tenant_id, idp, idp_user_id))
-
--- Audit
-audit_log(id bigserial, tenant_id, actor_user_id, action,
-          resource_type, resource_id, before jsonb, after jsonb,
-          ip inet, user_agent, occurred_at)
-        -- partitioned monthly, write-only, retained per plan
-
--- Async / idempotency
-jobs(id, tenant_id, queue, payload jsonb, status, attempts,
-     scheduled_for, last_error, created_at)
-idempotency_keys(key text pk, tenant_id, request_hash, response jsonb,
-                 expires_at)
-
--- Webhooks (inbound + outbound)
-webhook_endpoints(id, tenant_id, url, secret, events[], status)
-webhook_deliveries(id, endpoint_id, event_id, status, attempts,
-                   last_error, next_retry_at)
-```
-
-All tenant-scoped tables get the standard RLS policy. `audit_log` is append-only; `before/after` are scrubbed of secrets by a logging helper before insert.
+1. User visits `app.lvh.me/auth/signin` → clicks **Continue with SSO**
+2. Auth.js redirects to Keycloak → OIDC authorization code flow
+3. Keycloak issues JWT; Auth.js stores `sub`, `email`, `groups`, `id_token` in an encrypted session cookie
+4. `session.groups` contains Keycloak group memberships (e.g. `platform_super_admin`)
+5. Dashboard layout checks groups → platform admins redirect to `/admin`
+6. Sign-out hits `/api/auth/keycloak-logout` — clears the Next.js cookie **and** calls Keycloak's `end_session_endpoint` with `id_token_hint` (full federated logout)
 
 ---
 
-## Part 4 — Repository Layout (monorepo)
+## Project Structure
 
 ```
-saas-platform/
+saas-scaffolding/
 ├── apps/
-│   ├── web/                        # Next.js 15 app (UI + route handlers)
+│   ├── web/                        # Next.js 15 application
+│   │   └── src/
+│   │       ├── app/
+│   │       │   ├── (admin)/        # Platform admin routes
+│   │       │   │   └── admin/
+│   │       │   │       ├── page.tsx          # Overview
+│   │       │   │       ├── tenants/          # Tenant management
+│   │       │   │       ├── users/            # User directory
+│   │       │   │       ├── jobs/             # BullMQ inspector
+│   │       │   │       └── revenue/          # Revenue dashboard
+│   │       │   ├── (dashboard)/    # Tenant workspace routes
+│   │       │   │   ├── dashboard/            # Home / metrics
+│   │       │   │   ├── billing/              # Subscription management
+│   │       │   │   ├── team/                 # Members + roles
+│   │       │   │   ├── audit/                # Audit log viewer
+│   │       │   │   ├── webhooks/             # Webhook endpoints
+│   │       │   │   └── settings/             # General, branding, security, API keys
+│   │       │   ├── api/            # API route handlers
+│   │       │   │   ├── auth/                 # Auth.js + keycloak-logout
+│   │       │   │   ├── admin/                # jobs, users
+│   │       │   │   ├── billing/              # checkout, portal, webhook
+│   │       │   │   ├── team/                 # invite, accept
+│   │       │   │   ├── settings/             # general, branding, security
+│   │       │   │   ├── webhooks/             # CRUD + deliveries
+│   │       │   │   ├── tenants/              # list + create
+│   │       │   │   ├── usage/                # usage events
+│   │       │   │   └── users/me              # profile
+│   │       │   └── auth/           # Sign-in page
+│   │       ├── components/
+│   │       │   ├── layout/         # Sidebar, Topbar, InnerNav, WorkspaceSwitcher
+│   │       │   ├── modals/         # InviteModal
+│   │       │   ├── team/           # InviteButton
+│   │       │   ├── admin/          # CreateTenantButton
+│   │       │   └── ui/             # Badge, etc.
+│   │       └── middleware.ts       # Auth guard + tenant slug injection
 │   └── workers/                    # BullMQ worker process
+│       └── src/index.ts            # Queue processors
+│
 ├── packages/
-│   ├── db/                         # Prisma schema, client, RLS helpers, seeds
-│   ├── auth/                       # Auth.js config, Keycloak provider, JWT helpers
-│   ├── authz/                      # RBAC + ABAC + entitlements engine
-│   ├── tenant/                     # subdomain → tenant resolution, AsyncLocalStorage
-│   ├── billing/                    # Stripe client, webhooks, plan registry
-│   ├── scim/                       # SCIM 2.0 handlers (User, Group, /Schemas)
-│   ├── notifications/              # email/SMS abstraction
-│   ├── logger/                     # pino + OTel resource attributes
-│   ├── observability/              # OTel SDK setup, instrumentation
-│   ├── config/                     # zod-validated env config
-│   └── ui/                         # shared React components / theming
-├── infra/
-│   ├── docker/                     # Dockerfiles per service
-│   │   ├── web.Dockerfile
-│   │   └── workers.Dockerfile
-│   ├── compose/
-│   │   ├── docker-compose.yml              # core: traefik, web, db, redis, keycloak
-│   │   ├── docker-compose.observability.yml # grafana, loki, tempo, prometheus, otel-col
-│   │   ├── docker-compose.tools.yml        # mailpit, stripe-cli, pgadmin
-│   │   └── traefik/
-│   │       ├── traefik.yml
-│   │       └── dynamic/                    # tenant-domain dynamic config
-│   ├── keycloak/
-│   │   ├── realm-export.json
-│   │   └── themes/
-│   ├── helm/
-│   │   └── saas-platform/                  # umbrella chart (web, workers, …)
-│   └── k8s/
-│       └── overlays/                       # kustomize per env
-├── scripts/
-│   ├── dev.sh                       # one-shot bring-up
-│   ├── mkcert-setup.sh
-│   ├── seed.ts
-│   └── reset.sh
-├── tests/
-│   ├── e2e/                         # Playwright
-│   └── load/                        # k6
-├── .github/workflows/
-│   ├── ci.yml
-│   └── release.yml
-├── turbo.json
-├── pnpm-workspace.yaml
-├── package.json
-├── .env.example
-└── README.md
+│   ├── auth/                       # Auth.js config + Keycloak provider
+│   ├── authz/                      # RBAC engine (can, hasEntitlement)
+│   ├── billing/                    # Stripe client + plan registry
+│   ├── config/                     # Zod-validated env schema
+│   ├── db/                         # Prisma schema, client helpers, seed
+│   ├── jobs/                       # BullMQ queue definitions
+│   ├── logger/                     # pino logger + audit logging
+│   ├── notifications/              # Email abstraction (Resend)
+│   ├── observability/              # OTel SDK instrumentation
+│   ├── scim/                       # SCIM 2.0 Users + Groups handlers
+│   ├── tenant/                     # Subdomain resolver + tenant context
+│   └── ui/                         # Shared React components + theme
+│
+└── infra/
+    ├── compose/
+    │   ├── docker-compose.yml              # Core services
+    │   ├── docker-compose.observability.yml # OTel, Prometheus, Loki, Tempo, Grafana
+    │   └── docker-compose.tools.yml        # Mailpit, Stripe CLI, pgAdmin
+    ├── docker/
+    │   ├── web.Dockerfile          # 3-stage Next.js standalone build
+    │   └── workers.Dockerfile      # 3-stage workers build
+    ├── helm/saas-platform/         # Kubernetes Helm chart
+    ├── keycloak/realm-export.json  # Keycloak realm + client config
+    ├── postgres/init/              # DB role creation SQL
+    └── observability/              # OTel, Prometheus, Loki, Tempo, Grafana config
 ```
 
 ---
 
-## Part 5 — Local Development Conventions
+## Features & Capabilities
 
-- **Hostnames:** `*.lvh.me` resolves to `127.0.0.1` automatically — use `app.lvh.me`, `auth.lvh.me`, `acme.lvh.me`, `globex.lvh.me`. No hosts-file edits, ever.
-- **TLS locally:** `scripts/mkcert-setup.sh` runs `mkcert -install` and `mkcert "*.lvh.me" lvh.me`. Traefik mounts the cert.
-- **Env files:** `.env` (committed defaults via `.env.example`), `.env.local` (gitignored, secrets). `@platform/config` validates with zod and refuses to boot on missing/invalid env.
-- **One command up:** `pnpm dev:up` → `docker compose -f infra/compose/docker-compose.yml -f docker-compose.observability.yml up -d` then `turbo run dev`.
-- **One command down:** `pnpm dev:down` (preserves volumes), `pnpm dev:reset` (nukes volumes).
-- **Tenant fixtures:** seed creates two tenants — `acme` and `globex` — and a platform admin user. Login URLs: `https://acme.lvh.me`, `https://globex.lvh.me`.
+### Authentication & Identity
+
+- **SSO via Keycloak** — OIDC authorization code flow, JWT session (8h)
+- **Federated logout** — clears both the Next.js cookie and the Keycloak session via `end_session_endpoint` + `id_token_hint`
+- **Platform admin vs tenant user** — role determined by Keycloak group membership (`platform_super_admin`, `platform_support`); layouts auto-redirect accordingly
+- **Keycloak realm** pre-configured with `saas-platform` realm, `web` client, groups-to-claim mapper
+
+### Multi-tenancy
+
+- **Subdomain routing** — `{slug}.lvh.me` in dev; configurable for production
+- **Postgres RLS** — `FORCE ROW LEVEL SECURITY` on all tenant tables; `app` role only sees its own rows; `platform_admin` bypasses via `BYPASSRLS`
+- **Tenant isolation helpers** — `withTenant(tenantId, fn)` sets the RLS session var; `withPlatformAdmin(fn)` runs as the privileged role
+- **Tenant suspension** — suspended tenants are redirected to `/suspended` at the layout level
+
+### RBAC (Role-Based Access Control)
+
+- **Six system roles**: `platform_super_admin`, `platform_support`, `tenant_admin`, `tenant_billing_admin`, `tenant_user`, `tenant_viewer`
+- **Permission engine** (`@platform/authz`) — `can(ctx, permission)` with Redis-cached role bindings (120s TTL)
+- **Entitlement checks** — `hasEntitlement(tenantId, feature)` reads plan feature flags (e.g. `scim.enabled`, `webhooks.enabled`, `users.max`)
+- **Plan-gated features**: Free (5 users, no SCIM/webhooks), Pro (50 users, SCIM + webhooks), Enterprise (unlimited + custom domains)
+
+### Billing (Stripe)
+
+- **Stripe Checkout** — `POST /api/billing/checkout` creates a hosted checkout session
+- **Customer Portal** — `POST /api/billing/portal` opens Stripe-hosted subscription management
+- **Webhook handler** — `POST /api/billing/webhook` (public, HMAC-verified) handles `customer.subscription.*` and `invoice.*` events idempotently
+- **Plan registry** — `@platform/billing/plans` defines Free / Pro / Enterprise with feature flags and Stripe price IDs
+
+### Team Management
+
+- **Member invite flow** — email-based with HMAC-signed token (7-day expiry); `POST /api/team/invite` + accept endpoint
+- **Role assignment** — invite API assigns system role by name (`tenant_user`, `tenant_admin`, etc.) with RLS bypass
+- **SCIM 2.0** — `@platform/scim` implements `/scim/Users` and `/scim/Groups` for automated provisioning from Okta, Entra ID, and any compliant IdP
+
+### Tenant Settings
+
+- **General** — workspace name, timezone (`PATCH /api/settings/general`)
+- **Branding** — logo URL, primary colour, custom CSS (`PATCH /api/settings/branding`)
+- **Security & SSO** — SCIM token management, SSO domain enforcement (`GET/PATCH /api/settings/security`)
+- **API Keys** — tenant-scoped API key management
+
+### Webhooks
+
+- **Endpoint management** — create, update, delete webhook endpoints with per-event filters
+- **Delivery tracking** — `WebhookDelivery` records every attempt; history at `/api/webhooks/[id]/deliveries`
+- **Retry queue** — failed deliveries re-enqueued in `webhookOutboundQueue` with exponential backoff
+
+### Async Job Engine (BullMQ)
+
+- **Queues**: `emailQueue`, `webhookInboundQueue`, `webhookOutboundQueue`, `usageRollupQueue`, `planChangedQueue`
+- **Retry policy** — 5 attempts, exponential backoff (1s base), DLQ for dead jobs
+- **Idempotency** — `enqueue()` accepts `idempotencyKey`; deduplicates by BullMQ job ID
+- **Admin inspector** — `/admin/jobs` shows queue depths and DLQ entries
+
+### Audit Logging
+
+- **Immutable audit trail** — `AuditLog` table with `action`, `resourceType`, `resourceId`, `before/after` JSON diffs, IP, and user agent
+- **Viewer** — `/audit` page with filterable audit event list
+
+### Observability
+
+- **OpenTelemetry** — traces exported to OTel Collector → Tempo; metrics → Prometheus; logs → Loki
+- **Grafana** — pre-provisioned with Prometheus, Loki, and Tempo datasources at `grafana.lvh.me`
+- **Structured logging** — pino with `request_id`, `tenant_id`, `user_id` fields on every log
+- **Health endpoint** — `GET /api/health` for liveness probes (Docker healthcheck + Kubernetes)
+
+### Platform Admin Console
+
+- **Overview** — live counts: total tenants, users, active jobs, DLQ size; plan distribution; recent tenants
+- **Tenant management** — list all tenants, view detail (members, audit events), suspend / reinstate, create new tenant
+- **User directory** — cross-tenant user search
+- **Job inspector** — BullMQ queue and DLQ browser
+- **Revenue dashboard** — Stripe revenue overview
 
 ---
 
-## Part 6 — Phased Build Plan
+## Local Development Setup
 
-Each phase: **Goal → Deliverables → Run → Test → Exit criteria**. Do not start phase N+1 until phase N's exit criteria are green.
+### Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) ≥ 4.x
+- [mkcert](https://github.com/FiloSottile/mkcert) (local TLS certificates)
+- Node.js ≥ 20
+- pnpm ≥ 9 (`npm i -g pnpm`)
+
+### 1 — Generate TLS certificates
+
+```bash
+mkcert -install                        # trust the local CA in your OS / browser
+cd infra/compose/traefik/certs
+mkcert "*.lvh.me" lvh.me              # generates _wildcard.lvh.me.pem + key
+# Copy the root CA so the web container can trust Keycloak's TLS:
+cp "$(mkcert -CAROOT)/rootCA.pem" mkcert-rootCA.pem
+```
+
+### 2 — Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Minimum required changes for local dev:
+
+| Variable                             | What to set                                                                                        |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `AUTH_SECRET`                        | Any 32+ character random string                                                                    |
+| `KEYCLOAK_CLIENT_SECRET`             | Must match the secret in `infra/keycloak/realm-export.json` (default: `change-me-keycloak-secret`) |
+| `STRIPE_SECRET_KEY`                  | Your Stripe test secret key (`sk_test_...`)                                                        |
+| `STRIPE_WEBHOOK_SECRET`              | From `stripe listen` output (`whsec_...`)                                                          |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Your Stripe test publishable key (`pk_test_...`)                                                   |
+| `RESEND_API_KEY`                     | Resend API key — or leave as placeholder, dev email goes to Mailpit                                |
+| `PLATFORM_INTERNAL_SECRET`           | Any 16+ character random string                                                                    |
+
+All other variables default correctly for local Docker Compose.
+
+### 3 — Start the stack
+
+```bash
+# Core services only (recommended to start)
+pnpm dev:up
+
+# Core + observability (adds OTel, Prometheus, Loki, Tempo, Grafana)
+docker compose \
+  -f infra/compose/docker-compose.yml \
+  -f infra/compose/docker-compose.observability.yml \
+  up -d
+
+# Full stack (adds Mailpit, Stripe CLI, pgAdmin)
+docker compose \
+  -f infra/compose/docker-compose.yml \
+  -f infra/compose/docker-compose.observability.yml \
+  -f infra/compose/docker-compose.tools.yml \
+  up -d
+```
+
+Wait ~60 seconds for Keycloak to initialise on first run, then visit **https://app.lvh.me**.
+
+### 4 — Demo credentials
+
+| User              | Password   | Role                   | Access                      |
+| ----------------- | ---------- | ---------------------- | --------------------------- |
+| `alice@acme.test` | `alice123` | `tenant_user`          | Acme tenant workspace       |
+| `bob@globex.test` | `bob123`   | `tenant_user`          | Globex tenant workspace     |
+| `platform-admin`  | `admin123` | `platform_super_admin` | Platform admin console      |
+| `admin`           | `admin`    | Keycloak admin         | Keycloak admin console only |
+
+> To manage Keycloak users and passwords: https://auth.lvh.me/admin (log in as `admin / admin`).
 
 ---
 
-### Phase 0 — Repo, Tooling & Empty Compose
+## Local URLs
 
-**Goal.** A monorepo that lints, builds, and brings up an empty Compose stack.
+All services are available over HTTPS via Traefik + the mkcert wildcard certificate.
 
-**Deliverables.**
-- `pnpm-workspace.yaml`, `turbo.json`, root `package.json` with `dev`, `build`, `lint`, `test`, `typecheck` scripts.
-- ESLint + Prettier + Husky + lint-staged + commitlint.
-- `infra/compose/docker-compose.yml` with a single `whoami` test service behind Traefik (Phase 3 will replace whoami with the real app).
-- `.env.example`, `scripts/mkcert-setup.sh`.
-- README with architecture diagram and quickstart.
+| URL                    | Service                  | Credentials               |
+| ---------------------- | ------------------------ | ------------------------- |
+| https://app.lvh.me     | Main application         | SSO                       |
+| https://acme.lvh.me    | Acme tenant workspace    | SSO as alice              |
+| https://globex.lvh.me  | Globex tenant workspace  | SSO as bob                |
+| https://auth.lvh.me    | Keycloak admin console   | admin / admin             |
+| https://traefik.lvh.me | Traefik dashboard        | admin / admin             |
+| https://grafana.lvh.me | Grafana observability    | admin / admin             |
+| https://mail.lvh.me    | Mailpit dev email inbox  | —                         |
+| https://pgadmin.lvh.me | pgAdmin database browser | admin@example.com / admin |
 
-**Run.**
+### Direct debug ports (no TLS)
+
+| Port             | Service             |
+| ---------------- | ------------------- |
+| `localhost:5434` | PostgreSQL          |
+| `localhost:6379` | Redis               |
+| `localhost:4317` | OTel Collector gRPC |
+| `localhost:4318` | OTel Collector HTTP |
+
+---
+
+## Common Development Tasks
+
+### Run Next.js locally (outside Docker)
+
 ```bash
 pnpm install
-pnpm lint && pnpm typecheck
-docker compose -f infra/compose/docker-compose.yml up -d
+pnpm --filter @platform/db generate   # generate Prisma client
+pnpm dev                               # turbo dev for all packages
 ```
 
-**Test.**
+> The web app still expects Keycloak + Postgres + Redis from Docker. Run `pnpm dev:up` first.
+
+### Database migrations
+
 ```bash
-curl -fsS http://localhost/whoami    # 200, returns hostname
+# Create a new migration
+pnpm --filter @platform/db exec prisma migrate dev --name my_change
+
+# Apply migrations (production)
+pnpm --filter @platform/db exec prisma migrate deploy
+
+# Re-seed the database
+pnpm --filter @platform/db exec tsx src/seed.ts
 ```
 
-**Exit criteria.** CI green on a no-op PR; `dev:up` and `dev:down` both work cleanly; pre-commit hook rejects bad code.
+### Rebuild the web container after code changes
 
----
-
-### Phase 1 — Keycloak + its Postgres
-
-**Goal.** A running Keycloak you can log into and configure, isolated from the app DB.
-
-**Deliverables.**
-- Compose services: `keycloak-db` (Postgres 16) and `keycloak` (quay.io/keycloak/keycloak:24).
-- Persistent volume for Keycloak's DB.
-- `infra/keycloak/realm-export.json` with realm `saas-platform`, one client `web`, two demo users (`alice@acme.test`, `bob@globex.test`), groups `acme`, `globex`, and a custom claim mapper for `tenant_ids`.
-- `KC_HOSTNAME`, `KC_PROXY` set so Keycloak is happy behind Traefik later.
-
-**Run.**
 ```bash
-docker compose up -d keycloak-db keycloak
+cd infra/compose
+docker compose build web
+docker compose up -d web
 ```
 
-**Test.**
-- `http://localhost:8080` → admin console (admin/admin).
-- Realm `saas-platform` exists with users alice and bob.
-- `curl http://localhost:8080/realms/saas-platform/.well-known/openid-configuration` returns valid JSON.
+### View logs
 
-**Exit criteria.** Realm survives `docker compose restart keycloak`; admin login works; OIDC discovery endpoint serves expected URLs.
-
----
-
-### Phase 2 — Next.js Hello World, Dockerized
-
-**Goal.** A bare Next.js app running in a container, no auth, no DB.
-
-**Deliverables.**
-- `apps/web/` from `create-next-app` (TS, App Router, Tailwind).
-- A `/` page and `/_health` route handler (returns `{ ok: true, sha, env }`).
-- `infra/docker/web.Dockerfile` (multi-stage: deps → build → distroless runner).
-- Compose service `web` exposing 3000 internally (no host port; Traefik in Phase 3 will front it).
-
-**Run.**
 ```bash
-docker compose up -d --build web
+docker logs web -f
+docker logs workers -f
+docker logs keycloak -f
 ```
 
-**Test.**
+### Reset everything
+
 ```bash
-docker compose exec web wget -qO- http://localhost:3000/_health
-# {"ok":true,...}
+pnpm dev:down     # stop and remove containers (keeps volumes)
+pnpm dev:reset    # stop, remove containers AND delete all volumes (wipes database)
 ```
 
-**Exit criteria.** Hot reload works in dev mode (`pnpm --filter web dev`), prod image is < 200 MB, `_health` returns 200.
+### Run tests
 
----
-
-### Phase 3 — Traefik Reverse Proxy + Local TLS
-
-**Goal.** Real domain names with HTTPS for the app and Keycloak.
-
-**Deliverables.**
-- `scripts/mkcert-setup.sh` produces `infra/compose/traefik/certs/_wildcard.lvh.me-key.pem` and `.pem`.
-- `traefik.yml` (entrypoints :80, :443; redirect to https), dynamic config mounting the cert.
-- Labels on `web` and `keycloak` services routing:
-  - `app.lvh.me` → web
-  - `*.lvh.me` (priority lower than reserved hosts) → web (tenant routing)
-  - `auth.lvh.me` → keycloak
-  - `traefik.lvh.me` → Traefik dashboard (basic-auth)
-
-**Run.**
 ```bash
-./scripts/mkcert-setup.sh
-docker compose up -d traefik
+pnpm test         # unit tests via Vitest
+pnpm typecheck    # TypeScript check across all packages
+pnpm lint         # ESLint across all packages
 ```
 
-**Test.**
+---
+
+## Database Schema Overview
+
+```
+Tenant ──┬── TenantUser ──── User ──── ExternalIdentity
+         ├── RoleBinding ─── Role ─── RolePermission ─── Permission
+         ├── Subscription ── Plan
+         ├── UsageEvent
+         ├── ScimToken
+         ├── WebhookEndpoint ── WebhookDelivery
+         ├── AuditLog
+         ├── Note
+         └── IdempotencyKey
+
+Platform-level:
+  Job (queue, payload, status, attempts, DLQ)
+```
+
+**Postgres roles:**
+
+| Role             | Description                                                             |
+| ---------------- | ----------------------------------------------------------------------- |
+| `app`            | LOGIN — runs app queries, subject to RLS                                |
+| `migrator`       | LOGIN — runs Prisma migrations, member of `platform_admin`              |
+| `platform_admin` | NOLOGIN, BYPASSRLS — used by `withPlatformAdmin()` for cross-tenant ops |
+
+---
+
+## Environment Variables Reference
+
+| Variable                             | Required | Description                                                                      |
+| ------------------------------------ | -------- | -------------------------------------------------------------------------------- |
+| `DATABASE_URL`                       | ✅       | App Postgres connection string (role: `app`)                                     |
+| `DATABASE_URL_MIGRATOR`              | —        | Migration Postgres URL (role: `migrator`); falls back to `DATABASE_URL`          |
+| `KEYCLOAK_ISSUER`                    | ✅       | OIDC issuer URL (e.g. `https://auth.lvh.me/realms/saas-platform`)                |
+| `KEYCLOAK_INTERNAL_ISSUER`           | —        | Docker-internal issuer for OIDC discovery (overrides `wellKnown` endpoint)       |
+| `KEYCLOAK_CLIENT_ID`                 | ✅       | Keycloak OIDC client ID (e.g. `web`)                                             |
+| `KEYCLOAK_CLIENT_SECRET`             | ✅       | Keycloak OIDC client secret                                                      |
+| `AUTH_SECRET`                        | ✅       | Auth.js session encryption key (min 32 chars)                                    |
+| `AUTH_URL`                           | ✅       | Public URL of this app (e.g. `https://app.lvh.me`)                               |
+| `REDIS_URL`                          | ✅       | Redis connection string                                                          |
+| `STRIPE_SECRET_KEY`                  | ✅       | Stripe secret key (`sk_test_...` or `sk_live_...`)                               |
+| `STRIPE_WEBHOOK_SECRET`              | ✅       | Stripe webhook signing secret (`whsec_...`)                                      |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | ✅       | Stripe publishable key (`pk_test_...`)                                           |
+| `RESEND_API_KEY`                     | ✅       | Resend API key for transactional email                                           |
+| `EMAIL_FROM`                         | ✅       | Sender address for transactional email                                           |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`        | —        | OTel Collector endpoint (default: `http://localhost:4318`)                       |
+| `PLATFORM_INTERNAL_SECRET`           | ✅       | HMAC secret for internal service-to-service calls (min 16 chars)                 |
+| `INVITE_TOKEN_SECRET`                | —        | HMAC secret for invite tokens (defaults to `dev-invite-secret` — change in prod) |
+| `NEXT_PUBLIC_DEFAULT_TENANT_SLUG`    | —        | Fallback tenant slug when not on a subdomain (default: `acme`)                   |
+
+---
+
+## Production Deployment
+
+A Helm chart is included at `infra/helm/saas-platform/` for Kubernetes.
+
 ```bash
-curl -fsS https://app.lvh.me/_health
-curl -fsS https://auth.lvh.me/realms/saas-platform/.well-known/openid-configuration
+# Dev cluster
+helm upgrade --install saas-platform infra/helm/saas-platform \
+  -f infra/helm/saas-platform/values-dev.yaml \
+  --set image.tag=$(git rev-parse --short HEAD)
+
+# Production
+helm upgrade --install saas-platform infra/helm/saas-platform \
+  -f infra/helm/saas-platform/values-prod.yaml \
+  --set image.tag=$(git rev-parse --short HEAD)
 ```
 
-**Exit criteria.** Both URLs serve over HTTPS in a real browser with no warnings; HTTP redirects to HTTPS; Traefik dashboard reachable.
+The chart includes `Deployment`, `HorizontalPodAutoscaler`, `PodDisruptionBudget`, `IngressRoute` (Traefik CRD), and `NetworkPolicy`.
+
+**Production checklist:**
+
+- [ ] Replace `*.lvh.me` with your domain; update `KEYCLOAK_ISSUER`, `AUTH_URL`, `NEXT_PUBLIC_APP_URL`
+- [ ] Use managed Postgres (RDS, Cloud SQL) with SSL
+- [ ] Use managed Redis (ElastiCache, Upstash) with TLS
+- [ ] Rotate all secrets (`AUTH_SECRET`, `PLATFORM_INTERNAL_SECRET`, `INVITE_TOKEN_SECRET`)
+- [ ] Switch Stripe to live keys and a real webhook endpoint
+- [ ] Configure a real SMTP sender in Resend
+- [ ] Set up wildcard TLS via cert-manager (Let's Encrypt)
+- [ ] Enable Keycloak production mode (`KC_HOSTNAME_STRICT=true`, replace `start-dev` with `start`)
 
 ---
 
-### Phase 4 — App Postgres + Prisma + Initial Schema
+## Package Dependency Graph
 
-**Goal.** Persistent storage with migrations, separate from Keycloak's DB.
+```
+apps/web ──────── @platform/auth        @platform/authz
+         │        @platform/billing     @platform/config
+         │        @platform/db          @platform/jobs
+         │        @platform/logger      @platform/notifications
+         │        @platform/observability
+         └─────── @platform/scim        @platform/tenant    @platform/ui
 
-**Deliverables.**
-- Compose service `app-db` (Postgres 16) with named volume.
-- `packages/db/` with Prisma schema for `tenants`, `users`, `tenant_users`.
-- Migration `0001_init`. Seed script creates two tenants (`acme`, `globex`).
-- A simple `/api/tenants` route in the web app that lists tenants (no auth yet — temporary).
+apps/workers ──── @platform/billing     @platform/config
+              │   @platform/db          @platform/jobs
+              └── @platform/logger      @platform/notifications
+```
 
-**Run.**
+---
+
+## Contributing
+
 ```bash
-docker compose up -d app-db
-pnpm --filter @platform/db migrate:dev
-pnpm --filter @platform/db seed
+pnpm install
+git checkout -b feat/my-feature
+# make changes
+git commit -m "feat: add my feature"   # Conventional Commits enforced by commitlint
+git push origin feat/my-feature
 ```
 
-**Test.**
-```bash
-curl -fsS https://app.lvh.me/api/tenants | jq
-# [{"slug":"acme",...}, {"slug":"globex",...}]
-```
-
-**Exit criteria.** Migrations are reproducible from scratch; seed is idempotent; `prisma studio` opens.
+Commit types: `feat`, `fix`, `chore`, `refactor`, `docs`, `test`, `ci`
 
 ---
 
-### Phase 5 — Auth.js + Keycloak OIDC
+## License
 
-**Goal.** Real login/logout against Keycloak; sessions visible in the app.
-
-**Deliverables.**
-- `packages/auth/` with Auth.js v5 config, Keycloak provider, JWT session strategy.
-- `apps/web/app/api/auth/[...nextauth]/route.ts`.
-- Login/logout buttons, `/me` page showing the JWT claims.
-- On first login, a `users` row is created (email + Keycloak `sub` as `external_id`).
-
-**Run.** Already running. Visit `https://app.lvh.me`, click Sign in.
-
-**Test.**
-- Click "Sign in" → redirected to `auth.lvh.me`, log in as alice, redirected back.
-- `/me` shows email, sub, and (empty for now) `tenant_ids`.
-- Sign out clears session.
-
-**Exit criteria.** Session survives page reload; logout actually invalidates the Keycloak session; new user creates a `users` row idempotently.
-
----
-
-### Phase 6 — Tenant Resolution + Postgres RLS
-
-**Goal.** `acme.lvh.me` shows acme's data only; `globex.lvh.me` shows globex's only — enforced in the database.
-
-**Deliverables.**
-- `packages/tenant/` exposes `getTenantContext()` (AsyncLocalStorage); Next.js `middleware.ts` resolves subdomain → `tenant_id` via Redis (introduced in Phase 8 — for now, Postgres lookup, no cache).
-- `packages/db/` adds `tenant_id` columns and **RLS policies** to all tenant-scoped tables (so far: `tenant_users`).
-- A new tenant-scoped table `notes(id, tenant_id, body, created_at)` with seed rows for both tenants.
-- `/api/notes` returns notes; without a valid tenant, returns 404.
-- DB client wrapper sets `SET LOCAL app.tenant_id = $1` on every transaction.
-
-**Run.** Compose already up.
-
-**Test.**
-```bash
-curl -fsS https://acme.lvh.me/api/notes   # only acme's notes
-curl -fsS https://globex.lvh.me/api/notes # only globex's notes
-# Belt-and-suspenders: even if we deliberately bypass app filter,
-# RLS prevents cross-tenant reads. Verify in psql:
-psql ... -c "SET app.tenant_id = '<acme uuid>'; SELECT count(*) FROM notes;"  # only acme rows
-```
-
-**Exit criteria.** A red-team test (a route that "forgets" to filter by `tenant_id`) **still** returns only the right tenant's data, because RLS catches it.
-
----
-
-### Phase 7 — RBAC + ABAC + Entitlements
-
-**Goal.** Role-gated and plan-gated features, enforced in one place.
-
-**Deliverables.**
-- `packages/authz/` with:
-  - `can(user, "resource:action", resource?)` API.
-  - System roles seeded: `platform_super_admin`, `platform_support`, `tenant_admin`, `tenant_billing_admin`, `tenant_user`, `tenant_viewer`.
-  - Permission catalog (typed enum).
-  - ABAC policies: `same_tenant`, `is_self`, `is_owner`.
-  - Entitlement check against `plans.features` JSON.
-- Token augmentation on session callback: load `roles_by_tenant` and `plan_by_tenant` into the JWT (cached in Redis once Phase 8 lands).
-- Two demo gated endpoints:
-  - `POST /api/notes` — requires `notes:create` (tenant_user+).
-  - `DELETE /api/notes/:id` — requires `notes:delete` (tenant_admin+) AND `is_owner` ABAC, only on Pro+.
-
-**Test.**
-- alice (tenant_admin of acme): can create/delete in acme.
-- alice in globex context: 403.
-- bob (tenant_user of globex): can create, cannot delete others'.
-- Free-plan tenant: delete returns 402 Payment Required with `feature: notes.delete`.
-
-**Exit criteria.** A single `withAuthz()` helper wraps every protected route handler; misuse is caught by a unit test.
-
----
-
-### Phase 8 — Redis: Sessions, Cache, Rate Limiting
-
-**Goal.** Stateless web pods. Tenant lookups, rate limits, and session cache all in Redis.
-
-**Deliverables.**
-- Compose service `redis` with persistence.
-- `packages/auth/` switched to Redis-backed session adapter (or refresh-token cache).
-- Tenant resolver caches `slug → tenant` for 60s in Redis.
-- Rate-limit middleware (sliding window, per-IP and per-tenant) using `@upstash/ratelimit` or hand-rolled Lua.
-
-**Test.**
-```bash
-# Rate limit
-hey -n 200 -c 20 https://acme.lvh.me/api/notes
-# Should see ~20% 429s with the right headers (X-RateLimit-*).
-docker compose restart web   # session survives
-```
-
-**Exit criteria.** Killing the web container does not invalidate logged-in sessions; rate limiter returns 429 with informative headers; tenant cache hit ratio visible in logs.
-
----
-
-### Phase 9 — Structured Logging + Audit Log
-
-**Goal.** Every request has a JSON log line tagged with `tenant_id`, `user_id`, `request_id`. Sensitive actions land in `audit_log`.
-
-**Deliverables.**
-- `packages/logger/` (pino) wired into Next.js + workers, with a request-id middleware.
-- `packages/observability/` initial setup (just resource attributes for now).
-- Audit middleware: any mutation that goes through `withAuthz()` writes to `audit_log` with diff (`before`, `after`), scrubbed.
-- `/admin/audit` page (platform_super_admin only) lists last 100 entries.
-
-**Test.**
-```bash
-docker compose logs web | jq 'select(.tenant_id == "<acme>")'
-psql -c "SELECT action, count(*) FROM audit_log GROUP BY action;"
-```
-
-**Exit criteria.** No log line ever contains a secret (verified by a regex test); audit_log row exists for every state-changing API call.
-
----
-
-### Phase 10 — Observability Stack: OTel → Grafana LGTM
-
-**Goal.** Click a trace from Grafana → see logs for that request → pivot to metrics.
-
-**Deliverables.**
-- `docker-compose.observability.yml`: `grafana`, `loki`, `tempo`, `prometheus`, `otel-collector`.
-- `packages/observability/` initializes the OTel SDK (auto-instrumentation for HTTP, Prisma, Redis).
-- pino → OTel logs exporter (or stdout → Loki via promtail; pick one — plan picks OTel direct).
-- Pre-baked Grafana dashboards: HTTP overview, DB pool, Redis, BullMQ.
-- Exemplars wired so traces appear on metric panels.
-
-**Test.** Hit `/api/notes`, find the trace in Tempo via `tenant_id` attribute, jump to logs, see Prom counter increment.
-
-**Exit criteria.** Three-pillar correlation works end-to-end; dashboards show non-zero data; OTel collector restart does not lose data (uses persistent volume for WAL).
-
----
-
-### Phase 11 — Async Workers (BullMQ)
-
-**Goal.** A separate worker process pulling jobs off Redis, with retries and DLQ.
-
-**Deliverables.**
-- `apps/workers/` — a Node entrypoint that registers BullMQ workers for queues: `email`, `webhook-inbound`, `webhook-outbound`, `usage-rollup`.
-- `infra/docker/workers.Dockerfile`.
-- Compose service `workers` with `replicas: 2`.
-- `packages/jobs/` exposes typed `enqueue(queue, payload, opts)` helpers, with backoff and `removeOnComplete`/`removeOnFail` rules.
-- DLQ inspection page at `/admin/jobs`.
-- Idempotency table `idempotency_keys` and a `withIdempotency()` helper.
-
-**Test.**
-```bash
-# Enqueue a flaky job; verify retries; force final failure → lands in DLQ.
-curl -X POST https://app.lvh.me/api/admin/test-job
-docker compose logs -f workers
-```
-
-**Exit criteria.** Job retried with exponential backoff, DLQ visible; restarting workers mid-job results in resumption (no double-execution thanks to idempotency keys).
-
----
-
-### Phase 12 — Stripe Billing
-
-**Goal.** Tenant admin can subscribe; entitlements update from webhooks; gated features unlock.
-
-**Deliverables.**
-- `packages/billing/` with Stripe client, plan registry, webhook signature verification, idempotent event handlers.
-- Compose service `stripe-cli` running `stripe listen --forward-to web:3000/api/billing/webhook` so local Stripe events reach the app.
-- `/billing` UI: current plan, "Manage subscription" → Stripe Customer Portal; "Upgrade" → Stripe Checkout.
-- Webhook handlers update `subscriptions` row, then enqueue a `plan-changed` job that recomputes cached entitlements.
-- Per-plan entitlements wired into the Phase 7 `authz` engine.
-
-**Test.**
-- `stripe trigger customer.subscription.created` → tenant moves to Pro.
-- Pro-only endpoint becomes available within 5 seconds.
-- Replaying the same event id is a no-op (idempotency).
-
-**Exit criteria.** All Stripe events the app cares about are handled idempotently; failed webhooks retry via BullMQ with DLQ; downgrade revokes entitlements.
-
----
-
-### Phase 13 — SCIM 2.0 Endpoints
-
-**Goal.** External IdPs (Okta, Entra ID) can provision users and groups into a tenant.
-
-**Deliverables.**
-- `packages/scim/` implementing `/scim/v2/Users`, `/Groups`, `/Schemas`, `/ServiceProviderConfig`, `/ResourceTypes`. RFC 7643/7644-compliant.
-- Per-tenant SCIM bearer tokens (table `scim_tokens`) with scoped permissions; token issuance UI in tenant admin.
-- Idempotency on `externalId`; ETag handling for `If-Match`.
-- All SCIM mutations write to `audit_log`.
-- Conformance test suite (Vitest) covering create/get/patch/delete for users + groups, including `Operations` patch ops.
-
-**Test.**
-```bash
-TOKEN=...
-curl -H "Authorization: Bearer $TOKEN" https://acme.lvh.me/scim/v2/Users
-# Provision a user via POST; verify users + tenant_users + audit_log rows.
-```
-
-**Exit criteria.** Conformance suite green; token rotation works; replaying a SCIM POST with the same `externalId` returns 200, not 409.
-
----
-
-### Phase 14 — White-Label: Custom Domains + Theming
-
-**Goal.** `app.acme.com` serves Acme's branded login page and UI.
-
-**Deliverables.**
-- `tenants.custom_domains[]` column + admin UI to add a domain (DNS instructions, ACME validation status).
-- Traefik dynamic config generator: a small worker watches `tenants` and writes `infra/compose/traefik/dynamic/tenant-domains.yml`, mapping each custom domain to the web service. (Prod: cert-manager `Certificate` per domain.)
-- `tenants.branding jsonb` (logo URL, primary/secondary colors, email-from) consumed by `packages/ui/` theme provider.
-- Per-tenant email templates with branded headers via `packages/notifications/`.
-
-**Test.** Add `acme.test.local` (or a real domain in prod-like staging). After cert issuance, the URL serves Acme's logo and colors.
-
-**Exit criteria.** Domain add → cert issued → tenant resolves correctly within 60s; removing domain revokes cert.
-
----
-
-### Phase 15 — Security Hardening
-
-**Goal.** OWASP-clean baseline.
-
-**Deliverables.**
-- Strict CSP (nonce-based), HSTS preload, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`.
-- Cookies: `Secure`, `HttpOnly`, `SameSite=Lax`, `__Host-` prefix where possible, host-scoped per tenant.
-- CSRF: rely on SameSite + Origin/Referer checks for cookie-auth; bearer-auth for API.
-- Secret scanning (gitleaks) + dependency audit (`pnpm audit`, `npm audit signatures`) in CI.
-- npm provenance enforcement; lockfile pinning.
-- DB: least-privilege role for the app (no DDL); separate `migrator` role used only by deployment job.
-- Rate-limit policies tightened by route; brute-force protection on auth callback.
-- Tenant suspension flow (immediately blocks all tenant traffic at middleware).
-
-**Test.** ZAP baseline scan, `nikto`, manual review of cookie flags; pen-test the cross-tenant access path again.
-
-**Exit criteria.** No high/critical findings on baseline scans; CI fails on new high-severity dependency CVEs.
-
----
-
-### Phase 16 — Kubernetes Packaging (Helm)
-
-**Goal.** `helm install` brings the platform up on a kind/minikube cluster, then any real cluster.
-
-**Deliverables.**
-- `infra/helm/saas-platform/` umbrella chart with sub-charts (or templates) for: `web`, `workers`, `traefik` (via official chart), `keycloak` (Bitnami), `postgresql` (Bitnami), `redis` (Bitnami), `loki`, `tempo`, `prometheus`, `grafana`, `cert-manager` (dependency), `external-secrets` (dependency).
-- Manifests:
-  - `Deployment` + `HPA` + `PodDisruptionBudget` for `web` and `workers`.
-  - `Service`, `IngressRoute` (Traefik CRD), `Certificate` (cert-manager).
-  - `NetworkPolicy`: only Traefik can talk to web; only web/workers can talk to Postgres and Redis.
-  - `PodSecurityContext`: non-root, read-only FS, drop all caps.
-  - Probes: `/_health` (live), `/_ready` (ready, checks DB + Redis).
-- Secrets via `ExternalSecret` referring to a Vault path.
-- `values-dev.yaml`, `values-staging.yaml`, `values-prod.yaml`.
-- A `chart-testing` CI job; a kind-based smoke test that runs the same Phase 6 cross-tenant assertion.
-
-**Test.**
-```bash
-kind create cluster
-helm dependency update infra/helm/saas-platform
-helm install platform infra/helm/saas-platform -f values-dev.yaml
-kubectl wait --for=condition=available deploy/web --timeout=300s
-./scripts/k8s-smoke.sh
-```
-
-**Exit criteria.** `helm install` from clean is reproducible; `helm upgrade` is non-destructive; rolling deploy keeps p99 latency stable; `kubectl drain` of any node does not break the app.
-
----
-
-### Phase 17 — CI/CD
-
-**Goal.** Every PR builds, tests, scans; every tag deploys.
-
-**Deliverables.**
-- `.github/workflows/ci.yml`: install → typecheck → lint → unit tests → build images → e2e (Playwright against ephemeral Compose) → SCIM conformance → chart-test → security scans (gitleaks, trivy, ZAP baseline).
-- `.github/workflows/release.yml`: on tag, push images to registry with SBOM + provenance, render Helm chart, push to OCI registry, deploy to staging, run smoke tests, gate on manual approval for prod.
-- Branch protection requiring all checks green; CODEOWNERS for `packages/authz/`, `packages/db/`, `infra/`.
-
-**Exit criteria.** PR-to-deploy is fully automated for staging; prod is one-click after staging smoke passes.
-
----
-
-## Part 7 — Production Notes (Kubernetes specifics)
-
-- **Ingress:** Traefik IngressController in HA (3 replicas across zones), Service type `LoadBalancer`. Wildcard cert for the platform domain via cert-manager DNS01; per-tenant custom-domain certs via HTTP01.
-- **Stateful services:** Use managed offerings for Postgres (RDS/Cloud SQL) and Redis (ElastiCache/Memorystore) in real prod. Helm chart supports both modes via `values.postgres.external: true|false`.
-- **Multi-AZ:** All Deployments have `topologySpreadConstraints` across zones; PDBs set `maxUnavailable: 1`.
-- **Autoscaling:** HPA on CPU + custom metric (RPS via Prom adapter). KEDA for workers based on BullMQ queue depth.
-- **Backups:** PITR for Postgres (15-min RPO); nightly logical dump to object storage with 30-day retention; quarterly restore drill.
-- **DR:** Multi-region active-passive. Read replicas in DR region; promote runbook; Route53 health-check failover.
-- **Secrets:** External Secrets Operator → Vault (or AWS Secrets Manager). No `Secret` objects checked into git; sealed-secrets is acceptable as a fallback.
-- **Compliance hooks:** Tenant export job (writes to time-limited signed S3 URL); cryptographic delete (rotate per-tenant DEK + drop). Both implemented as BullMQ jobs in Phase 11; surfaced as endpoints in Phase 13.
-
----
-
-## Part 8 — Cross-Cutting Concerns
-
-### Testing strategy
-- **Unit (Vitest):** `authz`, `tenant`, `billing`, `scim` packages each ≥ 90% coverage on policy code.
-- **Integration:** Spin Compose with a single `app-db` and run Prisma migrations + seed; assertions hit real Postgres + Redis.
-- **E2E (Playwright):** login flow, tenant isolation, billing upgrade, SCIM provision-then-login.
-- **Load (k6):** target SLOs — p95 `/api/notes` < 150 ms at 200 RPS per tenant.
-- **Chaos (light):** kill workers mid-job; ensure no double-processing.
-
-### Definition of Done (per feature)
-- Code, tests, docs, observability (logs/metrics/traces), authz check, audit log entry, RLS verified, migration reversible, `_ready` probe still green.
-
-### What we deliberately defer
-- Realm-per-tenant Keycloak (single-realm with claims is enough for v1).
-- Multi-region active-active (active-passive first).
-- A plugin/marketplace API (revisit after 5+ in-tree integrations).
-- A custom policy DSL (keep ABAC in TypeScript for now; consider OPA later).
-
----
-
-## Part 9 — Quick Reference: Phase Order at a Glance
-
-| # | Phase | Adds container(s) | Adds package(s) |
-|---|---|---|---|
-| 0 | Repo & tooling | traefik (whoami) | — |
-| 1 | Keycloak | keycloak, keycloak-db | — |
-| 2 | Next.js hello | web | apps/web |
-| 3 | Traefik + TLS | (configures) | — |
-| 4 | App DB + Prisma | app-db | db |
-| 5 | Auth.js + OIDC | — | auth |
-| 6 | Tenant + RLS | — | tenant |
-| 7 | RBAC/ABAC | — | authz |
-| 8 | Redis | redis | — |
-| 9 | Logging + audit | — | logger |
-| 10 | Observability | grafana, loki, tempo, prometheus, otel-col | observability |
-| 11 | Workers | workers | jobs |
-| 12 | Stripe | stripe-cli | billing |
-| 13 | SCIM | — | scim |
-| 14 | White-label | — | (extends ui, notifications) |
-| 15 | Security hardening | — | — |
-| 16 | Kubernetes / Helm | — | infra/helm |
-| 17 | CI/CD | — | .github |
-
----
-
-## Part 10 — Suggested First Three Days
-
-- **Day 1:** Phase 0 + Phase 1 (repo + Keycloak running, you can log in to admin).
-- **Day 2:** Phase 2 + Phase 3 (Next.js hello world reachable at `https://app.lvh.me`).
-- **Day 3:** Phase 4 + Phase 5 (real DB, real login against Keycloak, `/me` shows your token).
-
-After day 3 you have a working *authenticated* skeleton. Everything from there is enrichment — tenant isolation, authz, observability, billing, SCIM — each in its own short, testable phase.
+MIT
