@@ -1,5 +1,4 @@
 import { signIn } from '@platform/auth';
-import Link from 'next/link';
 
 export const metadata = { title: 'Sign in' };
 
@@ -58,7 +57,6 @@ export default function SignInPage() {
             </span>
           </div>
 
-          {/* ── Tenant sign-in ──────────────────────────────────────────── */}
           <h1 className="mb-1 text-2xl font-extrabold" style={{ color: 'var(--text-primary)' }}>
             Welcome back
           </h1>
@@ -89,73 +87,9 @@ export default function SignInPage() {
           </form>
 
           <p className="mt-4 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
-            Tenant users and platform admins both sign in with SSO. Platform admins are
+            Sign in using your organisation&apos;s identity provider. Platform admins are
             automatically redirected to the admin area after login.
           </p>
-
-          {/* ── Divider ─────────────────────────────────────────────────── */}
-          <div className="relative my-8">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t" style={{ borderColor: 'var(--border-light)' }} />
-            </div>
-            <div
-              className="relative flex justify-center text-xs"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              <span className="px-3" style={{ background: 'var(--bg-main)' }}>
-                Keycloak administration
-              </span>
-            </div>
-          </div>
-
-          {/* ── Keycloak Admin Console ──────────────────────────────────── */}
-          <div
-            className="rounded-xl border p-4"
-            style={{ borderColor: 'var(--border-default)', background: 'var(--bg-subtle)' }}
-          >
-            <div className="mb-3 flex items-center gap-2">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.8}
-                className="h-4 w-4 flex-shrink-0"
-                style={{ color: 'var(--brand-accent)' }}
-              >
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                Keycloak Admin Console
-              </span>
-            </div>
-            <p className="mb-3 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              Manage realms, users, identity providers, and SSO configuration directly in Keycloak.
-            </p>
-            <Link
-              href="https://auth.lvh.me/admin"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-xs font-semibold transition-colors hover:bg-white"
-              style={{
-                borderColor: 'var(--border-default)',
-                color: 'var(--text-primary)',
-                background: 'transparent',
-              }}
-            >
-              Open Keycloak Admin Console
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.8}
-                className="h-3.5 w-3.5"
-              >
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                <polyline points="15 3 21 3 21 9" />
-                <line x1="10" y1="14" x2="21" y2="3" />
-              </svg>
-            </Link>
-          </div>
 
           <p className="mt-8 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
             By signing in, you agree to our{' '}
