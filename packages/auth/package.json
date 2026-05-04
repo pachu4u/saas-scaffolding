@@ -4,9 +4,21 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./server": "./src/server.ts",
-    "./edge": "./src/edge.ts"
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "development": "./src/server.ts",
+      "types": "./src/server.ts",
+      "default": "./dist/server.js"
+    },
+    "./edge": {
+      "development": "./src/edge.ts",
+      "types": "./src/edge.ts",
+      "default": "./dist/edge.js"
+    }
   },
   "scripts": {
     "build": "tsc --project tsconfig.json",
@@ -18,11 +30,11 @@
     "@platform/db": "workspace:*",
     "next-auth": "^5.0.0-beta.4"
   },
+  "peerDependencies": {
+    "next": ">=15.0.0"
+  },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.5.4"
-  },
-  "peerDependencies": {
-    "next": ">=15.0.0"
   }
 }

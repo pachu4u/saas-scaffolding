@@ -1,6 +1,6 @@
 import { adminDb, Prisma } from '@platform/db';
 
-import { scrubSecrets } from './index';
+import { scrubSecrets } from './index.js';
 
 export interface AuditEntry {
   tenantId: string;

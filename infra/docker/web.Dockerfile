@@ -34,7 +34,12 @@ COPY tsconfig.base.json ./
 COPY apps/web ./apps/web
 COPY packages ./packages
 
-# Generate Prisma client
+# Generate Prisma client — remove any stale cached engines first so binaryTargets
+# in schema.prisma (linux-musl-openssl-3.0.x) are honoured on Alpine.
+# Remove the stale linux-musl (OpenSSL 1.1) engine from installed node_modules.
+# Alpine 3.17+ uses OpenSSL 3.0 → prisma generate will download
+# libquery_engine-linux-musl-openssl-3.0.x which is what the runner needs.
+RUN find /app/node_modules -name "libquery_engine-linux-musl.so.node" -delete 2>/dev/null || true
 RUN pnpm --filter @platform/db db:generate
 
 # Build packages first (dependency order)
@@ -55,18 +60,37 @@ RUN pnpm --filter @platform/web build
 RUN mkdir -p /app/apps/web/public
 
 # ─── Stage 3: runner ─────────────────────────────────────────────────────────
-FROM gcr.io/distroless/nodejs20-debian12 AS runner
+# Use node:alpine instead of distroless — gives us wget for healthcheck and
+# avoids PATH issues with the Prisma engine binary.
+FROM node:${NODE_VERSION}-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
+# Next.js standalone server binds to HOSTNAME — 0.0.0.0 makes it reachable on all interfaces
+# (including localhost) so Docker healthcheck wget can connect.
+ENV HOSTNAME=0.0.0.0
+
+# openssl1.1-compat provides libssl.so.1.1 as a fallback for any cached Prisma
+# engine that was compiled against OpenSSL 1.1 (until the pnpm cache refreshes).
+RUN apk add --no-cache openssl openssl1.1-compat ca-certificates 2>/dev/null || apk add --no-cache openssl ca-certificates
+
+# Trust the mkcert dev CA so Node.js undici (fetch) can reach https://auth.lvh.me.
+# NODE_EXTRA_CA_CERTS only works for the legacy https module; undici reads from
+# OpenSSL's system trust store, which update-ca-certificates populates.
+COPY infra/compose/traefik/certs/mkcert-rootCA.pem /usr/local/share/ca-certificates/mkcert-rootCA.crt
+RUN update-ca-certificates
+
+# Non-root user for security
+RUN addgroup -S nextjs && adduser -S nextjs -G nextjs
 
 # Next.js standalone output
-COPY --from=builder /app/apps/web/.next/standalone ./
-COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder --chown=nextjs:nextjs /app/apps/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nextjs /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=nextjs:nextjs /app/apps/web/public ./apps/web/public
 
+USER nextjs
 EXPOSE 3000
 
-CMD ["apps/web/server.js"]
+CMD ["node", "apps/web/server.js"]

@@ -3,6 +3,10 @@ import { redirect } from 'next/navigation';
 import { auth } from '@platform/auth';
 import { resolveTenant } from '@platform/tenant';
 
+// All dashboard routes depend on the session and live tenant data — never
+// pre-render them at build time.  This cascades to every child segment.
+export const dynamic = 'force-dynamic';
+
 import { Sidebar } from '@/components/layout/sidebar';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {

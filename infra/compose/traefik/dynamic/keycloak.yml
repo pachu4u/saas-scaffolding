@@ -1,0 +1,15 @@
+http:
+  routers:
+    keycloak:
+      rule: 'Host(`auth.lvh.me`)'
+      entryPoints:
+        - websecure
+      tls: {}
+      service: keycloak
+      priority: 100
+
+  services:
+    keycloak:
+      loadBalancer:
+        servers:
+          - url: 'http://keycloak:8080'

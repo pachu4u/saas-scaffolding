@@ -17,7 +17,13 @@ services:
     container_name: traefik
     restart: unless-stopped
     networks:
-      - platform
+      platform:
+        # auth.lvh.me is aliased here so server-side OIDC discovery from the web
+        # container routes through Traefik (HTTPS), not directly to Keycloak (HTTP).
+        # This ensures token iss=https://auth.lvh.me/... matches KEYCLOAK_ISSUER.
+        aliases:
+          - auth.lvh.me
+          - app.lvh.me
     ports:
       - '80:80'
       - '443:443'
@@ -72,9 +78,7 @@ services:
     container_name: keycloak
     restart: unless-stopped
     networks:
-      platform:
-        aliases:
-          - auth.lvh.me # lets other containers reach Keycloak by its public hostname (no TLS)
+      - platform
     depends_on:
       keycloak-db:
         condition: service_healthy
@@ -99,12 +103,13 @@ services:
       - 'traefik.http.routers.keycloak.rule=Host(`auth.lvh.me`)'
       - 'traefik.http.routers.keycloak.entrypoints=websecure'
       - 'traefik.http.routers.keycloak.tls=true'
+      - 'traefik.http.routers.keycloak.priority=100'
       - 'traefik.http.services.keycloak.loadbalancer.server.port=8080'
     healthcheck:
       test:
         [
           'CMD-SHELL',
-          "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && cat <&3 | grep -q '200'",
+          "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e 'GET /realms/master HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && cat <&3 | grep -q '200 OK'",
         ]
       interval: 30s
       timeout: 10s
@@ -166,6 +171,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      # Mount the mkcert CA so Node.js trusts HTTPS to *.lvh.me from inside Docker.
+      # auth.lvh.me now aliases to Traefik (HTTPS), so OIDC discovery uses TLS.
+      - ./traefik/certs/mkcert-rootCA.pem:/etc/ssl/certs/mkcert-rootCA.pem:ro
     env_file:
       - ../../.env
     environment:
@@ -173,10 +182,14 @@ services:
       # Override host-facing URLs with Docker-internal service hostnames
       DATABASE_URL: postgresql://postgres:postgres_secret@app-db:5432/saas_platform
       REDIS_URL: redis://redis:6379
-      # KEYCLOAK_ISSUER must match the `issuer` in Keycloak's OIDC discovery doc.
-      # Keycloak (KC_HOSTNAME=auth.lvh.me) reports http://auth.lvh.me/... when accessed via HTTP.
-      # The `auth.lvh.me` alias on the platform network routes directly to Keycloak:8080 — no TLS.
-      KEYCLOAK_ISSUER: http://auth.lvh.me/realms/saas-platform
+      # auth.lvh.me aliases to Traefik on the platform network. Traefik terminates
+      # TLS and proxies to Keycloak with X-Forwarded-Proto:https headers, so
+      # Keycloak reports issuer=https://auth.lvh.me/... in its discovery doc.
+      # Tokens from browser auth will also have iss=https://auth.lvh.me/... so
+      # KEYCLOAK_ISSUER must be the HTTPS URL.
+      KEYCLOAK_ISSUER: https://auth.lvh.me/realms/saas-platform
+      # Trust the mkcert CA so Node.js accepts the self-signed *.lvh.me TLS cert.
+      NODE_EXTRA_CA_CERTS: /etc/ssl/certs/mkcert-rootCA.pem
       AUTH_URL: https://app.lvh.me
       NEXT_PUBLIC_APP_URL: https://app.lvh.me
     labels:
@@ -191,7 +204,7 @@ services:
       - 'traefik.http.routers.web-wildcard.priority=10'
       - 'traefik.http.services.web.loadbalancer.server.port=3000'
     healthcheck:
-      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/_health || exit 1']
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/_health || exit 1']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -217,4 +230,4 @@ services:
       # Override host-facing URLs with Docker-internal service hostnames
       DATABASE_URL: postgresql://postgres:postgres_secret@app-db:5432/saas_platform
       REDIS_URL: redis://redis:6379
-      KEYCLOAK_ISSUER: http://auth.lvh.me/realms/saas-platform
+      KEYCLOAK_ISSUER: https://auth.lvh.me/realms/saas-platform

@@ -1,4 +1,4 @@
-import { redis } from './redis';
+import { redis } from './redis.js';
 
 // Sliding-window rate limiter using a Redis sorted set + Lua for atomicity.
 // Timestamps (ms) are stored as both score and member (with jitter to avoid

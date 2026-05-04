@@ -10,4 +10,4 @@ export {
   type WebhookOutboundJob,
   type UsageRollupJob,
   type PlanChangedJob,
-} from './queues';
+} from './queues.js';

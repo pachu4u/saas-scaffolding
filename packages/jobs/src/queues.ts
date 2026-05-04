@@ -11,16 +11,38 @@ const DEFAULT_OPTS: JobsOptions = {
   removeOnFail: { count: 500 },
 };
 
-function makeQueue<T>(name: string, opts?: JobsOptions) {
+function createQueue<T>(name: string, opts?: JobsOptions) {
   return new Queue<T>(name, { connection, defaultJobOptions: { ...DEFAULT_OPTS, ...opts } });
 }
 
-// Typed queue definitions
-export const emailQueue = makeQueue<EmailJob>('email');
-export const webhookInboundQueue = makeQueue<WebhookInboundJob>('webhook-inbound');
-export const webhookOutboundQueue = makeQueue<WebhookOutboundJob>('webhook-outbound');
-export const usageRollupQueue = makeQueue<UsageRollupJob>('usage-rollup');
-export const planChangedQueue = makeQueue<PlanChangedJob>('plan-changed');
+/**
+ * Returns a Proxy that looks exactly like a Queue<T> but defers the actual
+ * `new Queue()` (and therefore the Redis connection) until the first property
+ * access.  This prevents BullMQ from connecting at module-load time during
+ * `next build`, while leaving all call-sites unchanged.
+ */
+function lazyQueue<T>(name: string, opts?: JobsOptions): Queue<T> {
+  let instance: Queue<T> | undefined;
+  return new Proxy({} as Queue<T>, {
+    get(_target, prop, receiver) {
+      if (!instance) instance = createQueue<T>(name, opts);
+      const value = Reflect.get(instance, prop, instance);
+      // Bind methods so `this` stays correct
+      return typeof value === 'function' ? (value as Function).bind(instance) : value;
+    },
+    set(_target, prop, value) {
+      if (!instance) instance = createQueue<T>(name, opts);
+      return Reflect.set(instance, prop, value);
+    },
+  });
+}
+
+// Typed queue definitions — connections are deferred until first use
+export const emailQueue = lazyQueue<EmailJob>('email');
+export const webhookInboundQueue = lazyQueue<WebhookInboundJob>('webhook-inbound');
+export const webhookOutboundQueue = lazyQueue<WebhookOutboundJob>('webhook-outbound');
+export const usageRollupQueue = lazyQueue<UsageRollupJob>('usage-rollup');
+export const planChangedQueue = lazyQueue<PlanChangedJob>('plan-changed');
 
 export type EmailJob = {
   to: string;

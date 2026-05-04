@@ -8,8 +8,8 @@ export const redis =
   globalForRedis.redis ??
   new Redis(env.REDIS_URL, {
     maxRetriesPerRequest: 3,
-    enableReadyCheck: true,
-    lazyConnect: false,
+    enableReadyCheck: false,
+    lazyConnect: true,
   });
 
 if (env.NODE_ENV !== 'production') {

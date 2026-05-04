@@ -4,8 +4,16 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./theme": "./src/theme.ts"
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./theme": {
+      "development": "./src/theme.ts",
+      "types": "./src/theme.ts",
+      "default": "./dist/theme.js"
+    }
   },
   "scripts": {
     "build": "tsc --project tsconfig.json",
@@ -15,11 +23,11 @@
   "dependencies": {
     "react": "^19.0.0"
   },
+  "peerDependencies": {
+    "react": ">=19"
+  },
   "devDependencies": {
     "@types/react": "^19.0.0",
     "typescript": "^5.5.4"
-  },
-  "peerDependencies": {
-    "react": ">=19"
   }
 }

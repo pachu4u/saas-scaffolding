@@ -13,6 +13,11 @@ const envSchema = z.object({
 
   // Keycloak
   KEYCLOAK_ISSUER: z.string().url(),
+  // Optional internal URL for OIDC discovery (used in Docker where the public
+  // hostname alias routes directly to Keycloak on a non-standard port).
+  // When set, the discovery doc is fetched from this URL; token iss validation
+  // still uses KEYCLOAK_ISSUER which must match the issuer in the discovery doc.
+  KEYCLOAK_INTERNAL_ISSUER: z.string().url().optional(),
   KEYCLOAK_CLIENT_ID: z.string().min(1),
   KEYCLOAK_CLIENT_SECRET: z.string().min(1),
 

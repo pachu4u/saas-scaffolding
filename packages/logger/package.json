@@ -3,9 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "exports": {
-    ".": "./src/index.ts",
-    "./audit": "./src/audit.ts"
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./audit": {
+      "development": "./src/audit.ts",
+      "types": "./src/audit.ts",
+      "default": "./dist/audit.js"
+    }
   },
   "scripts": {
     "build": "tsc --project tsconfig.json",

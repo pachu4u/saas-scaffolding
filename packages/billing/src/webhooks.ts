@@ -5,7 +5,7 @@ import type { Subscription } from '@platform/db';
 import { enqueue, planChangedQueue } from '@platform/jobs';
 import { logger } from '@platform/logger';
 
-import { stripe } from './client';
+import { stripe } from './client.js';
 import { env } from '@platform/config';
 
 type SubscriptionStatus = Subscription['status'];

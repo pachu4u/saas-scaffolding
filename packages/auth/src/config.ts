@@ -11,6 +11,13 @@ export const authConfig: NextAuthConfig = {
       clientId: env.KEYCLOAK_CLIENT_ID,
       clientSecret: env.KEYCLOAK_CLIENT_SECRET,
       issuer: env.KEYCLOAK_ISSUER,
+      // In Docker, auth.lvh.me resolves to the Keycloak container IP but on
+      // port 8080, not port 80. KEYCLOAK_INTERNAL_ISSUER lets us fetch the OIDC
+      // discovery doc from the correct internal URL while keeping KEYCLOAK_ISSUER
+      // (matching the iss claim in tokens) for validation.
+      ...(env.KEYCLOAK_INTERNAL_ISSUER && {
+        wellKnown: `${env.KEYCLOAK_INTERNAL_ISSUER}/.well-known/openid-configuration`,
+      }),
     }),
   ],
 

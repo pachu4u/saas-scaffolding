@@ -1,6 +1,11 @@
-export { db, adminDb, withTenant, withPlatformAdmin } from './client';
-export { redis } from './redis';
-export { checkRateLimit, rateLimitHeaders, type RateLimitOptions, type RateLimitResult } from './ratelimit';
+export { db, adminDb, withTenant, withPlatformAdmin } from './client.js';
+export { redis } from './redis.js';
+export {
+  checkRateLimit,
+  rateLimitHeaders,
+  type RateLimitOptions,
+  type RateLimitResult,
+} from './ratelimit.js';
 export { Prisma, PrismaClient } from '@prisma/client';
 export type {
   Tenant,

@@ -3,9 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "exports": {
-    ".": "./src/index.ts",
-    "./seed": "./src/seed.ts"
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./seed": {
+      "development": "./src/seed.ts",
+      "types": "./src/seed.ts",
+      "default": "./dist/seed.js"
+    }
   },
   "scripts": {
     "build": "tsc --project tsconfig.json",

@@ -1,3 +1,3 @@
-export { stripe } from './client';
-export { PLAN_FEATURES, PLAN_CODES, type PlanCode, type PlanFeatures } from './plans';
-export { processStripeEvent } from './webhooks';
+export { stripe } from './client.js';
+export { PLAN_FEATURES, PLAN_CODES, type PlanCode, type PlanFeatures } from './plans.js';
+export { processStripeEvent } from './webhooks.js';

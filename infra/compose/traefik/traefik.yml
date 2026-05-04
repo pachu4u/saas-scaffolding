@@ -21,7 +21,7 @@ api:
 
 entryPoints:
   web:
-    address: ":80"
+    address: ':80'
     http:
       redirections:
         entryPoint:
@@ -30,22 +30,15 @@ entryPoints:
           permanent: true
 
   websecure:
-    address: ":443"
+    address: ':443'
     http:
       tls: {}
 
 providers:
   docker:
-    endpoint: "unix:///var/run/docker.sock"
+    endpoint: 'unix:///var/run/docker.sock'
     exposedByDefault: false
     network: platform
   file:
     directory: /etc/traefik/dynamic
     watch: true
-
-tls:
-  stores:
-    default:
-      defaultCertificate:
-        certFile: /etc/traefik/certs/_wildcard.lvh.me.pem
-        keyFile: /etc/traefik/certs/_wildcard.lvh.me-key.pem
