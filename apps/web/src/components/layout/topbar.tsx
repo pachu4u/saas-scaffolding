@@ -1,5 +1,3 @@
-import { signOut } from '@platform/auth';
-
 interface TopbarProps {
   title: string;
   subtitle?: string;
@@ -70,20 +68,14 @@ export function Topbar({ title, subtitle, userEmail, userName, actions }: Topbar
               </div>
             )}
           </div>
-          <form
-            action={async () => {
-              'use server';
-              await signOut({ redirectTo: '/auth/signin' });
-            }}
+          {/* Federated logout: clears Next.js cookie AND ends the Keycloak session */}
+          <a
+            href="/api/auth/keycloak-logout"
+            className="hover:bg-bg-subtle rounded-lg border px-2.5 py-1.5 text-xs transition-colors"
+            style={{ borderColor: 'var(--border-light)', color: 'var(--text-muted)' }}
           >
-            <button
-              type="submit"
-              className="hover:bg-bg-subtle rounded-lg border px-2.5 py-1.5 text-xs transition-colors"
-              style={{ borderColor: 'var(--border-light)', color: 'var(--text-muted)' }}
-            >
-              Sign out
-            </button>
-          </form>
+            Sign out
+          </a>
         </div>
       </div>
     </header>

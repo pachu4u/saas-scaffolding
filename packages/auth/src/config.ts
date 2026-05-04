@@ -49,6 +49,10 @@ export const authConfig: NextAuthConfig = {
       if (token.groups) {
         (session as unknown as Record<string, unknown>)['groups'] = token.groups;
       }
+      // Expose id_token so the federated-logout route can pass it to Keycloak
+      if (token.idToken) {
+        session.idToken = token.idToken as string;
+      }
       return session;
     },
   },
@@ -87,5 +91,7 @@ declare module 'next-auth' {
       image?: string | null;
     };
     groups: string[];
+    /** OIDC id_token — used for federated logout with Keycloak */
+    idToken?: string;
   }
 }
