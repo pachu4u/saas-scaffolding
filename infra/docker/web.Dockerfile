@@ -90,6 +90,11 @@ COPY --from=builder --chown=nextjs:nextjs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nextjs /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder --chown=nextjs:nextjs /app/apps/web/public ./apps/web/public
 
+# Remove any baked-in .env files — Docker environment variables must win at runtime.
+# Next.js standalone copies .env from the build context; if left in place, they
+# override process.env set by docker-compose (e.g. DATABASE_URL pointing to localhost).
+RUN find /app -name ".env" -o -name ".env.local" -o -name ".env.production" | xargs rm -f 2>/dev/null || true
+
 USER nextjs
 EXPOSE 3000
 

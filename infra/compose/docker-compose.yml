@@ -181,6 +181,7 @@ services:
       NODE_ENV: production
       # Override host-facing URLs with Docker-internal service hostnames
       DATABASE_URL: postgresql://postgres:postgres_secret@app-db:5432/saas_platform
+      DATABASE_URL_MIGRATOR: postgresql://postgres:postgres_secret@app-db:5432/saas_platform
       REDIS_URL: redis://redis:6379
       # auth.lvh.me aliases to Traefik on the platform network. Traefik terminates
       # TLS and proxies to Keycloak with X-Forwarded-Proto:https headers, so
