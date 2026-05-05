@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 
 import { Topbar } from '@/components/layout/topbar';
 import { AuditLogTable, type AuditRow } from '@/components/ui/audit-log-table';
+import { AuditFilters } from './audit-filters';
 
 export const metadata = { title: 'Audit Log' };
 
@@ -20,7 +21,17 @@ function getCategory(action: string): string {
   return 'team';
 }
 
-export default async function AuditPage() {
+interface AuditPageProps {
+  searchParams: Promise<{
+    action?: string;
+    actor?: string;
+    resource?: string;
+    from?: string;
+    to?: string;
+  }>;
+}
+
+export default async function AuditPage({ searchParams }: AuditPageProps) {
   const session = await auth();
   if (!session) redirect('/auth/signin');
 
@@ -29,16 +40,57 @@ export default async function AuditPage() {
   if (!tenantCtx) redirect('/');
 
   const { tenantId } = tenantCtx;
+  const filters = await searchParams;
+
+  // Actor email filter: resolve to user IDs first
+  let actorUserIds: string[] | undefined;
+  if (filters.actor?.trim()) {
+    const matchingUsers = await adminDb.user.findMany({
+      where: { email: { contains: filters.actor.trim(), mode: 'insensitive' } },
+      select: { id: true },
+    });
+    actorUserIds = matchingUsers.map((u) => u.id);
+  }
+
+  // Build date range
+  let fromDate: Date | undefined;
+  let toDate: Date | undefined;
+  if (filters.from) {
+    const d = new Date(filters.from);
+    if (!isNaN(d.getTime())) fromDate = d;
+  }
+  if (filters.to) {
+    const d = new Date(filters.to);
+    if (!isNaN(d.getTime())) {
+      d.setHours(23, 59, 59, 999);
+      toDate = d;
+    }
+  }
 
   const auditLogs = await adminDb.auditLog.findMany({
-    where: { tenantId },
+    where: {
+      tenantId,
+      ...(filters.action?.trim() && {
+        action: { contains: filters.action.trim(), mode: 'insensitive' },
+      }),
+      ...(filters.resource?.trim() && {
+        resourceType: { equals: filters.resource.trim(), mode: 'insensitive' },
+      }),
+      ...(actorUserIds !== undefined && { actorUserId: { in: actorUserIds } }),
+      ...((fromDate ?? toDate) && {
+        occurredAt: {
+          ...(fromDate && { gte: fromDate }),
+          ...(toDate && { lte: toDate }),
+        },
+      }),
+    },
     orderBy: { occurredAt: 'desc' },
     take: 200,
     include: { actor: { select: { email: true } } },
   });
 
   const rows: AuditRow[] = auditLogs.map((log) => ({
-    id: log.id,
+    id: String(log.id),
     occurredAt: log.occurredAt.toISOString(),
     action: log.action,
     resourceType: log.resourceType,
@@ -48,6 +100,14 @@ export default async function AuditPage() {
     category: getCategory(log.action),
   }));
 
+  const hasFilters = !!(
+    filters.action ||
+    filters.actor ||
+    filters.resource ||
+    filters.from ||
+    filters.to
+  );
+
   return (
     <div>
       <Topbar
@@ -56,16 +116,44 @@ export default async function AuditPage() {
         userEmail={session.user.email}
         userName={session.user.name ?? undefined}
         actions={
-          <button
+          <a
+            href="/api/audit/export"
             className="rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-gray-50"
             style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
           >
             Export CSV
-          </button>
+          </a>
         }
       />
 
       <main className="space-y-4 p-6">
+        {/* Filters */}
+        <AuditFilters
+          initialAction={filters.action ?? ''}
+          initialActor={filters.actor ?? ''}
+          initialResource={filters.resource ?? ''}
+          initialFrom={filters.from ?? ''}
+          initialTo={filters.to ?? ''}
+        />
+
+        {/* Results count */}
+        <div className="flex items-center justify-between">
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            {hasFilters
+              ? `${rows.length} result${rows.length !== 1 ? 's' : ''} (filtered)`
+              : `Showing last ${rows.length} events`}
+          </p>
+          {hasFilters && (
+            <a
+              href="/audit"
+              className="text-xs font-semibold hover:underline"
+              style={{ color: 'var(--brand-primary)' }}
+            >
+              Clear filters
+            </a>
+          )}
+        </div>
+
         <AuditLogTable data={rows} />
 
         {/* Retention notice */}
@@ -87,7 +175,8 @@ export default async function AuditPage() {
           </svg>
           <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
             Logs are <strong>append-only and immutable</strong> — they cannot be modified or
-            deleted. Showing last 200 events. Upgrade to Enterprise for extended retention.
+            deleted. Showing up to 200 events per query. Upgrade to Enterprise for extended
+            retention and full-text search.
           </p>
         </div>
       </main>

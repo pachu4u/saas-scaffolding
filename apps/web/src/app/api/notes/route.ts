@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
-import { withTenant } from '@platform/db';
+import { withTenant, checkRateLimit, rateLimitHeaders } from '@platform/db';
 import { Permission, withAuthz, isOwnerPolicy } from '@platform/authz';
 import { getTenantFromRequest } from '../../../lib/server-tenant';
 
@@ -8,6 +8,20 @@ export async function GET(req: NextRequest) {
   const tenant = await getTenantFromRequest(req);
   if (!tenant) {
     return NextResponse.json({ error: 'No tenant' }, { status: 404 });
+  }
+
+  // Rate limit: 120 reads per minute per tenant
+  const rl = await checkRateLimit({
+    prefix: 'notes:read',
+    id: tenant.tenantId,
+    limit: 120,
+    windowMs: 60 * 1000,
+  });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded' },
+      { status: 429, headers: rateLimitHeaders(rl) },
+    );
   }
 
   const notes = await withTenant(tenant.tenantId, (tx) =>

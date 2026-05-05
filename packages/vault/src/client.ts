@@ -60,7 +60,7 @@ export class VaultClient {
       const response = await fetch(url, {
         method,
         headers: this.baseHeaders,
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body: body !== undefined ? JSON.stringify(body) : null,
         signal: controller.signal,
       });
 

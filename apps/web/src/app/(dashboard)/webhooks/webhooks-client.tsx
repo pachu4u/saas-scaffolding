@@ -106,6 +106,12 @@ export function WebhooksClient() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [deliveries, setDeliveries] = useState<Record<string, Delivery[]>>({});
   const [loadingDeliveries, setLoadingDeliveries] = useState<string | null>(null);
+  const [testingId, setTestingId] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{
+    endpointId: string;
+    ok: boolean;
+    error: string | null;
+  } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const fetchEndpoints = useCallback(async () => {
@@ -172,6 +178,32 @@ export function WebhooksClient() {
     setShowAddModal(false);
     setNewSecret(secret);
     void fetchEndpoints();
+  }
+
+  async function sendTest(endpointId: string) {
+    setTestingId(endpointId);
+    setTestResult(null);
+    try {
+      const tenantSlug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
+      const res = await fetch(`/api/webhooks/${endpointId}/test`, {
+        method: 'POST',
+        headers: { 'x-tenant-slug': tenantSlug },
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string | null };
+      setTestResult({ endpointId, ok: json.ok ?? false, error: json.error ?? null });
+      // Refresh deliveries if already expanded
+      if (expandedId === endpointId) {
+        setDeliveries((prev) => {
+          const existing = prev[endpointId] ?? [];
+          return { ...prev, [endpointId]: existing }; // trigger re-fetch next expand
+        });
+        void loadDeliveries(endpointId);
+      }
+    } catch {
+      setTestResult({ endpointId, ok: false, error: 'Request failed' });
+    } finally {
+      setTestingId(null);
+    }
   }
 
   return (
@@ -395,7 +427,15 @@ export function WebhooksClient() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex flex-shrink-0 items-center gap-2">
+                  <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => void sendTest(ep.id)}
+                      disabled={testingId === ep.id || isPending}
+                      className="hover:bg-bg-subtle rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
+                      style={{ borderColor: 'var(--border-light)', color: 'var(--brand-primary)' }}
+                    >
+                      {testingId === ep.id ? 'Sending…' : 'Send test'}
+                    </button>
                     <button
                       onClick={() => void loadDeliveries(ep.id)}
                       className="hover:bg-bg-subtle rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors"
@@ -420,6 +460,27 @@ export function WebhooksClient() {
                       Delete
                     </button>
                   </div>
+                  {/* Test result inline */}
+                  {testResult?.endpointId === ep.id && (
+                    <div
+                      className="mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
+                      style={{
+                        background: testResult.ok ? 'rgba(22,163,74,0.08)' : 'rgba(239,68,68,0.08)',
+                        border: `1px solid ${testResult.ok ? 'rgba(22,163,74,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                        color: testResult.ok ? 'var(--status-success)' : '#ef4444',
+                      }}
+                    >
+                      {testResult.ok
+                        ? '✓ Test delivery succeeded'
+                        : `✗ Test failed: ${testResult.error ?? 'unknown error'}`}
+                      <button
+                        onClick={() => setTestResult(null)}
+                        className="ml-auto opacity-60 hover:opacity-100"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Delivery history panel */}

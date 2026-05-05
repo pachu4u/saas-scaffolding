@@ -3,7 +3,7 @@
 import { DataTable, type Column, type FilterConfig } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 
-export interface AuditRow {
+export interface AuditRow extends Record<string, unknown> {
   id: string;
   occurredAt: string;
   action: string;

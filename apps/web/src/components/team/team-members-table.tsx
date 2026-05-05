@@ -3,7 +3,7 @@
 import { DataTable, type Column, type FilterConfig } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 
-export interface MemberRow {
+export interface MemberRow extends Record<string, unknown> {
   userId: string;
   email: string;
   status: string;

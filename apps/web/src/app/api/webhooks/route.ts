@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { auth } from '@platform/auth';
-import { adminDb } from '@platform/db';
+import { adminDb, checkRateLimit, rateLimitHeaders } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
 
 export const runtime = 'nodejs';
@@ -62,6 +62,20 @@ export async function POST(req: NextRequest) {
 
   const tenantCtx = await resolveTenant(tenantSlug);
   if (!tenantCtx) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+
+  // Rate limit: 30 webhook endpoint creates per day per tenant
+  const rl = await checkRateLimit({
+    prefix: 'webhooks:create',
+    id: tenantCtx.tenantId,
+    limit: 30,
+    windowMs: 24 * 60 * 60 * 1000,
+  });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many webhook endpoints created today' },
+      { status: 429, headers: rateLimitHeaders(rl) },
+    );
+  }
 
   const body = (await req.json()) as { url?: string; events?: string[] };
 

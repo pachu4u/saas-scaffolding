@@ -6,7 +6,7 @@ import { DataTable, type Column, type FilterConfig } from '@/components/ui/data-
 import { Badge } from '@/components/ui/badge';
 import { TenantStatusButton } from './tenant-status-button';
 
-export interface TenantRow {
+export interface TenantRow extends Record<string, unknown> {
   id: string;
   name: string;
   slug: string;

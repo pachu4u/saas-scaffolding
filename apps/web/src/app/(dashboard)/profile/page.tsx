@@ -1,4 +1,4 @@
-import { auth, signOut } from '@platform/auth';
+import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
 
@@ -145,20 +145,13 @@ export default async function ProfilePage() {
             </div>
 
             {/* Sign-out */}
-            <form
-              action={async () => {
-                'use server';
-                await signOut({ redirectTo: '/auth/signin' });
-              }}
+            <a
+              href="/api/auth/keycloak-logout"
+              className="hover:bg-bg-subtle whitespace-nowrap rounded-xl border px-4 py-2 text-sm font-semibold transition-colors"
+              style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
             >
-              <button
-                type="submit"
-                className="hover:bg-bg-subtle whitespace-nowrap rounded-xl border px-4 py-2 text-sm font-semibold transition-colors"
-                style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
-              >
-                Sign out
-              </button>
-            </form>
+              Sign out
+            </a>
           </div>
         </div>
 
@@ -217,7 +210,7 @@ export default async function ProfilePage() {
           )}
         </div>
 
-        {/* Current session */}
+        {/* Account management */}
         <div
           className="rounded-xl border"
           style={{
@@ -231,10 +224,14 @@ export default async function ProfilePage() {
             style={{ borderColor: 'var(--border-light)' }}
           >
             <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-              Active sessions
+              Account management
             </h3>
           </div>
-          <div className="flex items-center gap-4 px-6 py-4">
+          {/* Current session */}
+          <div
+            className="flex items-center gap-4 px-6 py-4"
+            style={{ borderBottom: '1px solid var(--border-light)' }}
+          >
             <div
               className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl"
               style={{ background: 'var(--bg-subtle)' }}
@@ -265,20 +262,51 @@ export default async function ProfilePage() {
                 Signed in via Keycloak SSO · JWT-based (stateless)
               </div>
             </div>
-            <form
-              action={async () => {
-                'use server';
-                await signOut({ redirectTo: '/auth/signin' });
-              }}
+            <a
+              href="/api/auth/keycloak-logout"
+              className="hover:bg-bg-subtle rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors"
+              style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
             >
-              <button
-                type="submit"
-                className="hover:bg-bg-subtle rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors"
-                style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+              Sign out
+            </a>
+          </div>
+          {/* Keycloak account console */}
+          <div className="flex items-center gap-4 px-6 py-4">
+            <div
+              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl"
+              style={{ background: 'var(--bg-subtle)' }}
+            >
+              <svg
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="h-5 w-5"
+                style={{ color: 'var(--text-muted)' }}
               >
-                Revoke
-              </button>
-            </form>
+                <path
+                  fillRule="evenodd"
+                  d="M10 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm-7 9a7 7 0 1 1 14 0H3z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                Manage your identity account
+              </span>
+              <div className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                Change password, manage MFA, view linked social accounts and active sessions in
+                Keycloak.
+              </div>
+            </div>
+            <a
+              href={`${process.env.NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL ?? 'https://auth.lvh.me/realms/saas-platform/account'}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-gray-50"
+              style={{ borderColor: 'var(--border-default)', color: 'var(--brand-primary)' }}
+            >
+              Open account console ↗
+            </a>
           </div>
         </div>
 

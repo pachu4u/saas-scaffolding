@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { auth } from '@platform/auth';
-import { adminDb, withPlatformAdmin } from '@platform/db';
+import { adminDb, withPlatformAdmin, checkRateLimit, rateLimitHeaders } from '@platform/db';
 import { sendEmail } from '@platform/notifications';
 import { resolveTenant } from '@platform/tenant';
 
@@ -28,6 +28,20 @@ export async function POST(req: NextRequest) {
   const tenantCtx = await resolveTenant(tenantSlug);
   if (!tenantCtx) {
     return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+  }
+
+  // Rate limit: 20 invites per hour per tenant
+  const rl = await checkRateLimit({
+    prefix: 'invite',
+    id: tenantCtx.tenantId,
+    limit: 20,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many invites — try again later' },
+      { status: 429, headers: rateLimitHeaders(rl) },
+    );
   }
 
   const body = (await req.json()) as { email?: string; roleId?: string };

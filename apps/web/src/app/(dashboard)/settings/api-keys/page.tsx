@@ -1,11 +1,7 @@
-import { redirect } from 'next/navigation';
+'use client';
 
-import { adminDb } from '@platform/db';
-import { resolveTenant } from '@platform/tenant';
+import { useState, useEffect, useCallback } from 'react';
 
-export const metadata = { title: 'API Keys — Settings' };
-
-// Available API scopes — static app constants, not DB data
 const allScopes = [
   { group: 'Users', scopes: ['users:read', 'users:write', 'users:delete'] },
   { group: 'Teams', scopes: ['teams:read', 'teams:write'] },
@@ -13,27 +9,181 @@ const allScopes = [
   { group: 'Audit', scopes: ['audit:read'] },
   { group: 'Webhooks', scopes: ['webhooks:read', 'webhooks:write'] },
   { group: 'Analytics', scopes: ['analytics:read'] },
-  { group: 'Deployments', scopes: ['deployments:write', 'releases:write'] },
   { group: 'Admin', scopes: ['*'] },
 ];
 
-export default async function ApiKeysPage() {
-  const slug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
-  const tenantCtx = await resolveTenant(slug);
-  if (!tenantCtx) redirect('/');
+interface ScimToken {
+  id: string;
+  name: string;
+  scopes: string[];
+  createdAt: string;
+  lastUsedAt: string | null;
+}
 
-  // Query SCIM tokens as the closest proxy for tenant API tokens
-  // A dedicated ApiKey model is not yet in the schema; this section shows live data
-  // once that model is added. For now show real SCIM tokens if available, otherwise empty state.
-  const scimTokens = await adminDb.scimToken.findMany({
-    where: { tenantId: tenantCtx.tenantId },
-    orderBy: { createdAt: 'desc' },
-    select: { id: true, name: true, scopes: true, createdAt: true, lastUsedAt: true },
-  });
+export const dynamic = 'force-dynamic';
+
+export default function ApiKeysPage() {
+  const [tokens, setTokens] = useState<ScimToken[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Form state
+  const [tokenName, setTokenName] = useState('');
+  const [selectedScopes, setSelectedScopes] = useState<Set<string>>(new Set());
+  const [generating, setGenerating] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Newly created token shown once
+  const [newToken, setNewToken] = useState<string | null>(null);
+
+  // Revoke state
+  const [revoking, setRevoking] = useState<string | null>(null);
+
+  const fetchTokens = useCallback(async () => {
+    try {
+      const tenantSlug = document.cookie.match(/x-tenant-slug=([^;]+)/)?.[1] ?? 'acme';
+      const res = await fetch('/api/settings/api-keys-list', {
+        headers: { 'x-tenant-slug': tenantSlug },
+      });
+      if (res.ok) {
+        const data = (await res.json()) as ScimToken[];
+        setTokens(data);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchTokens();
+  }, [fetchTokens]);
+
+  function toggleScope(scope: string) {
+    setSelectedScopes((prev) => {
+      const next = new Set(prev);
+      if (next.has(scope)) next.delete(scope);
+      else next.add(scope);
+      return next;
+    });
+  }
+
+  async function generateToken() {
+    setFormError(null);
+    if (!tokenName.trim()) {
+      setFormError('Token name is required');
+      return;
+    }
+    if (selectedScopes.size === 0) {
+      setFormError('Select at least one scope');
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/settings/api-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-tenant-slug': getTenantSlug() },
+        body: JSON.stringify({ name: tokenName.trim(), scopes: [...selectedScopes] }),
+      });
+      const json = (await res.json()) as { token?: string; error?: string } & ScimToken;
+      if (!res.ok) {
+        setFormError(json.error ?? 'Failed to generate token');
+        return;
+      }
+      setNewToken(json.token ?? null);
+      setTokenName('');
+      setSelectedScopes(new Set());
+      // Prepend the new token to the list (without the raw token field)
+      setTokens((prev) => [
+        {
+          id: json.id,
+          name: json.name,
+          scopes: json.scopes,
+          createdAt: json.createdAt,
+          lastUsedAt: null,
+        },
+        ...prev,
+      ]);
+    } catch {
+      setFormError('Request failed');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function revokeToken(id: string) {
+    setRevoking(id);
+    try {
+      const res = await fetch(`/api/settings/api-keys?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { 'x-tenant-slug': getTenantSlug() },
+      });
+      if (res.ok) {
+        setTokens((prev) => prev.filter((t) => t.id !== id));
+      }
+    } catch {
+      // ignore
+    } finally {
+      setRevoking(null);
+    }
+  }
+
+  function getTenantSlug() {
+    return process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
+  }
+
+  function fmtDate(iso: string) {
+    return new Date(iso).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
 
   return (
     <div className="max-w-3xl space-y-6">
-      {/* Active keys */}
+      {/* Newly created token banner */}
+      {newToken && (
+        <div
+          className="rounded-xl border p-4"
+          style={{ background: 'rgba(22,163,74,0.06)', borderColor: 'rgba(22,163,74,0.3)' }}
+        >
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm font-semibold" style={{ color: 'var(--status-success)' }}>
+              Token created — copy it now, it won&apos;t be shown again
+            </p>
+            <button
+              onClick={() => setNewToken(null)}
+              className="text-xs"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              Dismiss
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <code
+              className="flex-1 break-all rounded-lg px-3 py-2 font-mono text-xs"
+              style={{
+                background: 'var(--bg-white)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-light)',
+              }}
+            >
+              {newToken}
+            </code>
+            <button
+              onClick={() => void navigator.clipboard.writeText(newToken)}
+              className="flex-shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors hover:bg-gray-50"
+              style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+            >
+              Copy
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Active tokens */}
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2
@@ -43,7 +193,7 @@ export default async function ApiKeysPage() {
             API / SCIM Tokens
           </h2>
           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            {scimTokens.length} token{scimTokens.length !== 1 ? 's' : ''}
+            {loading ? '…' : `${tokens.length} token${tokens.length !== 1 ? 's' : ''}`}
           </span>
         </div>
         <div
@@ -54,7 +204,13 @@ export default async function ApiKeysPage() {
             boxShadow: 'var(--shadow-card)',
           }}
         >
-          {scimTokens.length === 0 ? (
+          {loading ? (
+            <div className="px-6 py-8 text-center">
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                Loading…
+              </p>
+            </div>
+          ) : tokens.length === 0 ? (
             <div className="px-6 py-10 text-center">
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
                 No tokens yet. Create one below.
@@ -62,7 +218,7 @@ export default async function ApiKeysPage() {
             </div>
           ) : (
             <div className="divide-y" style={{ borderColor: 'var(--border-light)' }}>
-              {scimTokens.map((token) => (
+              {tokens.map((token) => (
                 <div key={token.id} className="px-6 py-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
@@ -89,36 +245,17 @@ export default async function ApiKeysPage() {
                         ))}
                       </div>
                       <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                        Created{' '}
-                        {token.createdAt.toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}{' '}
-                        · Last used{' '}
-                        {token.lastUsedAt
-                          ? token.lastUsedAt.toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                            })
-                          : 'Never'}
+                        Created {fmtDate(token.createdAt)} · Last used{' '}
+                        {token.lastUsedAt ? fmtDate(token.lastUsedAt) : 'Never'}
                       </div>
                     </div>
-                    <div className="flex flex-shrink-0 items-center gap-2">
-                      <button
-                        className="hover:bg-bg-subtle rounded-lg border px-2.5 py-1.5 text-xs transition-colors"
-                        style={{
-                          borderColor: 'var(--border-light)',
-                          color: 'var(--text-secondary)',
-                        }}
-                      >
-                        Rotate
-                      </button>
-                      <button className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-xs text-red-600 transition-colors hover:bg-red-100">
-                        Revoke
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => void revokeToken(token.id)}
+                      disabled={revoking === token.id}
+                      className="flex-shrink-0 rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-xs text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
+                    >
+                      {revoking === token.id ? 'Revoking…' : 'Revoke'}
+                    </button>
                   </div>
                 </div>
               ))}
@@ -127,7 +264,7 @@ export default async function ApiKeysPage() {
         </div>
       </section>
 
-      {/* Create new key */}
+      {/* Create new token */}
       <section>
         <h2
           className="mb-3 text-xs font-bold uppercase tracking-wide"
@@ -144,50 +281,33 @@ export default async function ApiKeysPage() {
           }}
         >
           <div className="space-y-5 p-6">
-            <div className="grid grid-cols-2 gap-5">
-              <div>
-                <label
-                  className="mb-1.5 block text-xs font-semibold"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  Token name
-                </label>
-                <input
-                  type="text"
-                  placeholder="my-integration-key"
-                  className="w-full rounded-xl border px-3 py-2 font-mono text-sm outline-none"
-                  style={{
-                    borderColor: 'var(--border-default)',
-                    background: 'var(--bg-main)',
-                    color: 'var(--text-primary)',
-                  }}
-                />
-                <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Only lowercase, hyphens, no spaces
-                </p>
+            {formError && (
+              <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">
+                {formError}
               </div>
-              <div>
-                <label
-                  className="mb-1.5 block text-xs font-semibold"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  Expiration
-                </label>
-                <select
-                  className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                  style={{
-                    borderColor: 'var(--border-default)',
-                    background: 'var(--bg-main)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <option>Never</option>
-                  <option>30 days</option>
-                  <option>90 days</option>
-                  <option>1 year</option>
-                  <option>Custom</option>
-                </select>
-              </div>
+            )}
+            <div>
+              <label
+                className="mb-1.5 block text-xs font-semibold"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                Token name
+              </label>
+              <input
+                type="text"
+                value={tokenName}
+                onChange={(e) => setTokenName(e.target.value)}
+                placeholder="my-integration-key"
+                className="w-full rounded-xl border px-3 py-2 font-mono text-sm outline-none"
+                style={{
+                  borderColor: 'var(--border-default)',
+                  background: 'var(--bg-main)',
+                  color: 'var(--text-primary)',
+                }}
+              />
+              <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                Descriptive name — e.g. &quot;okta-scim&quot; or &quot;ci-pipeline&quot;
+              </p>
             </div>
 
             {/* Scope selector */}
@@ -210,7 +330,7 @@ export default async function ApiKeysPage() {
                     className="text-xs font-semibold"
                     style={{ color: 'var(--text-secondary)' }}
                   >
-                    Follow the principle of least privilege — only grant what your integration needs
+                    Principle of least privilege — only grant what your integration needs
                   </span>
                 </div>
                 <div className="divide-y" style={{ borderColor: 'var(--border-light)' }}>
@@ -229,6 +349,8 @@ export default async function ApiKeysPage() {
                           <label key={scope} className="flex cursor-pointer items-center gap-1.5">
                             <input
                               type="checkbox"
+                              checked={selectedScopes.has(scope)}
+                              onChange={() => toggleScope(scope)}
                               className="h-3.5 w-3.5 rounded"
                               style={{ accentColor: 'var(--brand-primary)' }}
                             />
@@ -251,8 +373,12 @@ export default async function ApiKeysPage() {
             className="flex justify-end border-t px-6 py-4"
             style={{ borderColor: 'var(--border-light)' }}
           >
-            <button className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90">
-              Generate token
+            <button
+              onClick={() => void generateToken()}
+              disabled={generating}
+              className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {generating ? 'Generating…' : 'Generate token'}
             </button>
           </div>
         </div>
@@ -275,8 +401,8 @@ export default async function ApiKeysPage() {
         </svg>
         <p className="text-xs" style={{ color: '#DC2626' }}>
           <strong>Tokens grant programmatic access to your workspace.</strong> Store them in
-          environment variables or secret managers — never commit them to source control. Tokens are
-          shown only once at creation time. If lost, rotate immediately.
+          environment variables or secret managers — never commit to source control. Tokens are
+          shown only once. If lost, revoke and regenerate.
         </p>
       </div>
     </div>

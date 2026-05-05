@@ -10,7 +10,9 @@ let _client: VaultClient | null = null;
 let _tenantSecrets: TenantSecrets | null = null;
 let _platformSecrets: PlatformSecrets | null = null;
 
-function getVaultConfig() {
+import type { VaultConfig } from './client';
+
+function getVaultConfig(): VaultConfig {
   const endpoint = process.env.VAULT_ADDR ?? 'http://localhost:8200';
   const token = process.env.VAULT_TOKEN;
   const roleId = process.env.VAULT_ROLE_ID;
@@ -21,12 +23,17 @@ function getVaultConfig() {
   if (!token && (!roleId || !secretId)) {
     // In dev mode, use a default dev token; in prod this will fail
     if (process.env.NODE_ENV !== 'production') {
-      return { endpoint, token: 'root', mountPath, namespace };
+      return { endpoint, token: 'root', mountPath, ...(namespace !== undefined && { namespace }) };
     }
     throw new Error('Vault: VAULT_TOKEN or VAULT_ROLE_ID+VAULT_SECRET_ID must be set');
   }
 
-  return { endpoint, token, roleId, secretId, namespace, mountPath };
+  const cfg: VaultConfig = { endpoint, mountPath };
+  if (token !== undefined) cfg.token = token;
+  if (roleId !== undefined) cfg.roleId = roleId;
+  if (secretId !== undefined) cfg.secretId = secretId;
+  if (namespace !== undefined) cfg.namespace = namespace;
+  return cfg;
 }
 
 export function getVaultClient(): VaultClient {
