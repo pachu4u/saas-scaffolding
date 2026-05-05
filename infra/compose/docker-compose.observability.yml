@@ -18,12 +18,12 @@ services:
     restart: unless-stopped
     networks:
       - platform
-    command: ["--config=/etc/otel-config.yml"]
+    command: ['--config=/etc/otel-config.yml']
     volumes:
       - ../observability/otel-config.yml:/etc/otel-config.yml:ro
     ports:
-      - "4317:4317"   # gRPC
-      - "4318:4318"   # HTTP
+      - '4317:4317' # gRPC
+      - '4318:4318' # HTTP
 
   # ─── Prometheus ──────────────────────────────────────────────────────────
   prometheus:
@@ -82,8 +82,8 @@ services:
       - ../observability/grafana/provisioning:/etc/grafana/provisioning:ro
       - ../observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.grafana.rule=Host(`grafana.lvh.me`)"
-      - "traefik.http.routers.grafana.entrypoints=websecure"
-      - "traefik.http.routers.grafana.tls=true"
-      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.grafana.rule=Host(`grafana.lvh.me`)'
+      - 'traefik.http.routers.grafana.entrypoints=websecure'
+      - 'traefik.http.routers.grafana.tls=true'
+      - 'traefik.http.services.grafana.loadbalancer.server.port=3000'

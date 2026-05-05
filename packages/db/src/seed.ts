@@ -5,18 +5,39 @@ const prisma = new PrismaClient();
 // Must stay in sync with packages/authz/src/permissions.ts ROLE_PERMISSIONS
 const ROLE_PERMISSION_MAP: Record<string, string[]> = {
   platform_super_admin: [
-    'notes:create', 'notes:read', 'notes:update', 'notes:delete',
-    'users:create', 'users:read', 'users:update', 'users:delete',
-    'billing:read', 'billing:manage',
-    'settings:read', 'settings:manage',
-    'audit:read', 'scim:manage', 'webhooks:manage', 'platform:admin',
+    'notes:create',
+    'notes:read',
+    'notes:update',
+    'notes:delete',
+    'users:create',
+    'users:read',
+    'users:update',
+    'users:delete',
+    'billing:read',
+    'billing:manage',
+    'settings:read',
+    'settings:manage',
+    'audit:read',
+    'scim:manage',
+    'webhooks:manage',
+    'platform:admin',
   ],
   platform_support: ['notes:read', 'users:read', 'billing:read', 'audit:read'],
   tenant_admin: [
-    'notes:create', 'notes:read', 'notes:update', 'notes:delete',
-    'users:create', 'users:read', 'users:update', 'users:delete',
-    'billing:read', 'settings:read', 'settings:manage',
-    'audit:read', 'scim:manage', 'webhooks:manage',
+    'notes:create',
+    'notes:read',
+    'notes:update',
+    'notes:delete',
+    'users:create',
+    'users:read',
+    'users:update',
+    'users:delete',
+    'billing:read',
+    'settings:read',
+    'settings:manage',
+    'audit:read',
+    'scim:manage',
+    'webhooks:manage',
   ],
   tenant_billing_admin: ['billing:read', 'billing:manage', 'settings:read'],
   tenant_user: ['notes:create', 'notes:read', 'notes:update', 'users:read'],
@@ -33,10 +54,18 @@ const SYSTEM_ROLES = [
 ] as const;
 
 const PERMISSIONS = [
-  'notes:create', 'notes:read', 'notes:update', 'notes:delete',
-  'users:create', 'users:read', 'users:update', 'users:delete',
-  'billing:read', 'billing:manage',
-  'settings:read', 'settings:manage',
+  'notes:create',
+  'notes:read',
+  'notes:update',
+  'notes:delete',
+  'users:create',
+  'users:read',
+  'users:update',
+  'users:delete',
+  'billing:read',
+  'billing:manage',
+  'settings:read',
+  'settings:manage',
   'audit:read',
   'scim:manage',
   'webhooks:manage',
@@ -157,7 +186,10 @@ async function main() {
   console.log(`  ✓ Tenant: globex (${globex.id})`);
 
   // Seed notes
-  for (const [slug, tenantId] of [['acme', acme.id], ['globex', globex.id]] as const) {
+  for (const [slug, tenantId] of [
+    ['acme', acme.id],
+    ['globex', globex.id],
+  ] as const) {
     await prisma.note.createMany({
       data: [
         { tenantId, body: `Hello from ${slug} - note 1` },

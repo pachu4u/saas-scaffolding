@@ -190,4 +190,7 @@ test.describe('Webhooks', () => {
   });
 
   test('GET /api/webhooks/[id]/deliveries returns delivery history', async ({ request }) => {
-    const response = await request.
+    const response = await request.get('/api/webhooks/non-existent-id/deliveries');
+    expect(response.status()).toBeOneOf([200, 401, 403, 404]);
+  });
+});

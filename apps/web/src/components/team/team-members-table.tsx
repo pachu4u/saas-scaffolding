@@ -152,3 +152,6 @@ export function TeamMembersTable({ data }: { data: MemberRow[] }) {
       rowLabel="member"
       emptyMessage="No members found."
       rowKey={(row) => row.userId}
+    />
+  );
+}

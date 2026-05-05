@@ -138,3 +138,6 @@ test.describe('Dashboard', () => {
     if (response.status() === 200) {
       const body = (await response.json()) as Record<string, unknown>;
       expect(typeof body).toBe('object');
+    }
+  });
+});

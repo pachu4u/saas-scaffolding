@@ -405,4 +405,50 @@ export default async function DashboardPage() {
                       </div>
                       <div className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                         {event.subject} · by{' '}
-                        <span style={{ color: 'var(--text-secondary)' }}>{event.acto
+                        <span style={{ color: 'var(--text-secondary)' }}>{event.actor}</span>
+                      </div>
+                    </div>
+                    <span className="flex-shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {event.time}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Plan banner */}
+        <div
+          className="flex items-center justify-between rounded-xl p-4"
+          style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-default)' }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-base"
+              style={{ background: 'var(--brand-gradient)' }}
+            >
+              ⚡
+            </div>
+            <div>
+              <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                You&apos;re on the {planName} plan
+              </div>
+              <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                {totalUserCount} {seatLimit ? `of ${String(seatLimit)} seats used` : 'members'}
+                {periodEnd ? ` · renews ${formatDate(periodEnd)}` : ''}
+              </div>
+            </div>
+          </div>
+          <a
+            href="/billing"
+            className="rounded-lg px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+            style={{ background: 'var(--brand-gradient)' }}
+          >
+            Manage plan
+          </a>
+        </div>
+      </main>
+    </div>
+  );
+}

@@ -302,4 +302,44 @@ export default async function AdminPage() {
                         background:
                           s.status === 'Healthy'
                             ? 'var(--status-success)'
-                  
+                            : 'var(--status-warning)',
+                      }}
+                    />
+                    <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+                      {s.service}
+                    </span>
+                  </div>
+                  <Badge variant={s.status === 'Healthy' ? 'success' : 'warning'}>{s.status}</Badge>
+                </div>
+              ))}
+            </div>
+            <a
+              href="/_health"
+              className="mt-4 block text-center text-xs font-semibold hover:underline"
+              style={{ color: 'var(--brand-primary)' }}
+            >
+              View full health report →
+            </a>
+          </div>
+        </div>
+
+        {/* Recent tenants data table */}
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+              Recent Tenants
+            </h2>
+            <a
+              href="/admin/tenants"
+              className="text-xs font-semibold hover:underline"
+              style={{ color: 'var(--brand-primary)' }}
+            >
+              View all →
+            </a>
+          </div>
+          <AdminTenantsTable data={tableData} compact={true} />
+        </div>
+      </main>
+    </div>
+  );
+}

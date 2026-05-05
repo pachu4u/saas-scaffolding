@@ -120,4 +120,6 @@ export class PlatformSecrets {
   async getEmailConfig(): Promise<{ api_key: string; from_email: string } | null> {
     const data = await this.vault.readSecret('platform/email');
     if (!data) return null;
-    return data as unk
+    return data as unknown as { api_key: string; from_email: string };
+  }
+}

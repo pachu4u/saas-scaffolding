@@ -422,4 +422,35 @@ export function Sidebar({ tenantName = 'Workspace', tenantSlug, isAdmin }: Sideb
         )}
       </div>
 
-      {/* ── Nav ───────────────────────────────────────────�
+      {/* ── Nav ────────────────────────────────────────────────────────────── */}
+      <nav className="flex-1 overflow-y-auto px-2 py-4">
+        {sections.map((section) => (
+          <SectionGroup key={section.label} section={section} isActive={isActive} />
+        ))}
+      </nav>
+
+      {/* ── Footer ─────────────────────────────────────────────────────────── */}
+      <div
+        className="flex-shrink-0 px-2 py-3"
+        style={{ borderTop: '1px solid var(--sidebar-border)' }}
+      >
+        <a
+          href="/api/auth/keycloak-logout"
+          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-all"
+          style={{ color: 'var(--sidebar-text)' }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-item-hover)';
+            (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.8)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = '';
+            (e.currentTarget as HTMLElement).style.color = 'var(--sidebar-text)';
+          }}
+        >
+          <span style={{ color: 'var(--sidebar-text)', flexShrink: 0 }}>{Icon.logout}</span>
+          <span>Sign out</span>
+        </a>
+      </div>
+    </aside>
+  );
+}

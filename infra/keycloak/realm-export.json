@@ -51,16 +51,8 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "authorizationServicesEnabled": false,
-      "redirectUris": [
-        "https://app.lvh.me/*",
-        "https://*.lvh.me/*",
-        "http://localhost:3000/*"
-      ],
-      "webOrigins": [
-        "https://app.lvh.me",
-        "https://*.lvh.me",
-        "http://localhost:3000"
-      ],
+      "redirectUris": ["https://app.lvh.me/*", "https://*.lvh.me/*", "http://localhost:3000/*"],
+      "webOrigins": ["https://app.lvh.me", "https://*.lvh.me", "http://localhost:3000"],
       "protocol": "openid-connect",
       "attributes": {
         "access.token.lifespan": "300",
@@ -171,8 +163,14 @@
   "eventsEnabled": true,
   "eventsListeners": ["jboss-logging"],
   "enabledEventTypes": [
-    "LOGIN", "LOGOUT", "LOGIN_ERROR", "REGISTER", "REGISTER_ERROR",
-    "UPDATE_PASSWORD", "UPDATE_PASSWORD_ERROR", "UPDATE_PROFILE"
+    "LOGIN",
+    "LOGOUT",
+    "LOGIN_ERROR",
+    "REGISTER",
+    "REGISTER_ERROR",
+    "UPDATE_PASSWORD",
+    "UPDATE_PASSWORD_ERROR",
+    "UPDATE_PROFILE"
   ],
   "adminEventsEnabled": true,
   "adminEventsDetailsEnabled": true

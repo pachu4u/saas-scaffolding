@@ -27,7 +27,9 @@ async function getUserAuthz(ctx: AuthzContext): Promise<CachedAuthz> {
   try {
     const cached = await redis.get(cacheKey);
     if (cached) return JSON.parse(cached) as CachedAuthz;
-  } catch { /* cache miss */ }
+  } catch {
+    /* cache miss */
+  }
 
   const bindings = await adminDb.roleBinding.findMany({
     where: {
@@ -42,9 +44,7 @@ async function getUserAuthz(ctx: AuthzContext): Promise<CachedAuthz> {
   const roles = bindings.map((b) => b.role.name);
   const permissions = [
     ...new Set(
-      bindings.flatMap((b) =>
-        b.role.permissions.map((rp) => rp.permission.code as PermissionCode),
-      ),
+      bindings.flatMap((b) => b.role.permissions.map((rp) => rp.permission.code as PermissionCode)),
     ),
   ];
 
@@ -61,7 +61,9 @@ async function getUserAuthz(ctx: AuthzContext): Promise<CachedAuthz> {
   const result: CachedAuthz = { roles, permissions };
   try {
     await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
-  } catch { /* non-fatal */ }
+  } catch {
+    /* non-fatal */
+  }
 
   return result;
 }

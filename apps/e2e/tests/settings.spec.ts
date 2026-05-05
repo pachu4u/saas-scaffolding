@@ -130,4 +130,6 @@ test.describe('Settings', () => {
     const createBtn = page.getByRole('button', { name: /create|generate|new/i });
     const hasCreateOption = (await createBtn.count()) > 0;
     // Just verify the page loaded correctly
-    expect(page.url()).toCon
+    expect(page.url()).toContain('/settings/api-keys');
+  });
+});

@@ -156,4 +156,16 @@ export default async function TeamMembersPage() {
             <Badge variant="gray" dot>
               Not configured
             </Badge>
- 
+          )}
+          <a
+            href="/settings/security"
+            className="rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-gray-50"
+            style={{ borderColor: 'var(--border-light)', color: 'var(--text-secondary)' }}
+          >
+            Configure
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}

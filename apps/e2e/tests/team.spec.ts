@@ -168,4 +168,6 @@ test.describe('Team management', () => {
     const response = await request.get('/api/team/invite/bad-token/accept', {
       maxRedirects: 0,
     });
-    expect(response.status()).toBe
+    expect(response.status()).toBeOneOf([302, 307, 400, 401, 404]);
+  });
+});

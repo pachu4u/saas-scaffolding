@@ -79,4 +79,43 @@ export function Topbar({ title, subtitle, userEmail, userName, actions, breadcru
           title="Notifications"
         >
           <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-            <path d="M10 2a6 6 0 0 0-6 6v3.586l-.707.707A1 1 0 0 0 4 14h12a1 1 
+            <path d="M10 2a6 6 0 0 0-6 6v3.586l-.707.707A1 1 0 0 0 4 14h12a1 1 0 0 0 .707-1.707L16 11.586V8a6 6 0 0 0-6-6zm0 16a2 2 0 0 1-2-2h4a2 2 0 0 1-2 2z" />
+          </svg>
+          <span
+            className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full"
+            style={{ background: 'var(--brand-accent)' }}
+          />
+        </button>
+
+        {/* User avatar + info pill */}
+        <div
+          className="flex items-center gap-2 rounded-lg border px-2.5 py-1.5"
+          style={{ borderColor: 'var(--border-light)', background: 'var(--bg-subtle)' }}
+        >
+          <div
+            className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+            style={{ background: 'var(--brand-gradient)' }}
+          >
+            {initials}
+          </div>
+          <div className="hidden md:block">
+            <div
+              className="max-w-[120px] truncate text-[11px] font-semibold leading-tight"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              {userName ?? userEmail}
+            </div>
+            {userName && userEmail && (
+              <div
+                className="max-w-[120px] truncate text-[10px] leading-tight"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                {userEmail}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}

@@ -18,6 +18,7 @@ const nextConfig: NextConfig = {
     '@platform/scim',
     '@platform/tenant',
     '@platform/ui',
+    '@platform/vault',
   ],
   // Security headers — augmented further in Phase 15
   async headers() {

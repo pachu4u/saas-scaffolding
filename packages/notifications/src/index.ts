@@ -41,7 +41,5 @@ function renderTemplate(templateId: string, data: Record<string, unknown>): stri
   };
 
   const template = templates[templateId] ?? `<p>Notification: ${templateId}</p>`;
-  return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) =>
-    String(data[key] ?? ''),
-  );
+  return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => String(data[key] ?? ''));
 }

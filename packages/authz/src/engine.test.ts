@@ -1,17 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // vi.mock is hoisted — use vi.hoisted() so variables are available in the factory
-const {
-  mockRoleBindingFindMany,
-  mockSubscriptionFindUnique,
-  mockRedisGet,
-  mockRedisSetex,
-} = vi.hoisted(() => ({
-  mockRoleBindingFindMany: vi.fn(),
-  mockSubscriptionFindUnique: vi.fn(),
-  mockRedisGet: vi.fn(),
-  mockRedisSetex: vi.fn(),
-}));
+const { mockRoleBindingFindMany, mockSubscriptionFindUnique, mockRedisGet, mockRedisSetex } =
+  vi.hoisted(() => ({
+    mockRoleBindingFindMany: vi.fn(),
+    mockSubscriptionFindUnique: vi.fn(),
+    mockRedisGet: vi.fn(),
+    mockRedisSetex: vi.fn(),
+  }));
 
 vi.mock('@platform/db', () => ({
   adminDb: {
@@ -96,9 +92,7 @@ describe('can()', () => {
   });
 
   it('platform_super_admin has every permission', async () => {
-    mockRoleBindingFindMany.mockResolvedValue([
-      makeBinding('platform_super_admin', []),
-    ]);
+    mockRoleBindingFindMany.mockResolvedValue([makeBinding('platform_super_admin', [])]);
     expect(await can(ctx, 'platform:admin')).toBe(true);
     expect(await can(ctx, 'scim:manage')).toBe(true);
   });

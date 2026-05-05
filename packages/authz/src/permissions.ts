@@ -73,8 +73,5 @@ export const ROLE_PERMISSIONS: Record<string, PermissionCode[]> = {
     Permission.NOTES_UPDATE,
     Permission.USERS_READ,
   ],
-  tenant_viewer: [
-    Permission.NOTES_READ,
-    Permission.USERS_READ,
-  ],
+  tenant_viewer: [Permission.NOTES_READ, Permission.USERS_READ],
 };

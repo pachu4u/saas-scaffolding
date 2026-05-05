@@ -20,24 +20,21 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(notes);
 }
 
-export const POST = withAuthz(
-  { permission: Permission.NOTES_CREATE },
-  async (req, { authz }) => {
-    const { body } = (await req.json()) as { body?: string };
-    if (!body?.trim()) {
-      return NextResponse.json({ error: 'body is required' }, { status: 422 });
-    }
+export const POST = withAuthz({ permission: Permission.NOTES_CREATE }, async (req, { authz }) => {
+  const { body } = (await req.json()) as { body?: string };
+  if (!body?.trim()) {
+    return NextResponse.json({ error: 'body is required' }, { status: 422 });
+  }
 
-    const note = await withTenant(authz.tenantId, (tx) =>
-      tx.note.create({
-        data: { tenantId: authz.tenantId, body: body.trim(), userId: authz.user.id },
-        select: { id: true, body: true, createdAt: true },
-      }),
-    );
+  const note = await withTenant(authz.tenantId, (tx) =>
+    tx.note.create({
+      data: { tenantId: authz.tenantId, body: body.trim(), userId: authz.user.id },
+      select: { id: true, body: true, createdAt: true },
+    }),
+  );
 
-    return NextResponse.json(note, { status: 201 });
-  },
-);
+  return NextResponse.json(note, { status: 201 });
+});
 
 export const DELETE = withAuthz(
   { permission: Permission.NOTES_DELETE, entitlement: 'notes.delete' },

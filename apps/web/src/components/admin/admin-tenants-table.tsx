@@ -198,4 +198,7 @@ export function AdminTenantsTable({ data, newTenantButton, compact }: AdminTenan
       rowLabel="tenant"
       emptyMessage="No tenants found."
       rowKey={(row) => row.id}
-      toolbarRight={newTenantButto
+      toolbarRight={newTenantButton}
+    />
+  );
+}

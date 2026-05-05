@@ -6,4 +6,4 @@ export {
   getTenantSecrets,
   getPlatformSecrets,
   resetVaultSingletons,
-} from './sin
+} from './singleton';

@@ -66,10 +66,7 @@ export function withAuthz(opts: AuthzOptions, handler: RouteHandler) {
     // 1. RBAC check
     const allowed = await can(authzCtx, opts.permission);
     if (!allowed) {
-      return NextResponse.json(
-        { error: 'Forbidden', required: opts.permission },
-        { status: 403 },
-      );
+      return NextResponse.json({ error: 'Forbidden', required: opts.permission }, { status: 403 });
     }
 
     // 2. Entitlement check

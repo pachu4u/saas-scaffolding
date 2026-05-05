@@ -55,4 +55,22 @@ export function StatCard({
       {change && (
         <div className="flex items-center gap-1">
           <span
-            className="inline-flex items
+            className="inline-flex items-center gap-0.5 rounded text-[11px] font-semibold"
+            style={{ color: positive ? 'var(--status-success)' : 'var(--status-error)' }}
+          >
+            {positive ? (
+              <svg viewBox="0 0 12 12" fill="currentColor" className="h-3 w-3">
+                <path d="M6 2l4 5H2z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 12 12" fill="currentColor" className="h-3 w-3">
+                <path d="M6 10L2 5h8z" />
+              </svg>
+            )}
+            {change}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}

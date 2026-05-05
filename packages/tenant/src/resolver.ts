@@ -3,8 +3,16 @@ import { adminDb, redis } from '@platform/db';
 
 const CACHE_TTL_SECONDS = 60;
 const RESERVED_SUBDOMAINS = new Set([
-  'auth', 'api', 'admin', 'app', 'www', '_health', 'traefik',
-  'grafana', 'mail', 'pgadmin',
+  'auth',
+  'api',
+  'admin',
+  'app',
+  'www',
+  '_health',
+  'traefik',
+  'grafana',
+  'mail',
+  'pgadmin',
 ]);
 
 /**

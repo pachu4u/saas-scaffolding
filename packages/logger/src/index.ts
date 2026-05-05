@@ -4,9 +4,17 @@ import { env } from '@platform/config';
 
 // Prevent logging secrets even if accidentally passed
 const REDACT_PATHS = [
-  'password', 'secret', 'token', 'authorization', 'cookie',
-  'req.headers.authorization', 'req.headers.cookie',
-  '*.password', '*.secret', '*.token', '*.hashedToken',
+  'password',
+  'secret',
+  'token',
+  'authorization',
+  'cookie',
+  'req.headers.authorization',
+  'req.headers.cookie',
+  '*.password',
+  '*.secret',
+  '*.token',
+  '*.hashedToken',
 ];
 
 const isDev = env.NODE_ENV === 'development';

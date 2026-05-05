@@ -116,3 +116,5 @@ test.describe('Audit log', () => {
       // Activity items should be visible
       await expect(activityItems.first()).toBeVisible();
     }
+  });
+});
