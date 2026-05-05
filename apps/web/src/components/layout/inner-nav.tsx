@@ -18,8 +18,8 @@ export function InnerNav({ items }: InnerNavProps) {
 
   return (
     <div
-      className="flex items-center gap-1 overflow-x-auto border-b px-6"
-      style={{ borderColor: 'var(--border-light)' }}
+      className="flex items-center gap-0.5 overflow-x-auto px-4"
+      style={{ background: 'var(--bg-white)', borderBottom: '1px solid var(--border-light)' }}
     >
       {items.map((item) => {
         const active = pathname === item.href;
@@ -27,17 +27,14 @@ export function InnerNav({ items }: InnerNavProps) {
           <Link
             key={item.href}
             href={item.href}
-            className={`-mb-px flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-3 text-sm font-semibold transition-colors`}
+            className="relative -mb-px flex items-center gap-1.5 whitespace-nowrap px-3 py-3 text-xs font-semibold transition-colors"
             style={{
-              borderColor: active ? 'var(--brand-primary)' : 'transparent',
               color: active ? 'var(--brand-primary)' : 'var(--text-secondary)',
             }}
           >
             {item.icon}
             {item.label}
-          </Link>
-        );
-      })}
-    </div>
-  );
-}
+            {active && (
+              <span
+                className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t"
+                style={

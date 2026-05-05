@@ -166,7 +166,7 @@ export function BrandingForm({
           {/* Colors tab */}
           {activeTab === 'colors' && (
             <div
-              className="rounded-2xl border"
+              className="rounded-xl border"
               style={{
                 background: 'var(--bg-white)',
                 borderColor: 'var(--border-light)',
@@ -297,7 +297,7 @@ export function BrandingForm({
           {/* Logo tab */}
           {activeTab === 'logo' && (
             <div
-              className="rounded-2xl border"
+              className="rounded-xl border"
               style={{
                 background: 'var(--bg-white)',
                 borderColor: 'var(--border-light)',
@@ -315,7 +315,7 @@ export function BrandingForm({
                   </label>
                   <div className="flex items-center gap-4">
                     <div
-                      className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-2xl text-2xl font-bold text-white"
+                      className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl text-2xl font-bold text-white"
                       style={{ background: primaryColor }}
                     >
                       {logoText[0]?.toUpperCase()}
@@ -467,7 +467,7 @@ export function BrandingForm({
           {/* Email tab */}
           {activeTab === 'email' && (
             <div
-              className="rounded-2xl border"
+              className="rounded-xl border"
               style={{
                 background: 'var(--bg-white)',
                 borderColor: 'var(--border-light)',
@@ -629,7 +629,7 @@ export function BrandingForm({
           {/* Login page tab */}
           {activeTab === 'login' && (
             <div
-              className="rounded-2xl border"
+              className="rounded-xl border"
               style={{
                 background: 'var(--bg-white)',
                 borderColor: 'var(--border-light)',
@@ -775,7 +775,7 @@ export function BrandingForm({
               Live preview
             </div>
             <div
-              className="overflow-hidden rounded-2xl border"
+              className="overflow-hidden rounded-xl border"
               style={{ borderColor: 'var(--border-light)', boxShadow: 'var(--shadow-brand)' }}
             >
               {/* Preview: mini nav */}
@@ -912,7 +912,7 @@ export function BrandingForm({
               Login page preview
             </div>
             <div
-              className="overflow-hidden rounded-2xl border"
+              className="overflow-hidden rounded-xl border"
               style={{ borderColor: 'var(--border-light)', boxShadow: 'var(--shadow-card)' }}
             >
               <div className="flex" style={{ minHeight: '120px' }}>

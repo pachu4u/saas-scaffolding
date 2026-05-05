@@ -214,7 +214,7 @@ export default function LandingPage() {
             {stats.map((s) => (
               <div
                 key={s.label}
-                className="rounded-2xl border p-4 text-center"
+                className="rounded-xl border p-4 text-center"
                 style={{ background: 'var(--bg-white)', borderColor: 'var(--border-light)' }}
               >
                 <div className="brand-gradient-text text-2xl font-extrabold">{s.value}</div>
@@ -385,7 +385,7 @@ export default function LandingPage() {
             {features.map((f) => (
               <div
                 key={f.title}
-                className="hover:border-brand-secondary rounded-2xl border p-6 transition-all hover:-translate-y-0.5"
+                className="hover:border-brand-secondary rounded-xl border p-6 transition-all hover:-translate-y-0.5"
                 style={{
                   background: 'var(--bg-white)',
                   borderColor: 'var(--border-light)',

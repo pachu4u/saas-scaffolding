@@ -112,7 +112,7 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
         {/* Checkout result banner */}
         {checkout === 'success' && (
           <div
-            className="flex items-center gap-3 rounded-2xl border px-5 py-4"
+            className="flex items-center gap-3 rounded-xl border px-5 py-4"
             style={{ background: 'rgba(22,163,74,0.06)', borderColor: 'rgba(22,163,74,0.25)' }}
           >
             <svg
@@ -139,7 +139,7 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
         )}
         {checkout === 'cancelled' && (
           <div
-            className="flex items-center gap-3 rounded-2xl border px-5 py-4"
+            className="flex items-center gap-3 rounded-xl border px-5 py-4"
             style={{ background: 'rgba(245,158,11,0.06)', borderColor: 'rgba(245,158,11,0.25)' }}
           >
             <svg
@@ -167,7 +167,7 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
 
         {/* Current plan summary */}
         <div
-          className="relative overflow-hidden rounded-2xl border p-6"
+          className="relative overflow-hidden rounded-xl border p-6"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -291,7 +291,7 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
                 return (
                   <div
                     key={plan.id}
-                    className={`flex flex-col rounded-2xl border p-5 ${isCurrent ? 'ring-2' : ''}`}
+                    className={`flex flex-col rounded-xl border p-5 ${isCurrent ? 'ring-2' : ''}`}
                     style={{
                       background: isCurrent ? 'var(--bg-subtle)' : 'var(--bg-white)',
                       borderColor: isCurrent ? 'var(--brand-primary)' : 'var(--border-light)',
@@ -388,7 +388,7 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
 
         {/* Usage this month */}
         <div
-          className="rounded-2xl border p-6"
+          className="rounded-xl border p-6"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -435,7 +435,7 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
 
         {/* Invoice history placeholder */}
         <div
-          className="rounded-2xl border p-6"
+          className="rounded-xl border p-6"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',

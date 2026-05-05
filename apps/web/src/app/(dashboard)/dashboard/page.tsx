@@ -3,7 +3,7 @@ import { adminDb } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
 import { redirect } from 'next/navigation';
 
-import { timeAgo, formatDate } from '@/lib/time';
+import { formatDate, timeAgo } from '@/lib/time';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
@@ -33,7 +33,7 @@ function getActivityType(action: string): keyof typeof activityTypeConfig {
 
 const quickActions = [
   {
-    label: 'Invite team member',
+    label: 'Invite member',
     href: '/team',
     icon: '👤',
     description: 'Add someone to your workspace',
@@ -52,8 +52,26 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session) redirect('/auth/signin');
 
-  const slug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
-  const tenantCtx = await resolveTenant(slug);
+  let tenantCtx = null;
+  const envSlug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG;
+
+  if (envSlug) {
+    tenantCtx = await resolveTenant(envSlug);
+  } else {
+    const userRecord = await adminDb.user.findUnique({
+      where: { email: session.user.email },
+      include: {
+        tenantUsers: {
+          where: { status: 'ACTIVE' },
+          include: { tenant: { select: { slug: true } } },
+          take: 1,
+        },
+      },
+    });
+    const firstTenantSlug = userRecord?.tenantUsers[0]?.tenant.slug;
+    if (firstTenantSlug) tenantCtx = await resolveTenant(firstTenantSlug);
+  }
+
   if (!tenantCtx) redirect('/');
 
   const { tenantId } = tenantCtx;
@@ -87,7 +105,7 @@ export default async function DashboardPage() {
     }),
   ]);
 
-  // Build 30-day chart data from usage events
+  // Build 30-day chart data
   const dayMap = new Map<string, number>();
   for (const ev of usageEvents) {
     const day = ev.occurredAt.toISOString().slice(0, 10);
@@ -101,8 +119,8 @@ export default async function DashboardPage() {
   const maxVal = Math.max(...chartData, 1);
   const chartBars = chartData.map((v) => Math.max(4, Math.round((v / maxVal) * 90) + 4));
   const hasUsageData = usageEvents.length > 0;
+  const totalUsage = usageEvents.reduce((s, e) => s + e.quantity, 0);
 
-  // Map audit logs to activity items
   const recentActivity = recentAuditLogs.map((log) => ({
     action: log.action
       .split(/[._]/)
@@ -114,39 +132,36 @@ export default async function DashboardPage() {
     type: getActivityType(log.action),
   }));
 
-  // Plan banner data
   const planName = subscription?.plan.name ?? tenantCtx.plan ?? 'Free';
   const planFeatures = (subscription?.plan.features ?? {}) as Record<string, unknown>;
   const seatLimit = typeof planFeatures.maxSeats === 'number' ? planFeatures.maxSeats : null;
   const periodEnd = subscription?.currentPeriodEnd;
 
-  // Chart date range labels
   const chartStart = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000);
-  const chartEnd = new Date();
   const chartStartLabel = chartStart.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
   });
-  const chartEndLabel = chartEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const chartEndLabel = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   return (
     <div>
       <Topbar
         title="Dashboard"
-        subtitle="Welcome back — here's what's happening"
+        subtitle="Welcome back"
         userEmail={session.user.email}
         userName={session.user.name ?? undefined}
       />
 
-      <main className="space-y-6 p-6">
-        {/* Stats */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <main className="space-y-5 p-6">
+        {/* Stat row */}
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
           <StatCard
             label="Active Members"
             value={activeUserCount.toLocaleString()}
             change={
               pendingInviteCount > 0
-                ? `${String(pendingInviteCount)} pending invite${pendingInviteCount !== 1 ? 's' : ''}`
+                ? `${String(pendingInviteCount)} pending`
                 : 'No pending invites'
             }
             positive={true}
@@ -161,9 +176,7 @@ export default async function DashboardPage() {
             label="Total Members"
             value={totalUserCount.toLocaleString()}
             change={
-              seatLimit
-                ? `${String(seatLimit - totalUserCount)} seats remaining`
-                : 'Unlimited seats'
+              seatLimit ? `${String(seatLimit - totalUserCount)} seats left` : 'Unlimited seats'
             }
             positive={seatLimit ? totalUserCount < seatLimit : true}
             iconColor="rgba(22, 163, 74, 0.1)"
@@ -180,7 +193,7 @@ export default async function DashboardPage() {
           <StatCard
             label="Current Plan"
             value={planName}
-            change={periodEnd ? `Renews ${formatDate(periodEnd)}` : 'No active subscription'}
+            change={periodEnd ? `Renews ${formatDate(periodEnd)}` : 'No subscription'}
             positive={true}
             iconColor="rgba(176, 108, 255, 0.1)"
             icon={
@@ -195,7 +208,7 @@ export default async function DashboardPage() {
           />
           <StatCard
             label="Usage Events (30d)"
-            value={usageEvents.reduce((s, e) => s + e.quantity, 0).toLocaleString()}
+            value={totalUsage.toLocaleString()}
             change="Last 30 days"
             positive={true}
             iconColor="rgba(106, 109, 255, 0.1)"
@@ -207,17 +220,17 @@ export default async function DashboardPage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          {/* Activity chart */}
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+          {/* Usage chart */}
           <div
-            className="rounded-2xl border p-6 xl:col-span-2"
+            className="rounded-xl border p-5 xl:col-span-2"
             style={{
               background: 'var(--bg-white)',
               borderColor: 'var(--border-light)',
               boxShadow: 'var(--shadow-card)',
             }}
           >
-            <div className="mb-6 flex items-center justify-between">
+            <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
                   Usage Events
@@ -226,37 +239,53 @@ export default async function DashboardPage() {
                   Last 30 days
                 </p>
               </div>
+              <span
+                className="rounded-lg px-2.5 py-1 text-xs font-bold"
+                style={{ background: 'rgba(79,123,255,0.08)', color: 'var(--brand-primary)' }}
+              >
+                {totalUsage.toLocaleString()} events
+              </span>
             </div>
             {hasUsageData ? (
               <>
-                <div className="flex h-36 items-end gap-1">
+                <div className="flex h-32 items-end gap-0.5">
                   {chartBars.map((h, i) => (
                     <div
                       key={i}
                       className="flex-1 rounded-sm transition-opacity hover:opacity-100"
                       style={{
                         height: `${String(h)}%`,
-                        background: i >= 27 ? 'var(--brand-primary)' : 'var(--bg-subtle)',
-                        opacity: i >= 27 ? 1 : 0.6,
+                        background:
+                          i >= 27
+                            ? 'var(--brand-primary)'
+                            : `rgba(79,123,255,${String(0.15 + (i / 30) * 0.2)})`,
                       }}
                     />
                   ))}
                 </div>
                 <div className="mt-2 flex justify-between">
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
                     {chartStartLabel}
                   </span>
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
                     {chartEndLabel}
                   </span>
                 </div>
               </>
             ) : (
               <div
-                className="flex h-36 items-center justify-center rounded-xl"
+                className="flex h-32 flex-col items-center justify-center gap-1 rounded-lg"
                 style={{ background: 'var(--bg-subtle)' }}
               >
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                <svg
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="h-6 w-6"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  <path d="M2 11a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-5zM8 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V7zM14 4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V4z" />
+                </svg>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                   No usage events in the last 30 days
                 </p>
               </div>
@@ -265,7 +294,7 @@ export default async function DashboardPage() {
 
           {/* Quick actions */}
           <div
-            className="rounded-2xl border p-6"
+            className="rounded-xl border p-5"
             style={{
               background: 'var(--bg-white)',
               borderColor: 'var(--border-light)',
@@ -280,18 +309,35 @@ export default async function DashboardPage() {
                 <a
                   key={action.href}
                   href={action.href}
-                  className="flex items-center gap-3 rounded-xl border p-3 transition-all hover:-translate-y-0.5"
+                  className="flex items-center gap-3 rounded-lg border p-3 transition-all hover:-translate-y-0.5 hover:shadow-sm"
                   style={{ borderColor: 'var(--border-light)', background: 'var(--bg-main)' }}
                 >
-                  <span className="text-xl">{action.icon}</span>
+                  <span
+                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-base"
+                    style={{ background: 'var(--bg-subtle)' }}
+                  >
+                    {action.icon}
+                  </span>
                   <div>
                     <div className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
                       {action.label}
                     </div>
-                    <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
                       {action.description}
                     </div>
                   </div>
+                  <svg
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    className="ml-auto h-4 w-4 flex-shrink-0"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M7.293 14.707a1 1 0 0 1 0-1.414L10.586 10 7.293 6.707a1 1 0 0 1 1.414-1.414l4 4a1 1 0 0 1 0 1.414l-4 4a1 1 0 0 1-1.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
                 </a>
               ))}
             </div>
@@ -300,7 +346,7 @@ export default async function DashboardPage() {
 
         {/* Recent activity */}
         <div
-          className="rounded-2xl border"
+          className="rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -308,7 +354,7 @@ export default async function DashboardPage() {
           }}
         >
           <div
-            className="flex items-center justify-between border-b px-6 py-4"
+            className="flex items-center justify-between border-b px-5 py-3.5"
             style={{ borderColor: 'var(--border-light)' }}
           >
             <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
@@ -322,9 +368,9 @@ export default async function DashboardPage() {
               View full audit log →
             </a>
           </div>
-          <div className="divide-y" style={{ borderColor: 'var(--border-light)' }}>
+          <div>
             {recentActivity.length === 0 ? (
-              <div className="px-6 py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+              <div className="px-5 py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
                 No activity recorded yet.
               </div>
             ) : (
@@ -333,12 +379,22 @@ export default async function DashboardPage() {
                   activityTypeConfig[event.type as keyof typeof activityTypeConfig] ??
                   activityTypeConfig.team;
                 return (
-                  <div key={i} className="flex items-center gap-4 px-6 py-4">
-                    <div className="brand-gradient flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
+                  <div
+                    key={i}
+                    className="flex items-center gap-4 px-5 py-3.5"
+                    style={{
+                      borderBottom:
+                        i < recentActivity.length - 1 ? '1px solid var(--border-light)' : 'none',
+                    }}
+                  >
+                    <div
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                      style={{ background: 'var(--brand-gradient)' }}
+                    >
                       {event.actor[0]?.toUpperCase() ?? '?'}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <span
                           className="text-sm font-semibold"
                           style={{ color: 'var(--text-primary)' }}
@@ -349,46 +405,4 @@ export default async function DashboardPage() {
                       </div>
                       <div className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                         {event.subject} · by{' '}
-                        <span style={{ color: 'var(--text-secondary)' }}>{event.actor}</span>
-                      </div>
-                    </div>
-                    <span className="flex-shrink-0 text-xs" style={{ color: 'var(--text-muted)' }}>
-                      {event.time}
-                    </span>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Plan banner */}
-        <div
-          className="flex items-center justify-between rounded-2xl p-5"
-          style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-default)' }}
-        >
-          <div className="flex items-center gap-3">
-            <div className="brand-gradient flex h-10 w-10 items-center justify-center rounded-xl text-lg text-white">
-              ⚡
-            </div>
-            <div>
-              <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                You&apos;re on the {planName} plan
-              </div>
-              <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                {totalUserCount} {seatLimit ? `of ${String(seatLimit)} seats used` : 'members'}{' '}
-                {periodEnd ? `· renews ${formatDate(periodEnd)}` : ''}
-              </div>
-            </div>
-          </div>
-          <a
-            href="/billing"
-            className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            Manage plan
-          </a>
-        </div>
-      </main>
-    </div>
-  );
-}
+                        <span style={{ color: 'var(--text-secondary)' }}>{event.acto

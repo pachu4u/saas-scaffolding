@@ -46,6 +46,14 @@ const envSchema = z.object({
 
   // Git
   GIT_SHA: z.string().default('dev'),
+
+  // HashiCorp Vault
+  VAULT_ADDR: z.string().url().optional(),
+  VAULT_TOKEN: z.string().optional(),
+  VAULT_ROLE_ID: z.string().optional(),
+  VAULT_SECRET_ID: z.string().optional(),
+  VAULT_NAMESPACE: z.string().optional(),
+  VAULT_MOUNT_PATH: z.string().default('secret'),
 });
 
 type Env = z.infer<typeof envSchema>;

@@ -8,6 +8,7 @@ import { redirect } from 'next/navigation';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 import { formatDate, timeAgo } from '@/lib/time';
+import { ProvisioningPanel } from '@/components/admin/provisioning-panel';
 
 export const metadata = { title: 'Tenant Detail — Admin' };
 
@@ -27,6 +28,7 @@ export default async function AdminTenantDetailPage({
       subscription: {
         include: { plan: true },
       },
+      environments: { orderBy: { createdAt: 'asc' } },
       tenantUsers: {
         include: { user: { select: { email: true } } },
         orderBy: { joinedAt: 'asc' },
@@ -50,12 +52,13 @@ export default async function AdminTenantDetailPage({
       <Topbar
         title={tenant.name}
         subtitle={`/${tenant.slug}`}
+        breadcrumb={['Admin', 'Tenants']}
         userEmail={session.user.email}
         userName={session.user.name ?? undefined}
         actions={
           <Link
             href="/admin/tenants"
-            className="rounded-xl border px-4 py-2 text-sm font-semibold transition-colors hover:bg-gray-50"
+            className="rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-gray-50"
             style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
           >
             ← Back to tenants
@@ -77,7 +80,7 @@ export default async function AdminTenantDetailPage({
           ].map((card) => (
             <div
               key={card.label}
-              className="rounded-2xl border p-5"
+              className="rounded-xl border p-5"
               style={{
                 background: 'var(--bg-white)',
                 borderColor: 'var(--border-light)',
@@ -97,10 +100,16 @@ export default async function AdminTenantDetailPage({
           ))}
         </div>
 
+        <ProvisioningPanel
+          tenantId={id}
+          initialStatus={tenant.provisioningStatus}
+          initialEnvironments={tenant.environments}
+        />
+
         <div className="grid grid-cols-2 gap-6">
           {/* Tenant info */}
           <div
-            className="rounded-2xl border p-6"
+            className="rounded-xl border p-6"
             style={{
               background: 'var(--bg-white)',
               borderColor: 'var(--border-light)',
@@ -176,7 +185,7 @@ export default async function AdminTenantDetailPage({
 
           {/* Members */}
           <div
-            className="rounded-2xl border"
+            className="rounded-xl border"
             style={{
               background: 'var(--bg-white)',
               borderColor: 'var(--border-light)',
@@ -231,7 +240,7 @@ export default async function AdminTenantDetailPage({
 
         {/* Recent audit logs */}
         <div
-          className="rounded-2xl border"
+          className="rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',

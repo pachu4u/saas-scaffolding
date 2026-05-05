@@ -55,7 +55,7 @@ export default async function ProfilePage() {
       <main className="space-y-6 p-6">
         {/* Identity card */}
         <div
-          className="relative overflow-hidden rounded-2xl border p-6"
+          className="relative overflow-hidden rounded-xl border p-6"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -68,7 +68,7 @@ export default async function ProfilePage() {
           />
           <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start">
             {/* Avatar */}
-            <div className="brand-gradient flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-2xl text-2xl font-extrabold text-white">
+            <div className="brand-gradient flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-xl text-2xl font-extrabold text-white">
               {initials}
             </div>
 
@@ -164,7 +164,7 @@ export default async function ProfilePage() {
 
         {/* Workspace memberships */}
         <div
-          className="rounded-2xl border"
+          className="rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -219,7 +219,7 @@ export default async function ProfilePage() {
 
         {/* Current session */}
         <div
-          className="rounded-2xl border"
+          className="rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -291,7 +291,7 @@ export default async function ProfilePage() {
             Developer: raw session token
           </summary>
           <pre
-            className="mt-3 overflow-x-auto rounded-2xl p-5 text-xs"
+            className="mt-3 overflow-x-auto rounded-xl p-5 text-xs"
             style={{
               background: 'var(--bg-white)',
               border: '1px solid var(--border-light)',

@@ -47,7 +47,7 @@ export default async function ApiKeysPage() {
           </span>
         </div>
         <div
-          className="overflow-hidden rounded-2xl border"
+          className="overflow-hidden rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -136,7 +136,7 @@ export default async function ApiKeysPage() {
           Create New Token
         </h2>
         <div
-          className="rounded-2xl border"
+          className="rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',

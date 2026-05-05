@@ -55,7 +55,7 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
       onClick={handleOverlayClick}
     >
       <div
-        className="w-full max-w-md overflow-hidden rounded-2xl border"
+        className="w-full max-w-md overflow-hidden rounded-xl border"
         style={{
           background: 'var(--bg-white)',
           borderColor: 'var(--border-light)',
@@ -93,7 +93,7 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
         {result?.success ? (
           <div className="px-6 py-10 text-center">
             <div
-              className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl"
+              className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-xl"
               style={{ background: 'rgba(22,163,74,0.1)' }}
             >
               <svg

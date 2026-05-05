@@ -140,7 +140,7 @@ export default function AdminJobsPage() {
             {Array.from({ length: 5 }).map((_, i) => (
               <div
                 key={i}
-                className="h-20 animate-pulse rounded-2xl"
+                className="h-20 animate-pulse rounded-xl"
                 style={{ background: 'var(--bg-white)', border: '1px solid var(--border-light)' }}
               />
             ))}
@@ -148,7 +148,7 @@ export default function AdminJobsPage() {
         )}
 
         {error && (
-          <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-700">
+          <div className="rounded-xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-700">
             {error}
           </div>
         )}
@@ -159,7 +159,7 @@ export default function AdminJobsPage() {
           return (
             <div
               key={queue.name}
-              className="overflow-hidden rounded-2xl border"
+              className="overflow-hidden rounded-xl border"
               style={{
                 background: 'var(--bg-white)',
                 borderColor: hasFailed ? 'rgba(239,68,68,0.3)' : 'var(--border-light)',
@@ -296,3 +296,4 @@ export default function AdminJobsPage() {
     </div>
   );
 }
+                                                                                                                                                                                                                                                                                                          

@@ -505,7 +505,7 @@ export default function OnboardingPage() {
                   key={p.id}
                   onClick={() => handleBillingChoice(p.id)}
                   disabled={isPending}
-                  className="w-full rounded-2xl border p-4 text-left transition-all hover:shadow-md disabled:opacity-50"
+                  className="w-full rounded-xl border p-4 text-left transition-all hover:shadow-md disabled:opacity-50"
                   style={{
                     borderColor:
                       plan === p.id
@@ -576,7 +576,7 @@ export default function OnboardingPage() {
                   <a
                     key={link.href}
                     href={link.href}
-                    className="flex flex-col items-center gap-1.5 rounded-2xl border p-3 text-xs font-semibold transition-colors hover:bg-gray-50"
+                    className="flex flex-col items-center gap-1.5 rounded-xl border p-3 text-xs font-semibold transition-colors hover:bg-gray-50"
                     style={{
                       borderColor: 'var(--border-light)',
                       color: 'var(--text-secondary)',
@@ -654,3 +654,4 @@ export default function OnboardingPage() {
     </div>
   );
 }
+  

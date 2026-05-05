@@ -193,7 +193,7 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
         <div className="space-y-4 xl:col-span-3">
           {/* Role header */}
           <div
-            className="flex items-start gap-4 rounded-2xl border p-5"
+            className="flex items-start gap-4 rounded-xl border p-5"
             style={{
               background: 'var(--bg-white)',
               borderColor: 'var(--border-light)',
@@ -249,7 +249,7 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
               return (
                 <div
                   key={group.resource}
-                  className="overflow-hidden rounded-2xl border"
+                  className="overflow-hidden rounded-xl border"
                   style={{
                     background: 'var(--bg-white)',
                     borderColor: 'var(--border-light)',
@@ -378,7 +378,7 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
         <div className="space-y-4">
           {/* Members with this role */}
           <div
-            className="rounded-2xl border p-5"
+            className="rounded-xl border p-5"
             style={{
               background: 'var(--bg-white)',
               borderColor: 'var(--border-light)',
@@ -436,7 +436,7 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
 
           {/* Permission summary */}
           <div
-            className="rounded-2xl border p-5"
+            className="rounded-xl border p-5"
             style={{
               background: 'var(--bg-white)',
               borderColor: 'var(--border-light)',
@@ -470,7 +470,7 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
           {/* Danger: if custom role */}
           {!role.isSystem && (
             <div
-              className="rounded-2xl border border-red-100 p-4"
+              className="rounded-xl border border-red-100 p-4"
               style={{ background: 'var(--bg-white)' }}
             >
               <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-red-500">

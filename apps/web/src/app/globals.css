@@ -13,31 +13,48 @@
   --brand-accent: #B06CFF;
 
   /* Backgrounds */
-  --bg-main: #F8F6FF;
+  --bg-main: #F4F6FA;
   --bg-white: #FFFFFF;
   --bg-card: #FFFFFF;
-  --bg-subtle: #F0EDFF;
+  --bg-subtle: #EEF1F8;
 
   /* Text */
-  --text-primary: #0A0A0A;
-  --text-secondary: #525252;
-  --text-muted: #8A8A8A;
+  --text-primary: #0D1117;
+  --text-secondary: #4B5563;
+  --text-muted: #9CA3AF;
 
   /* Borders */
-  --border-light: #E8E4FF;
-  --border-default: #D4CEFF;
+  --border-light: #E5E9F2;
+  --border-default: #D1D9E6;
 
   /* Effects */
   --glow-purple: rgba(176, 108, 255, 0.2);
   --glow-blue: rgba(79, 123, 255, 0.25);
   --shadow-brand: 0 4px 24px rgba(79, 123, 255, 0.15);
-  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
 
   /* Status */
   --status-success: #16A34A;
   --status-warning: #D97706;
   --status-error: #DC2626;
   --status-info: #4F7BFF;
+
+  /* Dark sidebar */
+  --sidebar-bg: #0D1117;
+  --sidebar-border: rgba(255,255,255,0.06);
+  --sidebar-text: rgba(255,255,255,0.55);
+  --sidebar-text-active: #FFFFFF;
+  --sidebar-item-active: rgba(79, 123, 255, 0.15);
+  --sidebar-item-hover: rgba(255,255,255,0.05);
+  --sidebar-group-label: rgba(255,255,255,0.3);
+  --sidebar-accent: #4F7BFF;
+  --sidebar-width: 240px;
+
+  /* Chart */
+  --chart-line: #4F7BFF;
+  --chart-area: rgba(79, 123, 255, 0.1);
+  --chart-grid: rgba(0,0,0,0.06);
 }
 
 @layer base {
@@ -48,7 +65,7 @@
   }
 
   * {
-    @apply border-[var(--border-light)];
+    border-color: var(--border-light);
   }
 }
 
@@ -69,30 +86,4 @@
   }
 
   .glow-purple {
-    box-shadow: 0 0 32px var(--glow-purple);
-  }
-
-  .card-shadow {
-    box-shadow: var(--shadow-card);
-  }
-
-  .brand-shadow {
-    box-shadow: var(--shadow-brand);
-  }
-}
-
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border-default);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--brand-secondary);
-}
+    box-shadow: 0 0 32px var(--glow-

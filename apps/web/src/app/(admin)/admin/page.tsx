@@ -1,23 +1,21 @@
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
+import { getVaultClient } from '@platform/vault';
 import { redirect } from 'next/navigation';
 
-import { formatDate, timeAgo } from '@/lib/time';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
+import { AdminTenantsTable } from '@/components/admin/admin-tenants-table';
 
 export const metadata = { title: 'Platform Admin' };
-
-const planColors: Record<string, 'purple' | 'blue' | 'gray'> = {
-  Enterprise: 'purple',
-  Pro: 'blue',
-  Free: 'gray',
-};
 
 export default async function AdminPage() {
   const session = await auth();
   if (!session) redirect('/auth/signin');
+
+  const vaultClient = getVaultClient();
+  const vaultHealthy = await vaultClient.isHealthy();
 
   const [totalTenants, totalUsers, activeJobs, deadJobs, recentTenants, planDistribution] =
     await Promise.all([
@@ -28,24 +26,28 @@ export default async function AdminPage() {
       adminDb.tenant.findMany({
         where: { status: { not: 'DELETED' } },
         orderBy: { createdAt: 'desc' },
-        take: 5,
+        take: 10,
         include: {
           _count: { select: { tenantUsers: true } },
           subscription: { include: { plan: { select: { name: true, code: true } } } },
-          auditLogs: {
-            orderBy: { occurredAt: 'desc' },
-            take: 1,
-            select: { occurredAt: true },
-          },
+          auditLogs: { orderBy: { occurredAt: 'desc' }, take: 1, select: { occurredAt: true } },
         },
       }),
-      // Get plan distribution: count tenants grouped by their plan field
       adminDb.tenant.groupBy({
         by: ['plan'],
         where: { status: { not: 'DELETED' } },
         _count: { id: true },
       }),
     ]);
+
+  const [activeTenants, suspendedTenants] = await Promise.all([
+    adminDb.tenant.count({ where: { status: 'ACTIVE' } }),
+    adminDb.tenant.count({ where: { status: 'SUSPENDED' } }),
+  ]);
+
+  const paidTenants = planDistribution
+    .filter((p) => p.plan !== 'free')
+    .reduce((s, p) => s + p._count.id, 0);
 
   const planDist = planDistribution.map((row) => ({
     plan: row.plan,
@@ -59,11 +61,34 @@ export default async function AdminPage() {
           : 'var(--text-muted)',
   }));
 
+  const tableData = recentTenants.map((t) => ({
+    id: t.id,
+    name: t.name,
+    slug: t.slug,
+    plan: t.subscription?.plan.name ?? t.plan.charAt(0).toUpperCase() + t.plan.slice(1),
+    users: t._count.tenantUsers,
+    status: t.status,
+    createdAt: t.createdAt.toISOString(),
+    lastActivity: t.auditLogs[0]?.occurredAt?.toISOString() ?? null,
+    customDomains: t.customDomains,
+  }));
+
+  const systemServices = [
+    { service: 'Web (Next.js)', status: 'Healthy' },
+    { service: 'Database (Postgres)', status: 'Healthy' },
+    { service: 'Redis', status: 'Healthy' },
+    { service: 'Keycloak (IAM)', status: 'Healthy' },
+    { service: 'Workers (BullMQ)', status: deadJobs > 0 ? 'Degraded' : 'Healthy' },
+    { service: 'HashiCorp Vault', status: vaultHealthy ? 'Healthy' : 'Degraded' },
+  ];
+
+  const degradedCount = systemServices.filter((s) => s.status !== 'Healthy').length;
+
   return (
     <div>
       <Topbar
-        title="Platform Admin"
-        subtitle="Global overview across all tenants"
+        title="Platform Overview"
+        subtitle={`${String(totalTenants)} workspaces · ${String(totalUsers)} users`}
         userEmail={session.user.email}
         userName={session.user.name ?? undefined}
         actions={
@@ -73,39 +98,71 @@ export default async function AdminPage() {
         }
       />
 
-      <main className="space-y-6 p-6">
-        {/* Warning banner */}
+      <main className="space-y-5 p-6">
+        {/* Admin warning banner */}
         <div
-          className="flex items-center gap-3 rounded-xl p-4"
+          className="flex items-center gap-3 rounded-lg px-4 py-3"
           style={{
-            background: 'rgba(176, 108, 255, 0.08)',
-            border: '1px solid rgba(176, 108, 255, 0.2)',
+            background: 'rgba(176, 108, 255, 0.07)',
+            border: '1px solid rgba(176, 108, 255, 0.18)',
           }}
         >
-          <svg viewBox="0 0 20 20" fill="var(--brand-accent)" className="h-5 w-5 flex-shrink-0">
+          <svg viewBox="0 0 20 20" fill="var(--brand-accent)" className="h-4 w-4 flex-shrink-0">
             <path
               fillRule="evenodd"
               d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-1-8a1 1 0 0 0-1 1v3a1 1 0 0 0 2 0V6a1 1 0 0 0-1-1z"
               clipRule="evenodd"
             />
           </svg>
-          <p className="text-sm" style={{ color: 'var(--brand-accent)' }}>
-            <strong>Platform admin mode</strong> — You have elevated access. Actions here affect all
-            tenants and bypass RLS. Audit everything.
+          <p className="text-xs" style={{ color: 'var(--brand-accent)' }}>
+            <strong>Platform admin mode</strong> — Elevated access. Actions bypass Row-Level
+            Security and affect all tenants.
           </p>
         </div>
 
-        {/* Global stats */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {/* 6-metric stat row */}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
           <StatCard
             label="Total Tenants"
             value={totalTenants.toLocaleString()}
-            change="All active workspaces"
+            change="All workspaces"
             positive={true}
             iconColor="rgba(106, 109, 255, 0.1)"
             icon={
               <svg viewBox="0 0 20 20" fill="var(--brand-secondary)" className="h-5 w-5">
                 <path d="M10.707 2.293a1 1 0 0 0-1.414 0l-7 7a1 1 0 0 0 1.414 1.414L4 10.414V17a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-6.586l.293.293a1 1 0 0 0 1.414-1.414l-7-7z" />
+              </svg>
+            }
+          />
+          <StatCard
+            label="Active"
+            value={activeTenants.toLocaleString()}
+            change="Running workspaces"
+            positive={true}
+            iconColor="rgba(22, 163, 74, 0.1)"
+            icon={
+              <svg viewBox="0 0 20 20" fill="#16A34A" className="h-5 w-5">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zm3.707-9.293a1 1 0 0 0-1.414-1.414L9 10.586 7.707 9.293a1 1 0 0 0-1.414 1.414l2 2a1 1 0 0 0 1.414 0l4-4z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            }
+          />
+          <StatCard
+            label="Suspended"
+            value={suspendedTenants.toLocaleString()}
+            change={suspendedTenants === 0 ? 'None suspended' : 'Needs attention'}
+            positive={suspendedTenants === 0}
+            iconColor="rgba(220, 38, 38, 0.08)"
+            icon={
+              <svg viewBox="0 0 20 20" fill="#DC2626" className="h-5 w-5">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM8.707 7.293a1 1 0 0 0-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 1 0 1.414 1.414L10 11.414l1.293 1.293a1 1 0 0 0 1.414-1.414L11.414 10l1.293-1.293a1 1 0 0 0-1.414-1.414L10 8.586 8.707 7.293z"
+                  clipRule="evenodd"
+                />
               </svg>
             }
           />
@@ -139,12 +196,8 @@ export default async function AdminPage() {
           />
           <StatCard
             label="Paid Plans"
-            value={String(
-              planDistribution
-                .filter((p) => p.plan !== 'free')
-                .reduce((s, p) => s + p._count.id, 0),
-            )}
-            change={`${String(totalTenants)} total tenants`}
+            value={paidTenants.toLocaleString()}
+            change={`of ${String(totalTenants)} tenants`}
             positive={true}
             iconColor="rgba(176, 108, 255, 0.1)"
             icon={
@@ -159,208 +212,94 @@ export default async function AdminPage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          {/* Recent tenants table */}
+        {/* Plan distribution + System health side by side */}
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+          {/* Plan distribution */}
           <div
-            className="overflow-hidden rounded-2xl border xl:col-span-2"
+            className="rounded-xl border p-5"
             style={{
               background: 'var(--bg-white)',
               borderColor: 'var(--border-light)',
               boxShadow: 'var(--shadow-card)',
             }}
           >
-            <div
-              className="flex items-center justify-between border-b px-6 py-4"
-              style={{ borderColor: 'var(--border-light)' }}
-            >
+            <div className="mb-4 flex items-center justify-between">
               <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                Recent Tenants
+                Plan Distribution
               </h2>
-              <a
-                href="/admin/tenants"
-                className="text-xs font-semibold hover:underline"
-                style={{ color: 'var(--brand-primary)' }}
-              >
-                View all →
-              </a>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {totalTenants} total
+              </span>
             </div>
-            {recentTenants.length === 0 ? (
-              <div className="px-6 py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
-                No tenants yet.
-              </div>
+            {planDist.length === 0 ? (
+              <p className="py-4 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
+                No data
+              </p>
             ) : (
-              <table className="w-full">
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
-                    {['Tenant', 'Plan', 'Users', 'Status', 'Last Activity', ''].map((col) => (
-                      <th
-                        key={col}
-                        className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                        style={{ color: 'var(--text-muted)' }}
+              <div className="space-y-4">
+                {planDist.map((p) => (
+                  <div key={p.plan}>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <span
+                        className="text-xs font-semibold"
+                        style={{ color: 'var(--text-primary)' }}
                       >
-                        {col}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentTenants.map((t, i) => {
-                    const planName =
-                      t.subscription?.plan.name ?? t.plan.charAt(0).toUpperCase() + t.plan.slice(1);
-                    const lastActivity = t.auditLogs[0]?.occurredAt;
-                    return (
-                      <tr
-                        key={t.id}
-                        className="hover:bg-bg-main transition-colors"
-                        style={{
-                          borderBottom:
-                            i < recentTenants.length - 1 ? '1px solid var(--border-light)' : 'none',
-                        }}
-                      >
-                        <td className="px-6 py-3.5">
-                          <div className="flex items-center gap-2.5">
-                            <div className="brand-gradient flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white">
-                              {t.name[0]}
-                            </div>
-                            <div>
-                              <div
-                                className="text-sm font-semibold"
-                                style={{ color: 'var(--text-primary)' }}
-                              >
-                                {t.name}
-                              </div>
-                              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                                {t.slug}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <Badge variant={planColors[planName] ?? 'gray'}>{planName}</Badge>
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                            {t._count.tenantUsers}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <Badge
-                            variant={
-                              t.status === 'ACTIVE'
-                                ? 'success'
-                                : t.status === 'SUSPENDED'
-                                  ? 'error'
-                                  : 'gray'
-                            }
-                            dot
-                          >
-                            {t.status.charAt(0) + t.status.slice(1).toLowerCase()}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                            {lastActivity ? timeAgo(lastActivity) : formatDate(t.createdAt)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <a
-                            href="/admin/tenants"
-                            className="text-xs font-semibold hover:underline"
-                            style={{ color: 'var(--brand-primary)' }}
-                          >
-                            Manage
-                          </a>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        {p.plan.charAt(0).toUpperCase() + p.plan.slice(1)}
+                      </span>
+                      <span className="text-xs font-bold" style={{ color: p.color }}>
+                        {p.count} · {p.pct}%
+                      </span>
+                    </div>
+                    <div
+                      className="h-2 overflow-hidden rounded-full"
+                      style={{ background: 'var(--border-light)' }}
+                    >
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${String(p.pct)}%`, background: p.color }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
-          {/* System health — infra metrics, not from DB */}
+          {/* System health */}
           <div
-            className="rounded-2xl border p-6"
+            className="rounded-xl border p-5 xl:col-span-2"
             style={{
               background: 'var(--bg-white)',
               borderColor: 'var(--border-light)',
               boxShadow: 'var(--shadow-card)',
             }}
           >
-            <h2 className="mb-4 text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-              System Health
-            </h2>
-            <div className="space-y-3">
-              {[
-                { service: 'Web (Next.js)', status: 'Healthy' },
-                { service: 'Database (Postgres)', status: 'Healthy' },
-                { service: 'Redis', status: 'Healthy' },
-                { service: 'Keycloak (IAM)', status: 'Healthy' },
-                { service: `Workers (BullMQ)`, status: deadJobs > 0 ? 'Degraded' : 'Healthy' },
-              ].map((s) => (
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                System Health
+              </h2>
+              {degradedCount === 0 ? (
+                <Badge variant="success" dot>
+                  All systems operational
+                </Badge>
+              ) : (
+                <Badge variant="warning" dot>
+                  {degradedCount} degraded
+                </Badge>
+              )}
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {systemServices.map((s) => (
                 <div
                   key={s.service}
-                  className="flex items-center justify-between border-b py-2 last:border-0"
-                  style={{ borderColor: 'var(--border-light)' }}
+                  className="flex items-center justify-between rounded-lg border px-3 py-2.5"
+                  style={{ borderColor: 'var(--border-light)', background: 'var(--bg-main)' }}
                 >
-                  <div className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    {s.service}
-                  </div>
-                  <Badge variant={s.status === 'Healthy' ? 'success' : 'warning'} dot>
-                    {s.status}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-            <a
-              href="/_health"
-              className="mt-4 block text-center text-xs font-semibold hover:underline"
-              style={{ color: 'var(--brand-primary)' }}
-            >
-              View full health report →
-            </a>
-          </div>
-        </div>
-
-        {/* Plan distribution */}
-        {planDist.length > 0 && (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {planDist.map((p) => (
-              <div
-                key={p.plan}
-                className="rounded-2xl border p-5"
-                style={{
-                  background: 'var(--bg-white)',
-                  borderColor: 'var(--border-light)',
-                  boxShadow: 'var(--shadow-card)',
-                }}
-              >
-                <div className="mb-3 flex items-center justify-between">
-                  <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                    {p.plan.charAt(0).toUpperCase() + p.plan.slice(1)}
-                  </span>
-                  <span className="text-sm font-bold" style={{ color: p.color }}>
-                    {p.count} tenant{p.count !== 1 ? 's' : ''}
-                  </span>
-                </div>
-                <div
-                  className="h-2 overflow-hidden rounded-full"
-                  style={{ background: 'var(--border-light)' }}
-                >
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: `${String(p.pct)}%`, background: p.color }}
-                  />
-                </div>
-                <div className="mt-1.5 text-right text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {p.pct}%
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </main>
-    </div>
-  );
-}
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="h-2 w-2 flex-shrink-0 rounded-full"
+                      style={{
+                        background:
+                          s.status === 'Healthy'
+                            ? 'var(--status-success)'
+                  

@@ -127,7 +127,7 @@ export default async function RolesPage() {
             <Link
               key={role.id}
               href={`/team/roles/${role.id}`}
-              className="hover:border-brand-secondary block rounded-2xl border p-5 transition-all hover:-translate-y-0.5"
+              className="hover:border-brand-secondary block rounded-xl border p-5 transition-all hover:-translate-y-0.5"
               style={{
                 background: 'var(--bg-white)',
                 borderColor: 'var(--border-light)',
@@ -166,7 +166,7 @@ export default async function RolesPage() {
 
         {/* Create custom role */}
         <button
-          className="hover:border-brand-secondary hover:bg-bg-subtle rounded-2xl border-2 border-dashed p-5 text-left transition-all"
+          className="hover:border-brand-secondary hover:bg-bg-subtle rounded-xl border-2 border-dashed p-5 text-left transition-all"
           style={{ borderColor: 'var(--border-default)' }}
         >
           <div
@@ -187,7 +187,7 @@ export default async function RolesPage() {
       {/* Permission matrix */}
       {roles.length > 0 && (
         <div
-          className="overflow-hidden rounded-2xl border"
+          className="overflow-hidden rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -310,7 +310,7 @@ export default async function RolesPage() {
 
       {roles.length === 0 && (
         <div
-          className="rounded-2xl border p-8 text-center"
+          className="rounded-xl border p-8 text-center"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',

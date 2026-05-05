@@ -136,7 +136,7 @@ export default function AdminUsersPage() {
         )}
 
         <div
-          className="overflow-hidden rounded-2xl border"
+          className="overflow-hidden rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -321,3 +321,4 @@ export default function AdminUsersPage() {
     </div>
   );
 }
+                                                                                                                                                                                                                                                                                                                                   

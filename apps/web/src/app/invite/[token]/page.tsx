@@ -37,7 +37,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
       >
         <div className="w-full max-w-sm text-center">
           <div
-            className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl"
+            className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-xl"
             style={{ background: 'rgba(220, 38, 38, 0.08)' }}
           >
             <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none">
@@ -101,7 +101,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
         </div>
 
         <div
-          className="overflow-hidden rounded-2xl border"
+          className="overflow-hidden rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -113,7 +113,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
             className="border-b px-8 pb-6 pt-8 text-center"
             style={{ borderColor: 'var(--border-light)' }}
           >
-            <div className="brand-gradient mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-bold text-white">
+            <div className="brand-gradient mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-xl text-2xl font-bold text-white">
               {tenant.name[0]?.toUpperCase()}
             </div>
             <h1 className="mb-1 text-xl font-extrabold" style={{ color: 'var(--text-primary)' }}>

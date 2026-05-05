@@ -179,7 +179,7 @@ export function WebhooksClient() {
       {/* Secret reveal banner */}
       {newSecret && (
         <div
-          className="rounded-2xl border p-5"
+          className="rounded-xl border p-5"
           style={{
             background: 'rgba(22,163,74,0.05)',
             borderColor: 'rgba(22,163,74,0.2)',
@@ -231,7 +231,7 @@ export function WebhooksClient() {
       {/* Empty state */}
       {!isLoading && endpoints.length === 0 && (
         <div
-          className="rounded-2xl border py-16 text-center"
+          className="rounded-xl border py-16 text-center"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -239,7 +239,7 @@ export function WebhooksClient() {
           }}
         >
           <div
-            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl"
+            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl"
             style={{ background: 'var(--bg-subtle)' }}
           >
             <svg
@@ -282,7 +282,7 @@ export function WebhooksClient() {
       {/* Loading skeleton */}
       {isLoading && (
         <div
-          className="rounded-2xl border"
+          className="rounded-xl border"
           style={{ background: 'var(--bg-white)', borderColor: 'var(--border-light)' }}
         >
           {Array.from({ length: 2 }).map((_, i) => (
@@ -307,7 +307,7 @@ export function WebhooksClient() {
       {/* Endpoints list */}
       {!isLoading && endpoints.length > 0 && (
         <div
-          className="overflow-hidden rounded-2xl border"
+          className="overflow-hidden rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -472,7 +472,7 @@ export function WebhooksClient() {
 
       {/* Event types reference */}
       <div
-        className="rounded-2xl border p-5"
+        className="rounded-xl border p-5"
         style={{
           background: 'var(--bg-white)',
           borderColor: 'var(--border-light)',
@@ -515,3 +515,4 @@ export function WebhooksClient() {
     </main>
   );
 }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     

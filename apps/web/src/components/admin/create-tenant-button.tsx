@@ -73,7 +73,7 @@ export function CreateTenantButton() {
           onClick={handleOverlayClick}
         >
           <div
-            className="w-full max-w-md overflow-hidden rounded-2xl border"
+            className="w-full max-w-md overflow-hidden rounded-xl border"
             style={{
               background: 'var(--bg-white)',
               borderColor: 'var(--border-light)',

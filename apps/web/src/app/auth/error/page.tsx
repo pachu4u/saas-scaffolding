@@ -42,7 +42,7 @@ export default async function AuthErrorPage({
     >
       <div className="w-full max-w-sm text-center">
         <div
-          className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl"
+          className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-xl"
           style={{ background: 'rgba(220, 38, 38, 0.08)' }}
         >
           <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none">

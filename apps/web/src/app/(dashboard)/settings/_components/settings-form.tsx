@@ -109,7 +109,7 @@ export default function SettingsForm({
           Workspace
         </h2>
         <div
-          className="rounded-2xl border"
+          className="rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -247,7 +247,7 @@ export default function SettingsForm({
           Custom Domains
         </h2>
         <div
-          className="rounded-2xl border"
+          className="rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -308,7 +308,7 @@ export default function SettingsForm({
           Notification Preferences
         </h2>
         <div
-          className="rounded-2xl border"
+          className="rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -375,7 +375,7 @@ export default function SettingsForm({
       <section>
         <h2 className="mb-3 text-xs font-bold uppercase tracking-wide text-red-500">Danger Zone</h2>
         <div
-          className="rounded-2xl border border-red-100 p-6"
+          className="rounded-xl border border-red-100 p-6"
           style={{ background: 'var(--bg-white)' }}
         >
           <div className="flex items-center justify-between">

@@ -98,7 +98,7 @@ export default async function AdminRevenuePage() {
           {statCards.map((card) => (
             <div
               key={card.label}
-              className="rounded-2xl border p-5"
+              className="rounded-xl border p-5"
               style={{
                 background: 'var(--bg-white)',
                 borderColor: 'var(--border-light)',
@@ -123,7 +123,7 @@ export default async function AdminRevenuePage() {
 
         {/* New tenants chart */}
         <div
-          className="rounded-2xl border p-6"
+          className="rounded-xl border p-6"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -169,7 +169,7 @@ export default async function AdminRevenuePage() {
 
         {/* Plan distribution */}
         <div
-          className="rounded-2xl border p-6"
+          className="rounded-xl border p-6"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -219,7 +219,7 @@ export default async function AdminRevenuePage() {
 
         {/* Recent subscriptions */}
         <div
-          className="rounded-2xl border"
+          className="rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -273,3 +273,4 @@ export default async function AdminRevenuePage() {
     </div>
   );
 }
+                                                                                                                                                                                                                                                                                   

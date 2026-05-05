@@ -16,24 +16,18 @@ interface WorkspaceSwitcherProps {
 }
 
 const PLAN_BADGE: Record<string, { text: string; color: string }> = {
-  free: { text: 'Free', color: 'var(--text-muted)' },
-  pro: { text: 'Pro', color: 'var(--brand-primary)' },
-  enterprise: { text: 'Enterprise', color: '#B06CFF' },
+  free: { text: 'Free', color: 'rgba(255,255,255,0.4)' },
+  pro: { text: 'Pro', color: '#6A9DFF' },
+  enterprise: { text: 'Enterprise', color: '#C08AFF' },
 };
 
 function switchToWorkspace(slug: string) {
-  // In subdomain-based deployments, navigate to the other subdomain.
-  // In dev (localhost / no subdomain), update NEXT_PUBLIC_DEFAULT_TENANT_SLUG
-  // isn't possible at runtime — instead we hit the workspace URL directly.
-  const host = window.location.host; // e.g. "acme.app.riogentix.com" or "localhost:3000"
+  const host = window.location.host;
   const parts = host.split('.');
   if (parts.length >= 3) {
-    // Subdomain deployment: swap first label
     parts[0] = slug;
     window.location.href = `${window.location.protocol}//${parts.join('.')}/dashboard`;
   } else {
-    // Dev / localhost: append slug as search param so middleware can pick it up
-    // (or just navigate — the env var controls the workspace anyway in dev)
     window.location.href = `/dashboard?ws=${slug}`;
   }
 }
@@ -45,7 +39,7 @@ export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitche
   const ref = useRef<HTMLDivElement>(null);
 
   const fetchWorkspaces = useCallback(async () => {
-    if (workspaces.length > 0) return; // already loaded
+    if (workspaces.length > 0) return;
     setLoading(true);
     try {
       const res = await fetch('/api/users/me');
@@ -58,12 +52,9 @@ export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitche
     }
   }, [workspaces.length]);
 
-  // Close on outside click
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
     if (open) document.addEventListener('mousedown', onClickOutside);
     return () => document.removeEventListener('mousedown', onClickOutside);
@@ -76,34 +67,43 @@ export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitche
 
   return (
     <div className="relative" ref={ref}>
-      {/* Trigger */}
+      {/* Trigger — styled for dark sidebar */}
       <button
         onClick={handleToggle}
-        className="hover:bg-bg-subtle flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 transition-colors"
-        style={{ background: 'var(--bg-main)' }}
+        className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition-all"
+        style={{ background: 'var(--sidebar-item-hover)' }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)';
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-item-hover)';
+        }}
       >
         <div
           className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-xs font-bold text-white"
-          style={{ background: 'var(--brand-secondary)' }}
+          style={{ background: 'var(--brand-primary)' }}
         >
           {currentName[0]?.toUpperCase()}
         </div>
         <div className="min-w-0 flex-1 text-left">
-          <div className="truncate text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+          <div
+            className="truncate text-[12px] font-semibold"
+            style={{ color: 'rgba(255,255,255,0.85)' }}
+          >
             {currentName}
           </div>
           {currentSlug && (
-            <div className="truncate text-xs" style={{ color: 'var(--text-muted)' }}>
-              {currentSlug}.app
+            <div className="truncate text-[10px]" style={{ color: 'var(--sidebar-text)' }}>
+              {currentSlug}
             </div>
           )}
         </div>
         <svg
           viewBox="0 0 20 20"
           fill="currentColor"
-          className="ml-auto h-4 w-4 flex-shrink-0 transition-transform"
+          className="ml-auto h-3.5 w-3.5 flex-shrink-0 transition-transform"
           style={{
-            color: 'var(--text-muted)',
+            color: 'var(--sidebar-text)',
             transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
           }}
         >
@@ -115,37 +115,37 @@ export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitche
         </svg>
       </button>
 
-      {/* Dropdown */}
+      {/* Dropdown — styled for light surface, positioned below the trigger */}
       {open && (
         <div
-          className="absolute left-0 top-full z-50 mt-1.5 w-64 overflow-hidden rounded-2xl border"
+          className="absolute left-0 top-full z-50 mt-1.5 w-64 overflow-hidden rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
-            boxShadow: 'var(--shadow-brand)',
+            boxShadow: 'var(--shadow-lg)',
           }}
         >
           {/* Header */}
           <div
-            className="border-b px-4 py-2.5"
+            className="border-b px-4 py-2"
             style={{ borderColor: 'var(--border-light)', background: 'var(--bg-main)' }}
           >
             <span
-              className="text-xs font-bold uppercase tracking-wide"
+              className="text-[10px] font-bold uppercase tracking-widest"
               style={{ color: 'var(--text-muted)' }}
             >
               Switch workspace
             </span>
           </div>
 
-          {/* Workspace list */}
+          {/* List */}
           <div className="max-h-60 overflow-y-auto py-1">
             {loading ? (
-              <div className="px-4 py-3">
-                {Array.from({ length: 3 }).map((_, i) => (
+              <div className="space-y-2 px-3 py-3">
+                {Array.from({ length: 2 }).map((_, i) => (
                   <div
                     key={i}
-                    className="mb-2 h-9 animate-pulse rounded-xl"
+                    className="h-9 animate-pulse rounded-lg"
                     style={{ background: 'var(--bg-subtle)' }}
                   />
                 ))}
@@ -165,8 +165,20 @@ export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitche
                       if (!isCurrent) switchToWorkspace(ws.tenantSlug);
                       setOpen(false);
                     }}
-                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-gray-50"
-                    style={{ cursor: isCurrent ? 'default' : 'pointer' }}
+                    className="mx-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors"
+                    style={{
+                      width: 'calc(100% - 8px)',
+                      cursor: isCurrent ? 'default' : 'pointer',
+                      background: isCurrent ? 'rgba(79,123,255,0.06)' : 'transparent',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isCurrent)
+                        (e.currentTarget as HTMLElement).style.background = 'var(--bg-subtle)';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isCurrent)
+                        (e.currentTarget as HTMLElement).style.background = 'transparent';
+                    }}
                   >
                     <div
                       className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
@@ -178,13 +190,13 @@ export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitche
                     </div>
                     <div className="min-w-0 flex-1">
                       <div
-                        className="flex items-center gap-1.5 truncate text-sm font-semibold"
+                        className="truncate text-xs font-semibold"
                         style={{ color: 'var(--text-primary)' }}
                       >
                         {ws.tenantName}
                         {isCurrent && (
                           <span
-                            className="rounded px-1.5 py-0.5 text-xs font-bold"
+                            className="ml-1.5 rounded px-1 py-0.5 text-[10px] font-bold"
                             style={{
                               background: 'rgba(79,123,255,0.1)',
                               color: 'var(--brand-primary)',
@@ -194,20 +206,15 @@ export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitche
                           </span>
                         )}
                       </div>
-                      <div
-                        className="flex items-center gap-1 text-xs"
-                        style={{ color: 'var(--text-muted)' }}
-                      >
-                        <span>{ws.tenantSlug}</span>
-                        <span>·</span>
-                        <span style={{ color: badge.color }}>{badge.text}</span>
+                      <div className="text-[10px]" style={{ color: badge.color }}>
+                        {ws.tenantSlug} · {badge.text}
                       </div>
                     </div>
                     {!isCurrent && (
                       <svg
                         viewBox="0 0 20 20"
                         fill="currentColor"
-                        className="h-4 w-4 flex-shrink-0"
+                        className="h-3.5 w-3.5 flex-shrink-0"
                         style={{ color: 'var(--text-muted)' }}
                       >
                         <path
@@ -223,29 +230,6 @@ export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitche
             )}
           </div>
 
-          {/* Footer actions */}
+          {/* Footer */}
           <div
-            className="border-t px-4 py-3"
-            style={{ borderColor: 'var(--border-light)', background: 'var(--bg-main)' }}
-          >
-            <a
-              href="/onboarding"
-              className="flex items-center gap-2 text-xs font-semibold transition-colors hover:opacity-80"
-              style={{ color: 'var(--brand-primary)' }}
-              onClick={() => setOpen(false)}
-            >
-              <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                <path
-                  fillRule="evenodd"
-                  d="M10 3a1 1 0 0 1 1 1v5h5a1 1 0 1 1 0 2h-5v5a1 1 0 1 1-2 0v-5H4a1 1 0 1 1 0-2h5V4a1 1 0 0 1 1-1z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              Create new workspace
-            </a>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+         

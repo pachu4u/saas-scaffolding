@@ -16,7 +16,9 @@ model Tenant {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   slug          String   @unique @db.Citext
   name          String
-  status        TenantStatus @default(ACTIVE)
+  status             TenantStatus       @default(ACTIVE)
+  provisioningStatus ProvisioningStatus @default(PENDING) @map("provisioning_status")
+  provisioningError  String?            @map("provisioning_error")
   plan          String   @default("free")
   customDomains String[] @map("custom_domains")
   branding      Json     @default("{}") @db.JsonB
@@ -33,6 +35,7 @@ model Tenant {
   auditLogs         AuditLog[]
   notes             Note[]
   idempotencyKeys   IdempotencyKey[]
+  environments      TenantEnvironment[]
 
   @@map("tenants")
 }
@@ -290,51 +293,14 @@ model Note {
   @@map("notes")
 }
 
-// ─── Enums ───────────────────────────────────────────────────────────────────
+model TenantEnvironment {
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String            @map("tenant_id") @db.Uuid
+  type       EnvironmentType
+  status     EnvironmentStatus @default(PENDING)
+  endpoint   String?
+  metadata   Json              @default("{}") @db.JsonB
+  createdAt  DateTime          @default(now()) @map("created_at")
+  updatedAt  DateTime          @updatedAt @map("updated_at")
 
-enum TenantStatus {
-  ACTIVE
-  SUSPENDED
-  DELETED
-}
-
-enum UserStatus {
-  ACTIVE
-  SUSPENDED
-  DELETED
-}
-
-enum TenantUserStatus {
-  ACTIVE
-  INVITED
-  SUSPENDED
-}
-
-enum SubscriptionStatus {
-  TRIALING
-  ACTIVE
-  PAST_DUE
-  CANCELED
-  PAUSED
-}
-
-enum JobStatus {
-  PENDING
-  RUNNING
-  COMPLETED
-  FAILED
-  DEAD
-}
-
-enum WebhookEndpointStatus {
-  ACTIVE
-  PAUSED
-  DELETED
-}
-
-enum WebhookDeliveryStatus {
-  PENDING
-  SUCCESS
-  FAILED
-  DEAD
-}
+  tenant Tenant @relation(fields: [ten

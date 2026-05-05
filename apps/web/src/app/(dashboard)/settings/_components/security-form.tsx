@@ -157,7 +157,7 @@ export function SecurityForm({
           SAML 2.0 Single Sign-On
         </h2>
         <div
-          className="rounded-2xl border"
+          className="rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -380,7 +380,7 @@ export function SecurityForm({
           SCIM 2.0 Provisioning
         </h2>
         <div
-          className="rounded-2xl border"
+          className="rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',
@@ -530,7 +530,7 @@ export function SecurityForm({
           Session & Access Policy
         </h2>
         <div
-          className="rounded-2xl border"
+          className="rounded-xl border"
           style={{
             background: 'var(--bg-white)',
             borderColor: 'var(--border-light)',

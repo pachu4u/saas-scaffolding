@@ -23,6 +23,7 @@
     "@platform/scim": "workspace:*",
     "@platform/tenant": "workspace:*",
     "@platform/ui": "workspace:*",
+    "@platform/vault": "workspace:*",
     "next": "^15.0.0",
     "next-auth": "^5.0.0-beta.4",
     "react": "^19.0.0",

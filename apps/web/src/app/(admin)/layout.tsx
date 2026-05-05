@@ -18,7 +18,4 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-main)' }}>
       <Sidebar isAdmin={true} />
-      <div className="ml-56">{children}</div>
-    </div>
-  );
-}
+      <div style={{ marginLeft: 'var(--sidebar-width)' }}>{child

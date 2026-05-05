@@ -78,7 +78,7 @@ export function AddWebhookModal({ onClose, onSuccess }: AddWebhookModalProps) {
       onClick={handleOverlayClick}
     >
       <div
-        className="w-full max-w-lg overflow-hidden rounded-2xl border"
+        className="w-full max-w-lg overflow-hidden rounded-xl border"
         style={{
           background: 'var(--bg-white)',
           borderColor: 'var(--border-light)',
@@ -232,3 +232,4 @@ export function AddWebhookModal({ onClose, onSuccess }: AddWebhookModalProps) {
     </div>
   );
 }
+                                                                                                                                                                                                                                          

@@ -7,6 +7,8 @@ interface StatCardProps {
   positive?: boolean;
   icon: ReactNode;
   iconColor?: string;
+  /** If true, show a left-border accent stripe instead of icon background */
+  accent?: string;
 }
 
 export function StatCard({
@@ -19,40 +21,38 @@ export function StatCard({
 }: StatCardProps) {
   return (
     <div
-      className="flex flex-col gap-3 rounded-2xl border p-5"
+      className="flex flex-col gap-2 rounded-xl border p-4"
       style={{
         background: 'var(--bg-white)',
         borderColor: 'var(--border-light)',
         boxShadow: 'var(--shadow-card)',
       }}
     >
-      <div className="flex items-center justify-between">
-        <span
-          className="text-xs font-semibold uppercase tracking-wide"
-          style={{ color: 'var(--text-muted)' }}
-        >
+      {/* Header row: label + icon */}
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-xs font-medium leading-snug" style={{ color: 'var(--text-muted)' }}>
           {label}
         </span>
         <div
-          className="flex h-9 w-9 items-center justify-center rounded-xl"
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg"
           style={{ background: iconColor ?? 'var(--bg-subtle)' }}
         >
           {icon}
         </div>
       </div>
+
+      {/* Value */}
       <div className="flex items-end gap-2">
-        <span className="text-3xl font-extrabold" style={{ color: 'var(--text-primary)' }}>
+        <span
+          className="text-2xl font-extrabold leading-none tracking-tight"
+          style={{ color: 'var(--text-primary)' }}
+        >
           {value}
         </span>
-        {change && (
-          <span
-            className="mb-1 text-xs font-semibold"
-            style={{ color: positive ? 'var(--status-success)' : 'var(--status-error)' }}
-          >
-            {positive ? '↑' : '↓'} {change}
-          </span>
-        )}
       </div>
-    </div>
-  );
-}
+
+      {/* Change badge */}
+      {change && (
+        <div className="flex items-center gap-1">
+          <span
+            className="inline-flex items
