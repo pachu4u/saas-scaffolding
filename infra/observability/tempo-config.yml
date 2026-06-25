@@ -28,10 +28,7 @@ storage:
       path: /tmp/tempo/wal
 
 overrides:
-  defaults:
-    metrics_generator:
-      processors: [local-blocks]
-      generate_native_histograms: both
+  metrics_generator_processors: [local-blocks]
 
 metrics_generator:
   registry:

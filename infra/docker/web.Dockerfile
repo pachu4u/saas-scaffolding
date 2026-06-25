@@ -30,6 +30,20 @@ ARG GIT_SHA=unknown
 ENV GIT_SHA=${GIT_SHA}
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# next build statically collects route page data, which imports @platform/config —
+# its zod schema validates process.env eagerly at import time. These placeholders
+# only need to satisfy that schema; docker-compose's env_file/environment override
+# them at container runtime (see the runner stage's .env removal step below).
+ENV NEXT_PUBLIC_APP_URL=https://app.lvh.me
+ENV DATABASE_URL=postgresql://app:app@localhost:5432/saas_platform
+ENV KEYCLOAK_ISSUER=https://auth.lvh.me/realms/saas-platform
+ENV KEYCLOAK_CLIENT_ID=web
+ENV KEYCLOAK_CLIENT_SECRET=build-time-placeholder
+ENV AUTH_SECRET=build-time-placeholder-32-characters-min
+ENV AUTH_URL=https://app.lvh.me
+ENV REDIS_URL=redis://localhost:6379
+ENV PLATFORM_INTERNAL_SECRET=build-time-placeholder
+
 COPY tsconfig.base.json ./
 COPY apps/web ./apps/web
 COPY packages ./packages

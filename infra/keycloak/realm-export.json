@@ -38,6 +38,12 @@
       "attributes": {
         "tenant_slug": ["globex"]
       }
+    },
+    {
+      "name": "platform_super_admin"
+    },
+    {
+      "name": "platform_support"
     }
   ],
   "clients": [
@@ -148,7 +154,7 @@
           "temporary": false
         }
       ],
-      "groups": [],
+      "groups": ["platform_super_admin"],
       "realmRoles": ["platform_super_admin"]
     }
   ],

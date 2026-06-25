@@ -58,10 +58,10 @@ export const authConfig: NextAuthConfig = {
   },
 
   events: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user, profile }) {
       if (!profile?.sub || !user.email) return;
       try {
-        await adminDb.user.upsert({
+        const dbUser = await adminDb.user.upsert({
           where: { externalId: profile.sub as string },
           update: { email: user.email, updatedAt: new Date() },
           create: {
@@ -70,6 +70,36 @@ export const authConfig: NextAuthConfig = {
             status: 'ACTIVE',
           },
         });
+
+        // Keycloak groups claim maps to tenant slugs — JIT-provision tenant
+        // membership on first login so a fresh SSO user actually lands in a
+        // workspace instead of bouncing between "/" and "/dashboard" forever.
+        const groups = ((profile as Record<string, unknown>)['groups'] as string[]) ?? [];
+        for (const slug of groups) {
+          const tenant = await adminDb.tenant.findUnique({ where: { slug } });
+          if (!tenant) continue;
+
+          await adminDb.tenantUser.upsert({
+            where: { tenantId_userId: { tenantId: tenant.id, userId: dbUser.id } },
+            create: { tenantId: tenant.id, userId: dbUser.id, status: 'ACTIVE' },
+            update: { status: 'ACTIVE' },
+          });
+
+          const defaultRole = await adminDb.role.findFirst({ where: { name: 'tenant_user' } });
+          if (defaultRole) {
+            await adminDb.roleBinding.upsert({
+              where: {
+                tenantId_userId_roleId: {
+                  tenantId: tenant.id,
+                  userId: dbUser.id,
+                  roleId: defaultRole.id,
+                },
+              },
+              create: { tenantId: tenant.id, userId: dbUser.id, roleId: defaultRole.id },
+              update: {},
+            });
+          }
+        }
       } catch (err) {
         console.error('[auth] signIn event: failed to upsert user', err);
       }
