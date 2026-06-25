@@ -3,10 +3,10 @@ import { adminDb } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
 import { redirect } from 'next/navigation';
 
-import { formatDate, timeAgo } from '@/lib/time';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
+import { formatDate, timeAgo } from '@/lib/time';
 
 export const metadata = { title: 'Dashboard' };
 
@@ -132,7 +132,7 @@ export default async function DashboardPage() {
     type: getActivityType(log.action),
   }));
 
-  const planName = subscription?.plan.name ?? tenantCtx.plan ?? 'Free';
+  const planName = subscription?.plan.name ?? tenantCtx.plan;
   const planFeatures = (subscription?.plan.features ?? {}) as Record<string, unknown>;
   const seatLimit = typeof planFeatures.maxSeats === 'number' ? planFeatures.maxSeats : null;
   const periodEnd = subscription?.currentPeriodEnd;
@@ -375,9 +375,7 @@ export default async function DashboardPage() {
               </div>
             ) : (
               recentActivity.map((event, i) => {
-                const config =
-                  activityTypeConfig[event.type as keyof typeof activityTypeConfig] ??
-                  activityTypeConfig.team;
+                const config = activityTypeConfig[event.type];
                 return (
                   <div
                     key={i}

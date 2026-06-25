@@ -1,5 +1,3 @@
-import { type NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@platform/auth';
 import {
   emailQueue,
@@ -8,6 +6,7 @@ import {
   webhookInboundQueue,
   webhookOutboundQueue,
 } from '@platform/jobs';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 

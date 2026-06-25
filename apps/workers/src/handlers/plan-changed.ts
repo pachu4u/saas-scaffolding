@@ -1,8 +1,7 @@
-import type { Job } from 'bullmq';
-
 import { redis } from '@platform/db';
-import { logger } from '@platform/logger';
 import type { PlanChangedJob } from '@platform/jobs';
+import { logger } from '@platform/logger';
+import type { Job } from 'bullmq';
 
 export async function handlePlanChanged(job: Job<PlanChangedJob>): Promise<void> {
   const { tenantId, oldPlan, newPlan } = job.data;

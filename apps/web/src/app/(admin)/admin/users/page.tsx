@@ -46,8 +46,12 @@ export default function AdminUsersPage() {
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query), 350);
-    return () => clearTimeout(t);
+    const t = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 350);
+    return () => {
+      clearTimeout(t);
+    };
   }, [query]);
 
   const fetchUsers = useCallback(async (q: string) => {
@@ -110,7 +114,9 @@ export default function AdminUsersPage() {
         <input
           type="search"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+          }}
           placeholder="Search by email…"
           className="w-full rounded-xl border px-3 py-2 text-sm outline-none sm:w-64"
           style={{
@@ -173,13 +179,18 @@ export default function AdminUsersPage() {
           ) : (
             <div className="divide-y" style={{ borderColor: 'var(--border-light)' }}>
               {data?.users.map((user) => {
-                const style = STATUS_STYLE[user.status] ?? STATUS_STYLE.ACTIVE!;
+                const style = STATUS_STYLE[user.status] ?? {
+                  color: 'var(--status-success)',
+                  bg: 'rgba(22,163,74,0.1)',
+                };
                 const isExpanded = expandedUserId === user.id;
                 return (
                   <div key={user.id}>
                     <div
                       className="flex cursor-pointer items-center gap-3 px-5 py-3.5 transition-colors hover:bg-gray-50"
-                      onClick={() => setExpandedUserId(isExpanded ? null : user.id)}
+                      onClick={() => {
+                        setExpandedUserId(isExpanded ? null : user.id);
+                      }}
                     >
                       {/* Avatar */}
                       <div className="brand-gradient flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white">
@@ -223,11 +234,15 @@ export default function AdminUsersPage() {
                       {/* Actions */}
                       <div
                         className="flex flex-shrink-0 items-center gap-1.5"
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
                       >
                         {user.status === 'ACTIVE' ? (
                           <button
-                            onClick={() => handleAction(user.id, 'suspend')}
+                            onClick={() => {
+                              handleAction(user.id, 'suspend');
+                            }}
                             disabled={isPending}
                             className="rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors hover:bg-amber-50 disabled:opacity-50"
                             style={{
@@ -239,7 +254,9 @@ export default function AdminUsersPage() {
                           </button>
                         ) : user.status === 'SUSPENDED' ? (
                           <button
-                            onClick={() => handleAction(user.id, 'reinstate')}
+                            onClick={() => {
+                              handleAction(user.id, 'reinstate');
+                            }}
                             disabled={isPending}
                             className="rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors hover:bg-green-50 disabled:opacity-50"
                             style={{

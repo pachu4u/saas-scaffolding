@@ -1,9 +1,9 @@
 'use client';
 
-import { DataTable, type Column, type FilterConfig } from '@/components/ui/data-table';
-import { Badge } from '@/components/ui/badge';
-import { EmptyState } from '@/components/ui/empty-state';
 import { InviteButton } from '@/components/team/invite-button';
+import { Badge } from '@/components/ui/badge';
+import { DataTable, type Column, type FilterConfig } from '@/components/ui/data-table';
+import { EmptyState } from '@/components/ui/empty-state';
 
 export interface MemberRow extends Record<string, unknown> {
   userId: string;

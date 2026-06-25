@@ -67,7 +67,9 @@ export function ProvisioningPanel({
         const poll = setInterval(() => {
           router.refresh();
         }, 3_000);
-        setTimeout(() => clearInterval(poll), 30_000);
+        setTimeout(() => {
+          clearInterval(poll);
+        }, 30_000);
         router.refresh();
       } catch {
         setError('Request failed');
@@ -115,7 +117,9 @@ export function ProvisioningPanel({
           {(['DEV', 'TEST', 'PROD'] as EnvironmentType[]).map((type) => (
             <button
               key={type}
-              onClick={() => toggleEnv(type)}
+              onClick={() => {
+                toggleEnv(type);
+              }}
               className="rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors"
               style={{
                 borderColor: selectedEnvs.includes(type)

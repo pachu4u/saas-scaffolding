@@ -1,6 +1,5 @@
+import { enqueue, webhookInboundQueue, type WebhookInboundJob } from '@platform/jobs';
 import { type NextRequest, NextResponse } from 'next/server';
-
-import { enqueue, webhookInboundQueue } from '@platform/jobs';
 
 export const runtime = 'nodejs';
 
@@ -15,12 +14,8 @@ export async function POST(req: NextRequest) {
 
   // Enqueue for async processing with idempotency via Stripe event id
   // The worker verifies the signature and processes the event
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await enqueue(
-    webhookInboundQueue as any,
-    { source: 'stripe', rawBody, signature },
-    { priority: 1 },
-  );
+  const payload: WebhookInboundJob = { source: 'stripe', rawBody, signature };
+  await enqueue(webhookInboundQueue, payload, { priority: 1 });
 
   return NextResponse.json({ received: true });
 }

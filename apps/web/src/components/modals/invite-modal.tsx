@@ -25,7 +25,7 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
     if (e.target === overlayRef.current) onClose();
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     if (!email) return;
 
@@ -136,7 +136,9 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                  }}
                   placeholder="colleague@example.com"
                   required
                   className="focus:border-brand-primary w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors"
@@ -175,7 +177,9 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
                         name="role"
                         value={role.id}
                         checked={roleId === role.id}
-                        onChange={() => setRoleId(role.id)}
+                        onChange={() => {
+                          setRoleId(role.id);
+                        }}
                         className="sr-only"
                       />
                       <div

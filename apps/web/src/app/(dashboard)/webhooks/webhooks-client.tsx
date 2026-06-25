@@ -21,7 +21,7 @@ interface WebhookEndpoint {
   status: 'ACTIVE' | 'PAUSED' | 'DELETED';
   secret: string;
   _count: { deliveries: number };
-  deliveries: Array<{ status: string; createdAt: string }>;
+  deliveries: { status: string; createdAt: string }[];
 }
 
 const statusColors: Record<string, string> = {
@@ -45,7 +45,9 @@ function SecretDisplay({ secret }: { secret: string }) {
   async function copy() {
     await navigator.clipboard.writeText(secret);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => {
+      setCopied(false);
+    }, 2000);
   }
 
   return (
@@ -57,14 +59,16 @@ function SecretDisplay({ secret }: { secret: string }) {
         {revealed ? secret : '•'.repeat(Math.min(secret.length, 48))}
       </code>
       <button
-        onClick={() => setRevealed((v) => !v)}
+        onClick={() => {
+          setRevealed((v) => !v);
+        }}
         className="flex-shrink-0 text-xs hover:underline"
         style={{ color: 'var(--text-muted)' }}
       >
         {revealed ? 'Hide' : 'Reveal'}
       </button>
       <button
-        onClick={copy}
+        onClick={() => void copy()}
         className="flex-shrink-0 text-xs hover:underline"
         style={{ color: 'var(--brand-primary)' }}
       >
@@ -228,7 +232,9 @@ export function WebhooksClient() {
               </p>
             </div>
             <button
-              onClick={() => setNewSecret(null)}
+              onClick={() => {
+                setNewSecret(null);
+              }}
               className="flex-shrink-0 text-xs hover:underline"
               style={{ color: 'var(--text-muted)' }}
             >
@@ -250,7 +256,9 @@ export function WebhooksClient() {
           </p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => {
+            setShowAddModal(true);
+          }}
           className="brand-gradient flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
         >
           <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
@@ -303,7 +311,9 @@ export function WebhooksClient() {
             Add an endpoint to receive real-time event notifications.
           </p>
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => {
+              setShowAddModal(true);
+            }}
             className="brand-gradient rounded-xl px-5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
           >
             Add your first endpoint
@@ -444,7 +454,9 @@ export function WebhooksClient() {
                       {isExpanded ? 'Hide history' : 'View history'}
                     </button>
                     <button
-                      onClick={() => toggleStatus(ep)}
+                      onClick={() => {
+                        toggleStatus(ep);
+                      }}
                       disabled={isPending}
                       className="hover:bg-bg-subtle rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
                       style={{ borderColor: 'var(--border-light)', color: 'var(--text-secondary)' }}
@@ -452,7 +464,9 @@ export function WebhooksClient() {
                       {ep.status === 'ACTIVE' ? 'Pause' : 'Activate'}
                     </button>
                     <button
-                      onClick={() => deleteEndpoint(ep.id)}
+                      onClick={() => {
+                        deleteEndpoint(ep.id);
+                      }}
                       disabled={isPending}
                       className="hover:bg-bg-subtle rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
                       style={{ borderColor: 'var(--border-light)', color: '#ef4444' }}
@@ -474,7 +488,9 @@ export function WebhooksClient() {
                         ? '✓ Test delivery succeeded'
                         : `✗ Test failed: ${testResult.error ?? 'unknown error'}`}
                       <button
-                        onClick={() => setTestResult(null)}
+                        onClick={() => {
+                          setTestResult(null);
+                        }}
                         className="ml-auto opacity-60 hover:opacity-100"
                       >
                         ×
@@ -571,7 +587,12 @@ export function WebhooksClient() {
 
       {/* Add modal */}
       {showAddModal && (
-        <AddWebhookModal onClose={() => setShowAddModal(false)} onSuccess={handleCreated} />
+        <AddWebhookModal
+          onClose={() => {
+            setShowAddModal(false);
+          }}
+          onSuccess={handleCreated}
+        />
       )}
     </main>
   );

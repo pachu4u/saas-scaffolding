@@ -1,8 +1,7 @@
-import type { Job } from 'bullmq';
-
 import { adminDb } from '@platform/db';
 import type { UsageRollupJob } from '@platform/jobs';
 import { logger } from '@platform/logger';
+import type { Job } from 'bullmq';
 
 export async function handleUsageRollup(job: Job<UsageRollupJob>): Promise<void> {
   const { tenantId, period } = job.data;

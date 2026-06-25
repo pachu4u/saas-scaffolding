@@ -1,11 +1,10 @@
 import crypto from 'crypto';
 
-import { NextResponse, type NextRequest } from 'next/server';
-
 import { auth } from '@platform/auth';
 import { adminDb, withPlatformAdmin, checkRateLimit, rateLimitHeaders } from '@platform/db';
 import { sendEmail } from '@platform/notifications';
 import { resolveTenant } from '@platform/tenant';
+import { NextResponse, type NextRequest } from 'next/server';
 
 /**
  * POST /api/team/invite
@@ -58,15 +57,13 @@ export async function POST(req: NextRequest) {
   const user = await withPlatformAdmin(async (tx) => {
     // Resolve or create the invited user record
     let foundUser = await tx.user.findUnique({ where: { email: normalizedEmail } });
-    if (!foundUser) {
-      foundUser = await tx.user.create({
-        data: {
-          email: normalizedEmail,
-          // externalId will be filled on first SSO login
-          externalId: `pending-${crypto.randomUUID()}`,
-        },
-      });
-    }
+    foundUser ??= await tx.user.create({
+      data: {
+        email: normalizedEmail,
+        // externalId will be filled on first SSO login
+        externalId: `pending-${crypto.randomUUID()}`,
+      },
+    });
 
     // Upsert TenantUser as INVITED
     await tx.tenantUser.upsert({
@@ -102,7 +99,7 @@ export async function POST(req: NextRequest) {
 
   // Generate signed invite token (HMAC-SHA256 over userId:tenantId)
   const secret = process.env.INVITE_TOKEN_SECRET ?? 'dev-invite-secret';
-  const payload = `${user.id}:${tenantCtx.tenantId}:${Date.now()}`;
+  const payload = `${user.id}:${tenantCtx.tenantId}:${String(Date.now())}`;
   const token = crypto.createHmac('sha256', secret).update(payload).digest('hex');
   // Store token in a lightweight way — encode the full payload in the token URL
   // In production, store in a dedicated invitations table with expiry.

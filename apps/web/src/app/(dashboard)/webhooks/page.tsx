@@ -1,9 +1,9 @@
 import { auth } from '@platform/auth';
 import { redirect } from 'next/navigation';
 
-import { Topbar } from '@/components/layout/topbar';
-
 import { WebhooksClient } from './webhooks-client';
+
+import { Topbar } from '@/components/layout/topbar';
 
 export const metadata = { title: 'Webhooks' };
 

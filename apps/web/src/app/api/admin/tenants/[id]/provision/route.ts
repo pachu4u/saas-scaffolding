@@ -1,6 +1,6 @@
-import { type NextRequest, NextResponse } from 'next/server';
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
@@ -86,12 +86,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Simulate async provisioning (in production this would enqueue a job)
   // For now, mark as completed after a short delay via a background task
-  void simulateProvisioning(id, envTypes as Array<'DEV' | 'TEST' | 'PROD'>);
+  void simulateProvisioning(id, envTypes as ('DEV' | 'TEST' | 'PROD')[]);
 
   return NextResponse.json({ ok: true, provisioningStatus: 'IN_PROGRESS', environments: envTypes });
 }
 
-async function simulateProvisioning(tenantId: string, envTypes: Array<'DEV' | 'TEST' | 'PROD'>) {
+async function simulateProvisioning(tenantId: string, envTypes: ('DEV' | 'TEST' | 'PROD')[]) {
   // In production: enqueue a BullMQ job instead
   await new Promise((r) => setTimeout(r, 5_000));
   try {

@@ -1,8 +1,8 @@
-import { type NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@platform/auth';
-import { adminDb, Prisma } from '@platform/db';
+import type { Prisma } from '@platform/db';
+import { adminDb } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
@@ -40,7 +40,7 @@ export async function PATCH(req: NextRequest) {
   const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
   if (body.section === 'colors') {
     for (const field of ['primaryColor', 'accentColor', 'bgColor'] as const) {
-      if (body[field] !== undefined && !HEX_RE.test(body[field]!)) {
+      if (body[field] !== undefined && !HEX_RE.test(body[field])) {
         return NextResponse.json({ error: `${field} must be a valid hex color` }, { status: 422 });
       }
     }
@@ -81,7 +81,7 @@ export async function PATCH(req: NextRequest) {
   await adminDb.auditLog.create({
     data: {
       tenantId: tenantCtx.tenantId,
-      action: `settings.branding.${body.section ?? 'update'}`,
+      action: `settings.branding.${body.section}`,
       resourceType: 'Tenant',
       resourceId: tenantCtx.tenantId,
       after: merged as Prisma.InputJsonValue,

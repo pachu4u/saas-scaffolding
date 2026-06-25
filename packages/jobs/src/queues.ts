@@ -1,6 +1,5 @@
-import { Queue, type JobsOptions } from 'bullmq';
-
 import { env } from '@platform/config';
+import { Queue, type JobsOptions } from 'bullmq';
 
 const connection = { url: env.REDIS_URL };
 
@@ -24,14 +23,14 @@ function createQueue<T>(name: string, opts?: JobsOptions) {
 function lazyQueue<T>(name: string, opts?: JobsOptions): Queue<T> {
   let instance: Queue<T> | undefined;
   return new Proxy({} as Queue<T>, {
-    get(_target, prop, receiver) {
-      if (!instance) instance = createQueue<T>(name, opts);
-      const value = Reflect.get(instance, prop, instance);
+    get(_target, prop, _receiver) {
+      instance ??= createQueue<T>(name, opts);
+      const value: unknown = Reflect.get(instance, prop, instance);
       // Bind methods so `this` stays correct
-      return typeof value === 'function' ? (value as Function).bind(instance) : value;
+      return typeof value === 'function' ? (value.bind(instance) as unknown) : value;
     },
     set(_target, prop, value) {
-      if (!instance) instance = createQueue<T>(name, opts);
+      instance ??= createQueue<T>(name, opts);
       return Reflect.set(instance, prop, value);
     },
   });
@@ -44,36 +43,36 @@ export const webhookOutboundQueue = lazyQueue<WebhookOutboundJob>('webhook-outbo
 export const usageRollupQueue = lazyQueue<UsageRollupJob>('usage-rollup');
 export const planChangedQueue = lazyQueue<PlanChangedJob>('plan-changed');
 
-export type EmailJob = {
+export interface EmailJob {
   to: string;
   subject: string;
   templateId: string;
   data: Record<string, unknown>;
   tenantId: string;
-};
+}
 
-export type WebhookInboundJob = {
+export interface WebhookInboundJob {
   source: 'stripe';
   rawBody: string;
   signature: string;
-};
+}
 
-export type WebhookOutboundJob = {
+export interface WebhookOutboundJob {
   endpointId: string;
   deliveryId: string;
   event: Record<string, unknown>;
-};
+}
 
-export type UsageRollupJob = {
+export interface UsageRollupJob {
   tenantId: string;
   period: string; // YYYY-MM
-};
+}
 
-export type PlanChangedJob = {
+export interface PlanChangedJob {
   tenantId: string;
   oldPlan: string;
   newPlan: string;
-};
+}
 
 /**
  * Enqueue with idempotency protection.
@@ -85,7 +84,10 @@ export async function enqueue<T>(
   opts?: JobsOptions & { idempotencyKey?: string },
 ): Promise<string | undefined> {
   const { idempotencyKey, ...jobOpts } = opts ?? {};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // BullMQ's Queue<T>.add name param type depends on T in a way the generic
+  // wrapper here can't resolve — this is a real upstream typing limitation,
+  // not something to work around.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
   const job = await queue.add(queue.name as any, payload as any, {
     ...jobOpts,
     ...(idempotencyKey ? { jobId: idempotencyKey } : {}),

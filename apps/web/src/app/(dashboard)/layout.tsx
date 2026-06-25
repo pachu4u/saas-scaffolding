@@ -1,8 +1,7 @@
-import { redirect } from 'next/navigation';
-
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
+import { redirect } from 'next/navigation';
 
 // All dashboard routes depend on the session and live tenant data — never
 // pre-render them at build time.  This cascades to every child segment.
@@ -17,9 +16,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const isPlatformAdmin =
     Array.isArray(session.groups) &&
-    (session.groups as string[]).some((g: string) =>
-      ['platform_super_admin', 'platform_support'].includes(g),
-    );
+    session.groups.some((g: string) => ['platform_super_admin', 'platform_support'].includes(g));
 
   // Platform admins don't belong in the tenant dashboard — send them to /admin
   if (isPlatformAdmin) redirect('/admin');
@@ -43,7 +40,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     where: { externalId: session.user.id },
     select: { _count: { select: { tenantUsers: { where: { status: { not: 'SUSPENDED' } } } } } },
   });
-  if (dbUser && dbUser._count.tenantUsers === 0 && !tenant) {
+  if (dbUser?._count.tenantUsers === 0 && !tenant) {
     redirect('/onboarding');
   }
 

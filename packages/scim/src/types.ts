@@ -14,7 +14,7 @@ export interface ScimUser {
   externalId?: string;
   userName: string;
   name?: { formatted?: string; givenName?: string; familyName?: string };
-  emails?: Array<{ value: string; primary?: boolean; type?: string }>;
+  emails?: { value: string; primary?: boolean; type?: string }[];
   active: boolean;
   meta: { resourceType: 'User'; created: string; lastModified: string; location: string };
 }
@@ -24,7 +24,7 @@ export interface ScimGroup {
   id: string;
   externalId?: string;
   displayName: string;
-  members?: Array<{ value: string; display?: string }>;
+  members?: { value: string; display?: string }[];
   meta: { resourceType: 'Group'; created: string; lastModified: string; location: string };
 }
 
@@ -45,9 +45,9 @@ export interface ScimError {
 
 export interface ScimPatchOp {
   schemas: string[];
-  Operations: Array<{
+  Operations: {
     op: 'add' | 'remove' | 'replace';
     path?: string;
     value?: unknown;
-  }>;
+  }[];
 }

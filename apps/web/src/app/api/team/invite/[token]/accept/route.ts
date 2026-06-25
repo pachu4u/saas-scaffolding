@@ -1,7 +1,5 @@
-import { NextResponse, type NextRequest } from 'next/server';
-
 import { adminDb } from '@platform/db';
-import { resolveTenant } from '@platform/tenant';
+import { NextResponse, type NextRequest } from 'next/server';
 
 import { decodeInviteToken } from '../../route';
 

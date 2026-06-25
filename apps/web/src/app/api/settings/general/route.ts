@@ -1,8 +1,8 @@
-import { type NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@platform/auth';
-import { adminDb, Prisma } from '@platform/db';
+import type { Prisma } from '@platform/db';
+import { adminDb } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
@@ -93,14 +93,14 @@ export async function PATCH(req: NextRequest) {
   if (timezone !== undefined) updatedBranding.timezone = timezone;
 
   const updateData: Record<string, unknown> = {
-    branding: updatedBranding as Prisma.InputJsonValue,
+    branding: updatedBranding,
   };
   if (name !== undefined) updateData.name = name.trim();
   if (slug !== undefined) updateData.slug = slug;
 
   const tenant = await adminDb.tenant.update({
     where: { id: tenantCtx.tenantId },
-    data: updateData as Prisma.TenantUpdateInput,
+    data: updateData,
     select: { id: true, name: true, slug: true, branding: true },
   });
 

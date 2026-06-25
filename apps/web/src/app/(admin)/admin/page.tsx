@@ -3,10 +3,10 @@ import { adminDb } from '@platform/db';
 import { getVaultClient } from '@platform/vault';
 import { redirect } from 'next/navigation';
 
+import { AdminTenantsTable } from '@/components/admin/admin-tenants-table';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
-import { AdminTenantsTable } from '@/components/admin/admin-tenants-table';
 
 export const metadata = { title: 'Platform Admin' };
 
@@ -69,7 +69,7 @@ export default async function AdminPage() {
     users: t._count.tenantUsers,
     status: t.status,
     createdAt: t.createdAt.toISOString(),
-    lastActivity: t.auditLogs[0]?.occurredAt?.toISOString() ?? null,
+    lastActivity: t.auditLogs[0]?.occurredAt.toISOString() ?? null,
     customDomains: t.customDomains,
   }));
 

@@ -1,7 +1,6 @@
-import { type NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
@@ -42,7 +41,7 @@ export async function GET() {
       plan: tu.tenant.plan,
       status: tu.status,
     })),
-    groups: session.groups ?? [],
+    groups: session.groups,
   });
 }
 

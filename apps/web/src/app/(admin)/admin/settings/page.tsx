@@ -1,8 +1,7 @@
-import { redirect } from 'next/navigation';
-
 import { auth } from '@platform/auth';
 import { env } from '@platform/config';
 import { adminDb } from '@platform/db';
+import { redirect } from 'next/navigation';
 
 import { Topbar } from '@/components/layout/topbar';
 

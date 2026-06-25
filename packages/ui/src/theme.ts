@@ -25,10 +25,10 @@ export function parseBranding(branding: unknown): BrandTheme {
   if (!branding || typeof branding !== 'object') return DEFAULT_THEME;
   const b = branding as Record<string, unknown>;
   return {
-    primaryColor: (b['primaryColor'] as string) ?? DEFAULT_THEME.primaryColor,
-    secondaryColor: (b['secondaryColor'] as string) ?? DEFAULT_THEME.secondaryColor,
-    ...(b['logoUrl'] ? { logoUrl: b['logoUrl'] as string } : {}),
-    ...(b['faviconUrl'] ? { faviconUrl: b['faviconUrl'] as string } : {}),
-    name: (b['name'] as string) ?? DEFAULT_THEME.name,
+    primaryColor: (b.primaryColor as string | undefined) ?? DEFAULT_THEME.primaryColor,
+    secondaryColor: (b.secondaryColor as string | undefined) ?? DEFAULT_THEME.secondaryColor,
+    ...(b.logoUrl ? { logoUrl: b.logoUrl as string } : {}),
+    ...(b.faviconUrl ? { faviconUrl: b.faviconUrl as string } : {}),
+    name: (b.name as string | undefined) ?? DEFAULT_THEME.name,
   };
 }

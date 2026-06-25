@@ -9,10 +9,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!session) redirect('/auth/signin');
 
   const isPlatformAdmin =
-    Array.isArray(session?.groups) &&
-    (session.groups as string[]).some((g: string) =>
-      ['platform_super_admin', 'platform_support'].includes(g),
-    );
+    Array.isArray(session.groups) &&
+    session.groups.some((g: string) => ['platform_super_admin', 'platform_support'].includes(g));
 
   if (!isPlatformAdmin) redirect('/dashboard');
 

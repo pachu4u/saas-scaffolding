@@ -61,7 +61,7 @@ export default async function AdminRevenuePage() {
   for (const month of allMonths) monthlyNew[month] = 0;
   for (const t of tenants) {
     const month = t.createdAt.toISOString().slice(0, 7);
-    if (month in monthlyNew) monthlyNew[month]! += 1;
+    if (month in monthlyNew) monthlyNew[month] = (monthlyNew[month] ?? 0) + 1;
   }
 
   const maxNew = Math.max(...Object.values(monthlyNew), 1);

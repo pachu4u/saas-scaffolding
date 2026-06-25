@@ -3,10 +3,10 @@ import { adminDb } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
 import { redirect } from 'next/navigation';
 
-import { formatDate } from '@/lib/time';
 import { ManageSubscriptionButton, UpgradePlanButton } from '@/components/billing/billing-buttons';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
+import { formatDate } from '@/lib/time';
 
 export const metadata = { title: 'Billing' };
 
@@ -55,8 +55,7 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
   // Plan data
   const currentPlanId = subscription?.planId;
   const planFeatures = (subscription?.plan.features ?? {}) as Record<string, unknown>;
-  const seatLimit =
-    typeof planFeatures.maxSeats === 'number' ? (planFeatures.maxSeats as number) : null;
+  const seatLimit = typeof planFeatures.maxSeats === 'number' ? planFeatures.maxSeats : null;
   const seatPct = seatLimit ? Math.round((totalMembers / seatLimit) * 100) : 0;
 
   const periodEnd = subscription?.currentPeriodEnd;
@@ -64,9 +63,7 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
 
   const apiRequestsThisMonth = apiRequestsAgg._sum.quantity ?? 0;
   const apiLimit =
-    typeof planFeatures.maxApiRequests === 'number'
-      ? (planFeatures.maxApiRequests as number)
-      : 500000;
+    typeof planFeatures.maxApiRequests === 'number' ? planFeatures.maxApiRequests : 500000;
 
   const usageItems = [
     {
@@ -84,8 +81,7 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
     {
       label: 'Webhooks Delivered',
       used: webhookDeliveries,
-      limit:
-        typeof planFeatures.maxWebhooks === 'number' ? (planFeatures.maxWebhooks as number) : 5000,
+      limit: typeof planFeatures.maxWebhooks === 'number' ? planFeatures.maxWebhooks : 5000,
       format: (v: number) => v.toLocaleString(),
     },
   ];
@@ -182,7 +178,7 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
             <div className="flex-1">
               <div className="mb-2 flex items-center gap-2">
                 <h2 className="text-lg font-extrabold" style={{ color: 'var(--text-primary)' }}>
-                  {subscription?.plan.name ?? tenantCtx.plan ?? 'Free'} Plan
+                  {subscription?.plan.name ?? tenantCtx.plan} Plan
                 </h2>
                 {subscription ? (
                   <Badge variant={statusVariant} dot>
@@ -286,8 +282,8 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
                 const isCurrent = plan.id === currentPlanId;
                 const pf = (plan.features ?? {}) as Record<string, unknown>;
                 const featureList = Array.isArray(pf.features) ? (pf.features as string[]) : [];
-                const priceDisplay = typeof pf.price === 'string' ? (pf.price as string) : '—';
-                const periodDisplay = typeof pf.period === 'string' ? (pf.period as string) : '';
+                const priceDisplay = typeof pf.price === 'string' ? pf.price : '—';
+                const periodDisplay = typeof pf.period === 'string' ? pf.period : '';
                 return (
                   <div
                     key={plan.id}

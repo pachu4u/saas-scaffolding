@@ -1,8 +1,7 @@
-import Link from 'next/link';
-import { redirect } from 'next/navigation';
-
 import { adminDb } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 import { Badge } from '@/components/ui/badge';
 
@@ -86,7 +85,7 @@ function getRoleColor(
   name: string,
   isSystem: boolean,
 ): 'purple' | 'blue' | 'default' | 'gray' | 'success' {
-  if (roleColorMap[name]) return roleColorMap[name]!;
+  if (roleColorMap[name]) return roleColorMap[name];
   return isSystem ? 'default' : 'success';
 }
 

@@ -1,14 +1,13 @@
-import Link from 'next/link';
-import { notFound } from 'next/navigation';
-
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { redirect } from 'next/navigation';
 
+import { ProvisioningPanel } from '@/components/admin/provisioning-panel';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 import { formatDate, timeAgo } from '@/lib/time';
-import { ProvisioningPanel } from '@/components/admin/provisioning-panel';
 
 export const metadata = { title: 'Tenant Detail — Admin' };
 

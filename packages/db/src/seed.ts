@@ -142,7 +142,7 @@ async function main() {
       create: { code },
     });
   }
-  console.log(`  ✓ ${PERMISSIONS.length} permissions`);
+  console.log(`  ✓ ${String(PERMISSIONS.length)} permissions`);
 
   // Wire role → permissions in DB (source of truth alongside static fallback)
   for (const [roleName, permCodes] of Object.entries(ROLE_PERMISSION_MAP)) {
@@ -232,7 +232,7 @@ async function main() {
 }
 
 main()
-  .catch((e) => {
+  .catch((e: unknown) => {
     console.error(e);
     process.exit(1);
   })

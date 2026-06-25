@@ -1,6 +1,6 @@
-import { type NextRequest, NextResponse } from 'next/server';
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 

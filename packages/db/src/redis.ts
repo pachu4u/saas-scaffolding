@@ -1,6 +1,5 @@
-import { Redis } from 'ioredis';
-
 import { env } from '@platform/config';
+import { Redis } from 'ioredis';
 
 const globalForRedis = globalThis as unknown as { redis: Redis | undefined };
 

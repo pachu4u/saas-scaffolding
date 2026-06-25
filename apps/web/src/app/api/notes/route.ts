@@ -1,7 +1,7 @@
+import { Permission, withAuthz, isOwnerPolicy } from '@platform/authz';
+import { withTenant, checkRateLimit, rateLimitHeaders } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
-import { withTenant, checkRateLimit, rateLimitHeaders } from '@platform/db';
-import { Permission, withAuthz, isOwnerPolicy } from '@platform/authz';
 import { getTenantFromRequest } from '../../../lib/server-tenant';
 
 export async function GET(req: NextRequest) {

@@ -1,10 +1,9 @@
 import crypto from 'crypto';
 
-import { type NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@platform/auth';
 import { adminDb, checkRateLimit, rateLimitHeaders } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
@@ -91,6 +90,15 @@ export async function POST(req: NextRequest) {
 
   if (!Array.isArray(body.events) || body.events.length === 0) {
     return NextResponse.json({ error: 'At least one event type is required' }, { status: 422 });
+  }
+  const invalidEvents = body.events.filter(
+    (e) => !WEBHOOK_EVENTS.includes(e as (typeof WEBHOOK_EVENTS)[number]),
+  );
+  if (invalidEvents.length > 0) {
+    return NextResponse.json(
+      { error: `Unknown event type(s): ${invalidEvents.join(', ')}` },
+      { status: 422 },
+    );
   }
 
   const secret = `whsec_${crypto.randomBytes(24).toString('hex')}`;

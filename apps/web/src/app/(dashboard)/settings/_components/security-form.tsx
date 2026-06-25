@@ -197,7 +197,9 @@ export function SecurityForm({
                 </label>
                 <select
                   value={protocol}
-                  onChange={(e) => setProtocol(e.target.value as 'SAML 2.0' | 'OIDC')}
+                  onChange={(e) => {
+                    setProtocol(e.target.value as 'SAML 2.0' | 'OIDC');
+                  }}
                   className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                   style={{
                     borderColor: 'var(--border-default)',
@@ -219,7 +221,9 @@ export function SecurityForm({
                 <input
                   type="text"
                   value={idpIssuer}
-                  onChange={(e) => setIdpIssuer(e.target.value)}
+                  onChange={(e) => {
+                    setIdpIssuer(e.target.value);
+                  }}
                   placeholder="https://your-idp.example.com/issuer"
                   className="w-full rounded-xl border px-3 py-2 font-mono text-sm outline-none"
                   style={{
@@ -240,7 +244,9 @@ export function SecurityForm({
               <input
                 type="text"
                 value={idpSsoUrl}
-                onChange={(e) => setIdpSsoUrl(e.target.value)}
+                onChange={(e) => {
+                  setIdpSsoUrl(e.target.value);
+                }}
                 placeholder="https://your-idp.example.com/sso/saml"
                 className="w-full rounded-xl border px-3 py-2 font-mono text-sm outline-none"
                 style={{
@@ -260,7 +266,9 @@ export function SecurityForm({
               <textarea
                 rows={3}
                 value={idpCertificate}
-                onChange={(e) => setIdpCertificate(e.target.value)}
+                onChange={(e) => {
+                  setIdpCertificate(e.target.value);
+                }}
                 placeholder="-----BEGIN CERTIFICATE-----"
                 className="w-full resize-none rounded-xl border px-3 py-2 font-mono text-xs outline-none"
                 style={{
@@ -549,7 +557,9 @@ export function SecurityForm({
               </div>
               <select
                 value={sessionLifetime}
-                onChange={(e) => setSessionLifetime(e.target.value)}
+                onChange={(e) => {
+                  setSessionLifetime(e.target.value);
+                }}
                 className="rounded-lg border px-3 py-1.5 text-xs outline-none"
                 style={{
                   borderColor: 'var(--border-light)',
@@ -599,7 +609,9 @@ export function SecurityForm({
                   </div>
                 </div>
                 <button
-                  onClick={() => policy.set((v) => !v)}
+                  onClick={() => {
+                    policy.set((v) => !v);
+                  }}
                   className="relative h-5 w-10 flex-shrink-0 rounded-full transition-colors"
                   style={{
                     background: policy.value ? 'var(--brand-primary)' : 'var(--border-default)',

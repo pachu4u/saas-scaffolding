@@ -1,7 +1,7 @@
-import { createHash, timingSafeEqual } from 'crypto';
-import type { NextRequest } from 'next/server';
+import { createHash } from 'crypto';
 
 import { adminDb } from '@platform/db';
+import type { NextRequest } from 'next/server';
 
 export interface ScimTokenContext {
   tokenId: string;

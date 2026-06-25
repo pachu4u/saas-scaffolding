@@ -39,9 +39,7 @@ export default async function ProfilePage() {
 
   const isPlatformAdmin =
     Array.isArray(session.groups) &&
-    (session.groups as string[]).some((g) =>
-      ['platform_super_admin', 'platform_support'].includes(g),
-    );
+    session.groups.some((g) => ['platform_super_admin', 'platform_support'].includes(g));
 
   return (
     <div>
@@ -299,7 +297,10 @@ export default async function ProfilePage() {
               </div>
             </div>
             <a
-              href={`${process.env.NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL ?? 'https://auth.lvh.me/realms/saas-platform/account'}`}
+              href={
+                process.env.NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL ??
+                'https://auth.lvh.me/realms/saas-platform/account'
+              }
               target="_blank"
               rel="noopener noreferrer"
               className="flex-shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-gray-50"

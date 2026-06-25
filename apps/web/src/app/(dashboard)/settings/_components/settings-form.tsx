@@ -128,7 +128,9 @@ export default function SettingsForm({
                 <input
                   type="text"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                  }}
                   className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                   style={{
                     borderColor: 'var(--border-default)',
@@ -161,7 +163,9 @@ export default function SettingsForm({
                   <input
                     type="text"
                     value={slug}
-                    onChange={(e) => setSlug(e.target.value)}
+                    onChange={(e) => {
+                      setSlug(e.target.value);
+                    }}
                     className="flex-1 px-3 py-2 text-sm outline-none"
                     style={{ background: 'var(--bg-main)', color: 'var(--text-primary)' }}
                   />
@@ -178,7 +182,9 @@ export default function SettingsForm({
               <textarea
                 rows={2}
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                }}
                 className="w-full resize-none rounded-xl border px-3 py-2 text-sm outline-none"
                 style={{
                   borderColor: 'var(--border-default)',
@@ -196,7 +202,9 @@ export default function SettingsForm({
               </label>
               <select
                 value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
+                onChange={(e) => {
+                  setTimezone(e.target.value);
+                }}
                 className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                 style={{
                   borderColor: 'var(--border-default)',
@@ -327,9 +335,9 @@ export default function SettingsForm({
                   </div>
                 </div>
                 <button
-                  onClick={() =>
-                    setNotifPrefs((prev) => ({ ...prev, [pref.key]: !prev[pref.key] }))
-                  }
+                  onClick={() => {
+                    setNotifPrefs((prev) => ({ ...prev, [pref.key]: !prev[pref.key] }));
+                  }}
                   className="relative h-5 w-10 flex-shrink-0 rounded-full transition-colors"
                   style={{
                     background: notifPrefs[pref.key]

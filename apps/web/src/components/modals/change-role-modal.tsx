@@ -47,7 +47,7 @@ export function ChangeRoleModal({ member, onClose, onSuccess }: ChangeRoleModalP
     if (e.target === overlayRef.current) onClose();
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     if (selectedRole === member.currentRole) {
       onClose();
@@ -167,7 +167,9 @@ export function ChangeRoleModal({ member, onClose, onSuccess }: ChangeRoleModalP
                         name="role"
                         value={role.id}
                         checked={isSelected}
-                        onChange={() => setSelectedRole(role.id)}
+                        onChange={() => {
+                          setSelectedRole(role.id);
+                        }}
                         className="sr-only"
                       />
                       <div

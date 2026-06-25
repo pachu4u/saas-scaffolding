@@ -28,7 +28,7 @@ export function CreateTenantButton() {
     if (e.target === overlayRef.current) setOpen(false);
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     if (!name || !slug) return;
     setError(null);
@@ -59,7 +59,9 @@ export function CreateTenantButton() {
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true);
+        }}
         className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
       >
         + Create tenant
@@ -94,7 +96,9 @@ export function CreateTenantButton() {
                 </p>
               </div>
               <button
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  setOpen(false);
+                }}
                 className="hover:bg-bg-subtle flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
                 style={{ color: 'var(--text-muted)' }}
               >
@@ -121,7 +125,9 @@ export function CreateTenantButton() {
                   <input
                     type="text"
                     value={name}
-                    onChange={(e) => handleNameChange(e.target.value)}
+                    onChange={(e) => {
+                      handleNameChange(e.target.value);
+                    }}
                     placeholder="Acme Inc."
                     required
                     className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
@@ -158,9 +164,9 @@ export function CreateTenantButton() {
                     <input
                       type="text"
                       value={slug}
-                      onChange={(e) =>
-                        setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))
-                      }
+                      onChange={(e) => {
+                        setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
+                      }}
                       placeholder="acme"
                       required
                       pattern="[a-z0-9-]+"
@@ -180,7 +186,9 @@ export function CreateTenantButton() {
                   </label>
                   <select
                     value={plan}
-                    onChange={(e) => setPlan(e.target.value)}
+                    onChange={(e) => {
+                      setPlan(e.target.value);
+                    }}
                     className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none"
                     style={{
                       borderColor: 'var(--border-light)',
@@ -203,7 +211,9 @@ export function CreateTenantButton() {
               >
                 <button
                   type="button"
-                  onClick={() => setOpen(false)}
+                  onClick={() => {
+                    setOpen(false);
+                  }}
                   className="hover:bg-bg-subtle rounded-xl border px-4 py-2 text-sm font-semibold transition-colors"
                   style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
                 >

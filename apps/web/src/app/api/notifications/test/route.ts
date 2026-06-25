@@ -1,9 +1,8 @@
-import { type NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
 import { sendEmail } from '@platform/notifications';
 import { resolveTenant } from '@platform/tenant';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
@@ -37,8 +36,8 @@ export async function POST(req: NextRequest) {
     templateId: 'test-email',
     tenantId: tenantCtx.tenantId,
     data: {
-      emailFrom: (branding.emailFrom as string | undefined) ?? tenant.name,
-      emailReply: (branding.emailReply as string | undefined) ?? '',
+      emailFrom: branding.emailFrom ?? tenant.name,
+      emailReply: branding.emailReply ?? '',
       recipient: session.user.email,
     },
   });
