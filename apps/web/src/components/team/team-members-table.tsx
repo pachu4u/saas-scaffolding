@@ -2,6 +2,8 @@
 
 import { DataTable, type Column, type FilterConfig } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
+import { InviteButton } from '@/components/team/invite-button';
 
 export interface MemberRow extends Record<string, unknown> {
   userId: string;
@@ -141,7 +143,7 @@ const filters: FilterConfig[] = [
   },
 ];
 
-export function TeamMembersTable({ data }: { data: MemberRow[] }) {
+export function TeamMembersTable({ data, tenantSlug }: { data: MemberRow[]; tenantSlug: string }) {
   return (
     <DataTable<MemberRow>
       columns={columns}
@@ -151,6 +153,18 @@ export function TeamMembersTable({ data }: { data: MemberRow[] }) {
       searchKeys={['email']}
       rowLabel="member"
       emptyMessage="No members found."
+      emptyState={
+        <EmptyState
+          icon={
+            <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+              <path d="M9 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM17 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 0 0-1.5-4.33A5 5 0 0 1 19 16v1h-6.07zM6 11a5 5 0 0 1 5 5v1H1v-1a5 5 0 0 1 5-5z" />
+            </svg>
+          }
+          title="No members yet"
+          description="Invite teammates to start collaborating in this workspace."
+          action={<InviteButton tenantSlug={tenantSlug} />}
+        />
+      }
       rowKey={(row) => row.userId}
     />
   );

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+import { useSidebar } from './sidebar-context';
 import { WorkspaceSwitcher } from './workspace-switcher';
 
 // ─── Inline SVG icons ────────────────────────────────────────────────────────
@@ -382,6 +383,7 @@ function SectionGroup({
 
 export function Sidebar({ tenantName = 'Workspace', tenantSlug, isAdmin }: SidebarProps) {
   const pathname = usePathname();
+  const { isOpen, close } = useSidebar();
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard';
@@ -394,79 +396,91 @@ export function Sidebar({ tenantName = 'Workspace', tenantSlug, isAdmin }: Sideb
   const sections: NavSection[] = isAdmin ? adminSections : tenantSections;
 
   return (
-    <aside
-      className="sidebar-scroll fixed bottom-0 left-0 top-0 z-40 flex flex-col overflow-y-auto"
-      style={{
-        width: 'var(--sidebar-width)',
-        background: 'var(--sidebar-bg)',
-        borderRight: '1px solid var(--sidebar-border)',
-      }}
-    >
-      {/* ── Logo ───────────────────────────────────────────────────────────── */}
-      <div
-        className="flex-shrink-0 px-4 py-5"
-        style={{ borderBottom: '1px solid var(--sidebar-border)' }}
+    <>
+      {/* Mobile backdrop — closes the drawer on tap outside */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30 lg:hidden"
+          onClick={close}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={`sidebar-scroll fixed bottom-0 left-0 top-0 z-50 flex flex-col overflow-y-auto transition-transform duration-200 lg:translate-x-0 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+        style={{
+          width: 'var(--sidebar-width)',
+          background: 'var(--sidebar-bg)',
+          borderRight: '1px solid var(--sidebar-border)',
+        }}
       >
-        <div className="flex items-center gap-2.5">
-          <div
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
-            style={{ background: 'var(--brand-gradient)' }}
-          >
-            {isAdmin ? 'P' : 'R'}
-          </div>
-          <div>
-            <div
-              className="text-sm font-bold leading-tight"
-              style={{ color: 'var(--sidebar-text-active)' }}
-            >
-              {isAdmin ? 'Platform Admin' : 'riogentix'}
-            </div>
-            {!isAdmin && (
-              <div className="text-[11px] leading-tight" style={{ color: 'var(--sidebar-text)' }}>
-                {tenantName}
-              </div>
-            )}
-          </div>
-        </div>
-        {!isAdmin && (
-          <div className="mt-3">
-            <WorkspaceSwitcher
-              currentName={tenantName}
-              {...(tenantSlug ? { currentSlug: tenantSlug } : {})}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* ── Nav ────────────────────────────────────────────────────────────── */}
-      <nav className="flex-1 overflow-y-auto px-2 py-4">
-        {sections.map((section) => (
-          <SectionGroup key={section.label} section={section} isActive={isActive} />
-        ))}
-      </nav>
-
-      {/* ── Footer ─────────────────────────────────────────────────────────── */}
-      <div
-        className="flex-shrink-0 px-2 py-3"
-        style={{ borderTop: '1px solid var(--sidebar-border)' }}
-      >
-        <a
-          href="/api/auth/keycloak-logout"
-          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-all"
-          style={{ color: 'var(--sidebar-text)' }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-item-hover)';
-            (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.8)';
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.background = '';
-            (e.currentTarget as HTMLElement).style.color = 'var(--sidebar-text)';
-          }}
+        {/* ── Logo ───────────────────────────────────────────────────────────── */}
+        <div
+          className="flex-shrink-0 px-4 py-5"
+          style={{ borderBottom: '1px solid var(--sidebar-border)' }}
         >
-          <span style={{ color: 'var(--sidebar-text)', flexShrink: 0 }}>{Icon.logout}</span>
-          <span>Sign out</span>
-        </a>
-      </div>
-    </aside>
+          <div className="flex items-center gap-2.5">
+            <div
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
+              style={{ background: 'var(--brand-gradient)' }}
+            >
+              {isAdmin ? 'P' : 'R'}
+            </div>
+            <div>
+              <div
+                className="text-sm font-bold leading-tight"
+                style={{ color: 'var(--sidebar-text-active)' }}
+              >
+                {isAdmin ? 'Platform Admin' : 'riogentix'}
+              </div>
+              {!isAdmin && (
+                <div className="text-[11px] leading-tight" style={{ color: 'var(--sidebar-text)' }}>
+                  {tenantName}
+                </div>
+              )}
+            </div>
+          </div>
+          {!isAdmin && (
+            <div className="mt-3">
+              <WorkspaceSwitcher
+                currentName={tenantName}
+                {...(tenantSlug ? { currentSlug: tenantSlug } : {})}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* ── Nav ────────────────────────────────────────────────────────────── */}
+        <nav className="flex-1 overflow-y-auto px-2 py-4" onClick={close}>
+          {sections.map((section) => (
+            <SectionGroup key={section.label} section={section} isActive={isActive} />
+          ))}
+        </nav>
+
+        {/* ── Footer ─────────────────────────────────────────────────────────── */}
+        <div
+          className="flex-shrink-0 px-2 py-3"
+          style={{ borderTop: '1px solid var(--sidebar-border)' }}
+        >
+          <a
+            href="/api/auth/keycloak-logout"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-all"
+            style={{ color: 'var(--sidebar-text)' }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-item-hover)';
+              (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.8)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = '';
+              (e.currentTarget as HTMLElement).style.color = 'var(--sidebar-text)';
+            }}
+          >
+            <span style={{ color: 'var(--sidebar-text)', flexShrink: 0 }}>{Icon.logout}</span>
+            <span>Sign out</span>
+          </a>
+        </div>
+      </aside>
+    </>
   );
 }

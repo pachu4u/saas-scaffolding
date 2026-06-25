@@ -44,6 +44,8 @@ export interface DataTableProps<T extends Record<string, unknown>> {
   rowLabel?: string;
   /** Optional empty state message */
   emptyMessage?: string;
+  /** Richer empty state (icon/title/CTA) — takes precedence over emptyMessage */
+  emptyState?: React.ReactNode;
   /** Extra content to render in the toolbar right area (e.g. a "New" button) */
   toolbarRight?: React.ReactNode;
   /** Row click handler */
@@ -87,6 +89,7 @@ export function DataTable<T extends Record<string, unknown>>({
   searchKeys,
   rowLabel = 'row',
   emptyMessage = 'No results found.',
+  emptyState,
   toolbarRight,
   onRowClick,
   rowKey,
@@ -318,12 +321,17 @@ export function DataTable<T extends Record<string, unknown>>({
           <tbody>
             {processed.length === 0 ? (
               <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-12 text-center text-sm"
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  {emptyMessage}
+                <td colSpan={columns.length}>
+                  {emptyState && data.length === 0 ? (
+                    emptyState
+                  ) : (
+                    <p
+                      className="px-4 py-12 text-center text-sm"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      {emptyMessage}
+                    </p>
+                  )}
                 </td>
               </tr>
             ) : (

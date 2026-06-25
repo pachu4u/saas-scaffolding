@@ -113,7 +113,7 @@ export default async function TeamMembersPage() {
       </div>
 
       {/* Members data table */}
-      <TeamMembersTable data={tableData} />
+      <TeamMembersTable data={tableData} tenantSlug={tenantCtx.slug} />
 
       {/* SCIM provisioning status */}
       <div

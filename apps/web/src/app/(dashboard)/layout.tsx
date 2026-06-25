@@ -9,6 +9,7 @@ import { resolveTenant } from '@platform/tenant';
 export const dynamic = 'force-dynamic';
 
 import { Sidebar } from '@/components/layout/sidebar';
+import { SidebarProvider } from '@/components/layout/sidebar-context';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -50,9 +51,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const tenantSlug = tenant?.slug ?? slug;
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg-main)' }}>
-      <Sidebar tenantName={tenantName} tenantSlug={tenantSlug} />
-      <div style={{ marginLeft: 'var(--sidebar-width)' }}>{children}</div>
-    </div>
+    <SidebarProvider>
+      <div className="min-h-screen" style={{ background: 'var(--bg-main)' }}>
+        <Sidebar tenantName={tenantName} tenantSlug={tenantSlug} />
+        <div className="lg:ml-[var(--sidebar-width)]">{children}</div>
+      </div>
+    </SidebarProvider>
   );
 }

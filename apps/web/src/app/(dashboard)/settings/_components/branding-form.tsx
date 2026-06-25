@@ -63,6 +63,30 @@ export function BrandingForm({
   const [activeTab, setActiveTab] = useState<'colors' | 'logo' | 'email' | 'login'>('colors');
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isSendingTest, setIsSendingTest] = useState(false);
+  const [testEmailMsg, setTestEmailMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function sendTestEmail() {
+    setIsSendingTest(true);
+    setTestEmailMsg(null);
+    try {
+      const tenantSlug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
+      const res = await fetch('/api/notifications/test', {
+        method: 'POST',
+        headers: { 'x-tenant-slug': tenantSlug },
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      setTestEmailMsg(
+        json.ok
+          ? { ok: true, text: 'Test email sent — check your inbox.' }
+          : { ok: false, text: json.error ?? 'Failed to send test email' },
+      );
+    } catch {
+      setTestEmailMsg({ ok: false, text: 'Request failed' });
+    } finally {
+      setIsSendingTest(false);
+    }
+  }
 
   function saveBranding(
     section: 'colors' | 'logo' | 'email' | 'login',
@@ -604,15 +628,28 @@ export function BrandingForm({
                   {saveMsg.text}
                 </div>
               )}
+              {testEmailMsg && activeTab === 'email' && (
+                <div
+                  className="border-t px-6 py-3 text-xs"
+                  style={{
+                    borderColor: 'var(--border-light)',
+                    color: testEmailMsg.ok ? 'var(--status-success)' : '#ef4444',
+                  }}
+                >
+                  {testEmailMsg.text}
+                </div>
+              )}
               <div
                 className="flex justify-end gap-2 border-t px-6 py-4"
                 style={{ borderColor: 'var(--border-light)' }}
               >
                 <button
-                  className="hover:bg-bg-subtle rounded-xl border px-4 py-2 text-sm font-semibold transition-colors"
+                  onClick={() => void sendTestEmail()}
+                  disabled={isSendingTest}
+                  className="hover:bg-bg-subtle rounded-xl border px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
                   style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
                 >
-                  Send test email
+                  {isSendingTest ? 'Sending…' : 'Send test email'}
                 </button>
                 <button
                   onClick={() => saveBranding('email')}
