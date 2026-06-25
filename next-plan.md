@@ -292,6 +292,65 @@ end-to-end for the first time. Branch `fix/local-dev-stack-bugs`, commit `834c1a
   (also applied directly to the already-running realm via Keycloak's Admin API, since
   realm import only happens once at first boot).
 
+---
+
+## 🔨 Session log — lint cleanup + missing test suites (2026-06-26)
+
+Per the Definition of Done at the bottom of this doc, `pnpm lint` should be green and
+every package should have tests — neither was true. Commit `1e3a512` on
+`fix/local-dev-stack-bugs`:
+
+- **`pnpm lint`**: was broadly red across nearly every package (hundreds of violations,
+  strict typescript-eslint rules never satisfied). Ran `eslint --fix` repo-wide first,
+  then fixed the remaining ~100 by hand. Now **14/14 packages green**. Most fixes were
+  mechanical (import order, `String(n)` instead of bare numbers in template literals,
+  dead `?? fallback` after an unsafe `as T` cast that hid a real possibly-undefined
+  value — fixed by casting to `T | undefined` instead of deleting the fallback). A few
+  were real bugs, not style nits:
+  - `DataTable`'s search/sort used `String(v ?? '')` on an `unknown` cell value — for
+    any non-primitive value this silently produces `"[object Object]"` and corrupts
+    sort/search results. Added a `toComparable()` helper that returns `''` for
+    non-primitives instead.
+  - Same bug class in `@platform/notifications`'s template substitution — a
+    non-primitive template variable would have silently rendered `"[object Object]"`
+    in an outgoing email body.
+  - `POST /api/webhooks` accepted _any_ string as an event type — the `WEBHOOK_EVENTS`
+    whitelist existed but was never actually checked against. Wired it in.
+  - `apps/workers`'s "graceful shutdown" was aspirational: `Worker` instances were
+    never kept, so SIGTERM/SIGINT hard-killed in-flight jobs instead of letting them
+    finish. Now collects the workers and awaits `worker.close()` on each.
+  - The notes page had a `quota` usage-bar UI block reading from a `setQuota` that was
+    never called anywhere (the API never returned quota data). Removed the dead
+    feature rather than leave a permanently-inert UI block in place.
+  - A handful of `as any` / non-null-assertion casts were masking legitimate runtime
+    fallback paths (SCIM PatchOp body, branding JSON fields, Keycloak profile claims).
+    Fixed by typing the cast honestly (`T | undefined`) so the existing `??` fallback
+    means something to the type checker, instead of deleting the safety net to satisfy
+    the linter.
+  - A couple of casts are genuine upstream type-incompatibilities (BullMQ's generic
+    `Queue.add` name param, OpenTelemetry `sdk-node`/`sdk-metrics` version skew) — kept
+    as-is, with an explanatory comment instead of a bare disable.
+  - NextAuth callbacks and Next.js Server Actions must stay `async` even with no real
+    `await` — this is a framework requirement, confirmed the hard way via an actual
+    failed Docker build (`Error: Server Actions must be async functions`) after
+    initially removing `async` to satisfy `require-await`. Reverted and suppressed the
+    rule there specifically instead.
+- **Missing test suites**: `@platform/billing`, `@platform/tenant`, and `@platform/scim`
+  had a `test` script wired to Vitest but zero test files — `pnpm test` failed
+  immediately. Added 49 new tests across 7 files:
+  - `billing`: plan-tier invariants (`PLAN_FEATURES`), Stripe webhook idempotency,
+    status mapping, and tenant-scoped subscription upsert/cancel behavior.
+  - `tenant`: subdomain slug extraction (reserved names, case, ports, invalid chars),
+    Redis-cached tenant resolution (cache hit/miss/failure paths, soft-delete
+    handling), and `AsyncLocalStorage`-based context isolation across concurrent
+    requests.
+  - `scim`: token authentication (Bearer parsing, hash-based lookup, tenant-slug
+    cross-check), User/Group SCIM mapping, and idempotent user provisioning.
+- **Verified end-to-end**: `pnpm lint` (14/14), `pnpm typecheck` (27/27), `pnpm test`
+  (16/16, 66 tests) all green repo-wide. Rebuilt the `web` and `workers` Docker images
+  and re-ran the real OAuth login flow through an actual browser for alice, bob, and
+  platform-admin — all three land cleanly with zero console or HTTP errors.
+
 Commit `749f22f` on the same branch covers the Polish-tier work above (P-1–P-8).
 
 ---
