@@ -172,36 +172,127 @@
 
 ---
 
-## ðŸŸ¢ Polish
+## 🟢 Polish
 
-### P-1 Â· Empty states for all tables
+### P-1 · Empty states for all tables ✅
 
 - **Files:** team/members, audit, webhooks, jobs pages
 - **Add:** Illustrated empty state with CTA when table has 0 rows.
+- **Status:** Webhooks and jobs/DLQ already had real empty + loading states. Added the
+  actual gap — `DataTable` gained an `emptyState` slot (icon/title/description/CTA,
+  distinct from the plain `emptyMessage` text shown for filtered-to-zero results), wired
+  into `team-members-table.tsx` with an "Invite member" CTA. Audit log keeps its plain
+  text message — an empty audit log has no actionable CTA.
 
-### P-2 Â· Loading skeletons
+### P-2 · Loading skeletons ✅
 
-- **Add:** `loading.tsx` per route segment â€” skeleton cards while RSC data fetches.
+- **Add:** `loading.tsx` per route segment — skeleton cards while RSC data fetches.
+- **Status:** `(dashboard)/loading.tsx` already existed. The real gap was `(admin)`
+  having **no** `loading.tsx` at all — added one (table-shaped skeleton, matches most
+  admin pages).
 
-### P-3 Â· Mobile-responsive sidebar
+### P-3 · Mobile-responsive sidebar ✅
 
-- **Add:** Hamburger button in topbar on `<lg` screens â†’ slide-in drawer overlay.
+- **Add:** Hamburger button in topbar on `<lg` screens → slide-in drawer overlay.
 - **Fix:** `apps/web/src/components/layout/sidebar.tsx` + `topbar.tsx`
+- **Status:** New `sidebar-context.tsx` (`SidebarProvider`/`useSidebar`) shares
+  open/close state between `Topbar` (hamburger trigger) and `Sidebar` (off-canvas drawer
+  - backdrop on `<lg`, always visible `≥lg`). Both `(dashboard)` and `(admin)` layouts
+    wrapped in the provider; content margin and loading skeletons changed from a fixed
+    `ml-60` to responsive `lg:ml-[var(--sidebar-width)]`. Verified in a real browser at
+    375px (drawer off-canvas, hamburger visible, opens on tap) and 1440px (always visible,
+    no hamburger).
 
-### P-4 Â· "Send test email" button
+### P-4 · "Send test email" button ✅
 
 - **New API:** `apps/web/src/app/api/notifications/test/route.ts`
-- **Wire into:** Settings â†’ Branding â†’ Email tab.
+- **Wire into:** Settings → Branding → Email tab.
+- **Status:** Button existed with no `onClick` at all. Wired to the new route, which
+  uses the existing `@platform/notifications` `sendEmail()` abstraction (console.log
+  fallback in dev without a real Resend key — pre-existing behavior, unchanged).
 
-### P-5 Â· Test webhook delivery button
+### P-5 · Test webhook delivery button ✅ (already done)
 
-- **Add:** "Send test" on webhook endpoint row â†’ `POST /api/webhooks/[id]/test`.
+- **Add:** "Send test" on webhook endpoint row → `POST /api/webhooks/[id]/test`.
+- **Status:** Found already fully implemented (button, API route, inline success/error
+  feedback) — no work needed.
 
-### P-6 Â· Data export & compliance
+### P-6 · Data export & compliance ✅
 
 - **New file:** `apps/web/src/app/(dashboard)/settings/compliance/page.tsx`
-- **Includes:** "Export all workspace data" (triggers BullMQ job â†’ signed S3 URL) + "Request cryptographic delete" (GDPR).
-- **New settings tab:** Add "Compliance" to settings inner nav.
+- **Includes:** "Export all workspace data" + "Request cryptographic delete" (GDPR).
+- **New settings tab:** Added "Compliance" to settings inner nav.
+- **Scope change from spec:** the original spec called for a BullMQ job → signed S3 URL.
+  This stack has no object storage configured anywhere (no S3/MinIO client, no bucket
+  config) — fabricating that would mean a non-functional feature pointing at infra that
+  doesn't exist. Implemented instead as a direct synchronous JSON download
+  (`GET /api/settings/compliance/export`), which is real and works today. Secrets
+  (webhook signing keys, SCIM tokens, API keys) are deliberately excluded from the
+  export. "Cryptographic delete" records an audited request
+  (`POST /api/settings/compliance/delete-request`) rather than instantly wiping data
+  from a single unconfirmed click — matches how this actually works at most SaaS
+  vendors (reviewed/actioned by a human, not instant self-service).
+
+### P-7 · `/admin/activity` page (found during testing, not in original spec) ✅
+
+- **New file:** `apps/web/src/app/(admin)/admin/activity/page.tsx`
+- **Problem:** Sidebar already linked to `/admin/activity`; page didn't exist → 404.
+- **Fix:** Cross-tenant audit log viewer (last 500 events, searchable), built on the
+  existing generic `DataTable`.
+
+### P-8 · `/admin/settings` page (found during testing, not in original spec) ✅
+
+- **New file:** `apps/web/src/app/(admin)/admin/settings/page.tsx`
+- **Problem:** Sidebar already linked to `/admin/settings`; page didn't exist → 404.
+- **Fix:** There's no `PlatformSettings` DB table, so this isn't a form of editable
+  values that wouldn't persist anywhere — it's a real, honest "Environment &
+  Operations" page: live env info (`NODE_ENV`, build SHA, Keycloak issuer, tenant/user/job
+  counts) plus shortcut links to Keycloak admin, Grafana, Traefik dashboard, and
+  `/admin/jobs`.
+
+---
+
+## 🔨 Session log — bugs found while standing up the local stack (2026-06-25)
+
+Not in the original plan — found and fixed while getting `pnpm dev:up` to actually run
+end-to-end for the first time. Branch `fix/local-dev-stack-bugs`, commit `834c1a4`:
+
+- **`web.Dockerfile`** — `next build` runs `@platform/config`'s eager zod env
+  validation during the image build, before `docker-compose`'s env vars exist. Added
+  build-time placeholders (overridden at container runtime as already documented in the
+  runner stage).
+- **`docker-compose.{observability,tools}.yml`** — incorrect `external: true` on the
+  `platform` network broke the documented one-command `pnpm dev:up` (merges all three
+  compose files; Compose then requires the network to pre-exist).
+- **`schema.prisma`** — missing `linux-musl-arm64-openssl-3.0.x` Prisma binary target;
+  `workers` crash-looped on Apple Silicon.
+- **`0002_rls_grants` migration** — a prior "idempotent" fix only guarded the
+  `tenant_users` policy; the other 11 tables' `CREATE POLICY` statements had no
+  `DROP POLICY IF EXISTS`, so re-running the migration still failed.
+- **`0004_native_status_enums` (new migration)** — 7 status columns are typed as Prisma
+  `enum` in `schema.prisma` but `0001_init` implemented them as `TEXT + CHECK`. Prisma's
+  postgresql client always casts to a native enum type by name for `enum` fields, so
+  every query against those columns failed with `type "TenantStatus" does not exist`
+  etc. Converted to real native enums, matching the pattern `0003_provisioning` already
+  used correctly.
+- **`tempo-config.yml` + compose** — outdated `overrides` schema for the pinned Tempo
+  2.5.0, plus running as root since the named volume is root-owned and the image's
+  non-root user can't `mkdir` under it.
+- **`packages/auth/config.ts`** — the `signIn` event only ever upserted the bare `User`
+  row; despite a comment documenting that Keycloak `groups` should map to tenant slugs,
+  it never created the `TenantUser` membership. Every fresh SSO login had zero tenant
+  membership, which made `/dashboard` redirect to `/` (no tenant) — and middleware
+  redirect any authenticated user on `/` straight back to `/dashboard`. Infinite loop.
+  Now JIT-provisions `TenantUser` + a default `tenant_user` `RoleBinding` from the
+  `groups` claim on sign-in.
+- **`realm-export.json`** — `platform-admin` had a `platform_super_admin` **realm role**
+  but no matching Keycloak **group** (a different concept — the app checks group
+  membership via `session.groups`, not realm roles). Same redirect-loop symptom as
+  above, specific to the platform-admin account. Added the group, assigned membership
+  (also applied directly to the already-running realm via Keycloak's Admin API, since
+  realm import only happens once at first boot).
+
+Commit `749f22f` on the same branch covers the Polish-tier work above (P-1–P-8).
 
 ---
 
