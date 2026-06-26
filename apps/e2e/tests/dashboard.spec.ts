@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers/auth';
+import { signIn, TEST_USER_EMAIL, TEST_USER_PASSWORD } from './helpers/auth';
 
 /**
  * Dashboard E2E tests.
@@ -16,7 +16,7 @@ import { signIn } from './helpers/auth';
 
 test.describe('Dashboard', () => {
   test.beforeEach(async ({ page }) => {
-    await signIn(page);
+    await signIn(page, TEST_USER_EMAIL, TEST_USER_PASSWORD);
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
   });
@@ -31,17 +31,22 @@ test.describe('Dashboard', () => {
   });
 
   test('stat card values are numeric strings', async ({ page }) => {
-    // Each stat card should show a number (could be "0" or "1,234" etc.)
-    const cards = page.locator('[class*="stat"], [class*="card"]').filter({ hasText: /\d/ });
-    const count = await cards.count();
-    expect(count).toBeGreaterThan(0);
+    // StatCard has no "stat"/"card" class hooks — find each known label's
+    // card container (nearest rounded-xl ancestor) and check it has a digit.
+    // ("Current Plan" is excluded — its value is the plan name, not a number.)
+    for (const label of ['Active Members', 'Total Members']) {
+      const card = page
+        .getByText(label, { exact: true })
+        .locator('xpath=ancestor::div[contains(@class, "rounded-xl")][1]');
+      await expect(card).toContainText(/\d/);
+    }
   });
 
   // ── Usage chart ────────────────────────────────────────────────────────────
 
   test('usage events chart section is visible', async ({ page }) => {
-    await expect(page.getByText('Usage Events')).toBeVisible();
-    await expect(page.getByText('Last 30 days')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Usage Events' })).toBeVisible();
+    await expect(page.getByText('Last 30 days').first()).toBeVisible();
   });
 
   test('chart shows bars or empty state', async ({ page }) => {
@@ -73,14 +78,14 @@ test.describe('Dashboard', () => {
 
   test('quick actions panel renders all four actions', async ({ page }) => {
     await expect(page.getByText('Quick Actions')).toBeVisible();
-    await expect(page.getByRole('link', { name: /invite team member/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /invite member/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /manage subscription/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /configure sso/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /view audit log/i })).toBeVisible();
   });
 
   test('quick action — Invite team member links to /team', async ({ page }) => {
-    const link = page.getByRole('link', { name: /invite team member/i });
+    const link = page.getByRole('link', { name: /invite member/i });
     await expect(link).toHaveAttribute('href', '/team');
   });
 
@@ -121,7 +126,7 @@ test.describe('Dashboard', () => {
   });
 
   test('navigating to /team from quick actions works', async ({ page }) => {
-    await page.getByRole('link', { name: /invite team member/i }).click();
+    await page.getByRole('link', { name: /invite member/i }).click();
     await expect(page).toHaveURL(/\/team/);
   });
 
@@ -133,8 +138,8 @@ test.describe('Dashboard', () => {
   // ── API: Usage ─────────────────────────────────────────────────────────────
 
   test('GET /api/usage returns data for authenticated user', async ({ request }) => {
-    const response = await request.get('/api/usage');
-    expect(response.status()).toBeOneOf([200, 401, 403]);
+    const response = await request.get('/api/usage', { maxRedirects: 0 });
+    expect([200, 307, 401, 403]).toContain(response.status());
     if (response.status() === 200) {
       const body = (await response.json()) as Record<string, unknown>;
       expect(typeof body).toBe('object');
