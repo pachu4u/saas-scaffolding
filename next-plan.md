@@ -355,6 +355,54 @@ Commit `749f22f` on the same branch covers the Polish-tier work above (P-1–P-8
 
 ---
 
+## 🔨 Session log — e2e suite repair (2026-06-26)
+
+The Playwright suite (`apps/e2e`, 106 tests) was almost entirely non-functional: only
+3/106 passing. Commit `ae8c5bb` on `fix/local-dev-stack-bugs` gets it to **106/106
+(105 passed, 1 legitimate skip)**.
+
+- **Root cause #1 — wrong test credentials.** `helpers/auth.ts` hardcoded
+  `admin@platform.test`/`admin` and a non-existent `user@acme.test`/`password`, and
+  never clicked "Continue with SSO" before trying to fill the Keycloak form. Fixed to
+  the real seeded accounts (`platform123` / `alice@acme.test` + `alice123`) and added
+  the missing click. This alone took the suite from 3 → 53 passing.
+- **Root cause #2 — Playwright locators default to case-insensitive substring
+  matching**, not exact. This caused two failure modes throughout nearly every spec
+  file: strict-mode violations (a regex like `/view/i` also matching sidebar
+  "Overview", or `/webhook/i` also matching an empty-state heading "No webhook
+  endpoints") and silently-wrong matches. Fixed file-by-file with `{ exact: true }` or
+  `.first()` depending on intent, plus corrected a bunch of assertions that assumed
+  UI copy that didn't match the real components (placeholder text, button labels,
+  `getByRole('dialog')` on modals that are plain styled `<div>`s with no ARIA role,
+  and a non-existent `toBeOneOf` matcher used throughout → `toContain`).
+- **Root cause #3 — unauthenticated API requests redirect, they don't 401.**
+  Middleware sends a 307 to `/auth/signin` for any unauthenticated request to a
+  protected route. Playwright's `request` fixture follows redirects by default, which
+  replays the original method (POST/PATCH/GET) onto the sign-in _page_ — a route that
+  only supports GET — producing a misleading 405. Fixed by passing `maxRedirects: 0`
+  on every unauthenticated `request.*()` call in the suite and accepting 307 as an
+  expected status, instead of chasing the downstream 405.
+- **Root cause #4 — load-induced flakiness, not a bug.** A batch of `settings.spec.ts`
+  tests intermittently hit 30s `networkidle` timeouts under the default 4-worker
+  parallel run. Reproduced the same page load in isolation (no concurrent load): ~1s.
+  Re-running with `--workers=2` eliminated the flakiness entirely — this stack's
+  single shared Postgres/Next.js instance doesn't have the headroom for 4-way
+  concurrent E2E load. No test or product code changed for this one.
+- **Two real product bugs found and fixed along the way:**
+  - The "Edit role" button in the team members table (`team-members-table.tsx`) had
+    **no `onClick` handler at all** — `ChangeRoleModal` existed in the codebase but
+    was never wired in. Added `editingMember` state and rendered the modal on click.
+  - `PATCH /api/team/members/[userId]/role` **never existed**, even though
+    `change-role-modal.tsx` already called it. Added the route, following the
+    existing `roleId`-is-actually-a-role-name convention from `team/invite/route.ts`.
+  - Both required rebuilding the `web` Docker image — it's a production build with no
+    source volume mount, so editing `apps/web/src` doesn't take effect until
+    `pnpm dev:up` rebuilds and recreates the container.
+- One test (`webhook deliveries page renders for a valid endpoint`) skips
+  legitimately: there's no seeded webhook endpoint to navigate to from a fresh DB.
+
+---
+
 ## Implementation sequence
 
 ```
