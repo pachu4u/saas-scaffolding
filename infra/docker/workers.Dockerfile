@@ -21,18 +21,37 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 # ─── Stage 2: build ──────────────────────────────────────────────────────────
 FROM deps AS builder
 ARG GIT_SHA=unknown
+ARG NEXT_PUBLIC_APP_URL
+ARG DATABASE_URL
+ARG DATABASE_URL_MIGRATOR
+ARG KEYCLOAK_ISSUER
+ARG KEYCLOAK_CLIENT_ID
+ARG KEYCLOAK_CLIENT_SECRET
+ARG AUTH_SECRET
+ARG AUTH_URL
+ARG REDIS_URL
+ARG PLATFORM_INTERNAL_SECRET
 ENV GIT_SHA=${GIT_SHA}
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Set environment variables for build-time validation
+ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+ENV DATABASE_URL=${DATABASE_URL}
+ENV DATABASE_URL_MIGRATOR=${DATABASE_URL_MIGRATOR}
+ENV KEYCLOAK_ISSUER=${KEYCLOAK_ISSUER}
+ENV KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID}
+ENV KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
+ENV AUTH_SECRET=${AUTH_SECRET}
+ENV AUTH_URL=${AUTH_URL}
+ENV REDIS_URL=${REDIS_URL}
+ENV PLATFORM_INTERNAL_SECRET=${PLATFORM_INTERNAL_SECRET}
 
 COPY tsconfig.base.json ./
 COPY apps/workers ./apps/workers
 COPY packages ./packages
 
-# Remove stale linux-musl (OpenSSL 1.1) engine so prisma generate downloads
-# the correct linux-musl-openssl-3.0.x engine for Alpine
-RUN find /app/node_modules -name "libquery_engine-linux-musl.so.node" -delete 2>/dev/null || true
-RUN pnpm --filter @platform/db db:generate
+# Build packages first (dependency order)
 RUN pnpm --filter @platform/config build
-RUN pnpm --filter @platform/db build
 RUN pnpm --filter @platform/logger build
 RUN pnpm --filter @platform/jobs build
 RUN pnpm --filter @platform/notifications build

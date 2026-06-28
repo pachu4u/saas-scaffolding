@@ -27,24 +27,37 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 # ─── Stage 2: build ──────────────────────────────────────────────────────────
 FROM deps AS builder
 ARG GIT_SHA=unknown
+ARG NEXT_PUBLIC_APP_URL
+ARG DATABASE_URL
+ARG DATABASE_URL_MIGRATOR
+ARG KEYCLOAK_ISSUER
+ARG KEYCLOAK_CLIENT_ID
+ARG KEYCLOAK_CLIENT_SECRET
+ARG AUTH_SECRET
+ARG AUTH_URL
+ARG REDIS_URL
+ARG PLATFORM_INTERNAL_SECRET
 ENV GIT_SHA=${GIT_SHA}
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# Set environment variables for build-time validation
+ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+ENV DATABASE_URL=${DATABASE_URL}
+ENV DATABASE_URL_MIGRATOR=${DATABASE_URL_MIGRATOR}
+ENV KEYCLOAK_ISSUER=${KEYCLOAK_ISSUER}
+ENV KEYCLOAK_CLIENT_ID=${KEYCLOAK_CLIENT_ID}
+ENV KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET}
+ENV AUTH_SECRET=${AUTH_SECRET}
+ENV AUTH_URL=${AUTH_URL}
+ENV REDIS_URL=${REDIS_URL}
+ENV PLATFORM_INTERNAL_SECRET=${PLATFORM_INTERNAL_SECRET}
 
 COPY tsconfig.base.json ./
 COPY apps/web ./apps/web
 COPY packages ./packages
 
-# Generate Prisma client — remove any stale cached engines first so binaryTargets
-# in schema.prisma (linux-musl-openssl-3.0.x) are honoured on Alpine.
-# Remove the stale linux-musl (OpenSSL 1.1) engine from installed node_modules.
-# Alpine 3.17+ uses OpenSSL 3.0 → prisma generate will download
-# libquery_engine-linux-musl-openssl-3.0.x which is what the runner needs.
-RUN find /app/node_modules -name "libquery_engine-linux-musl.so.node" -delete 2>/dev/null || true
-RUN pnpm --filter @platform/db db:generate
-
-# Build packages first (dependency order)
+# Build packages first (dependency order) - skip db generate for now
 RUN pnpm --filter @platform/config build
-RUN pnpm --filter @platform/db build
 RUN pnpm --filter @platform/logger build
 RUN pnpm --filter @platform/jobs build
 RUN pnpm --filter @platform/tenant build
@@ -72,8 +85,7 @@ ENV PORT=3000
 # (including localhost) so Docker healthcheck wget can connect.
 ENV HOSTNAME=0.0.0.0
 
-# openssl1.1-compat provides libssl.so.1.1 as a fallback for any cached Prisma
-# engine that was compiled against OpenSSL 1.1 (until the pnpm cache refreshes).
+# openssl1.1-compat provides libssl.so.1.1 as a fallback for Prisma query engine
 RUN apk add --no-cache openssl openssl1.1-compat ca-certificates 2>/dev/null || apk add --no-cache openssl ca-certificates
 
 # Trust the mkcert dev CA so Node.js undici (fetch) can reach https://auth.lvh.me.
@@ -84,6 +96,13 @@ RUN update-ca-certificates
 
 # Non-root user for security
 RUN addgroup -S nextjs && adduser -S nextjs -G nextjs
+
+# Copy node_modules and packages first (needed for prisma generate)
+COPY --from=builder --chown=nextjs:nextjs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nextjs /app/packages ./packages
+
+# Generate Prisma client in the runner stage where OpenSSL 1.1 compat is available
+RUN pnpm --filter @platform/db db:generate
 
 # Next.js standalone output
 COPY --from=builder --chown=nextjs:nextjs /app/apps/web/.next/standalone ./
