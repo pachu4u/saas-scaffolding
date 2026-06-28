@@ -50,6 +50,11 @@ COPY tsconfig.base.json ./
 COPY apps/web ./apps/web
 COPY packages ./packages
 
+# Generate Prisma client before building packages that depend on it
+# Prisma schema is in packages/db/prisma/schema.prisma
+# We need to run generate in the packages/db directory so it can find the schema
+RUN pnpm --filter @platform/db db:generate
+
 # Build packages first (dependency order)
 RUN pnpm --filter @platform/config build
 RUN pnpm --filter @platform/db build
