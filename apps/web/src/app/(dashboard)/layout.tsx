@@ -46,11 +46,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const tenantName = tenant?.name ?? 'Workspace';
   const tenantSlug = tenant?.slug ?? slug;
+  const userName = session.user.name ?? session.user.email?.split('@')[0] ?? 'User';
 
   return (
     <SidebarProvider>
       <div className="min-h-screen" style={{ background: 'var(--bg-main)' }}>
-        <Sidebar tenantName={tenantName} tenantSlug={tenantSlug} />
+        <Sidebar
+          tenantName={tenantName}
+          tenantSlug={tenantSlug}
+          userName={userName}
+          userEmail={session.user.email}
+        />
         <div className="lg:ml-[var(--sidebar-width)]">{children}</div>
       </div>
     </SidebarProvider>

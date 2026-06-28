@@ -14,10 +14,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!isPlatformAdmin) redirect('/dashboard');
 
+  const userName = session.user.name ?? session.user.email?.split('@')[0] ?? 'Admin';
+
   return (
     <SidebarProvider>
       <div className="min-h-screen" style={{ background: 'var(--bg-main)' }}>
-        <Sidebar isAdmin={true} />
+        <Sidebar isAdmin={true} userName={userName} userEmail={session.user.email} />
         <div className="lg:ml-[var(--sidebar-width)]">{children}</div>
       </div>
     </SidebarProvider>

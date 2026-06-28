@@ -303,6 +303,7 @@ interface SidebarProps {
   tenantName?: string;
   tenantSlug?: string;
   isAdmin?: boolean;
+  userName?: string;
   userEmail?: string;
 }
 
@@ -381,7 +382,13 @@ function SectionGroup({
 
 // ─── Main Sidebar ─────────────────────────────────────────────────────────────
 
-export function Sidebar({ tenantName = 'Workspace', tenantSlug, isAdmin }: SidebarProps) {
+export function Sidebar({
+  tenantName = 'Workspace',
+  tenantSlug,
+  isAdmin,
+  userName,
+  userEmail,
+}: SidebarProps) {
   const pathname = usePathname();
   const { isOpen, close } = useSidebar();
 
@@ -463,6 +470,26 @@ export function Sidebar({ tenantName = 'Workspace', tenantSlug, isAdmin }: Sideb
           className="flex-shrink-0 px-2 py-3"
           style={{ borderTop: '1px solid var(--sidebar-border)' }}
         >
+          {/* User info */}
+          <div
+            className="mb-2 rounded-lg px-2 py-2"
+            style={{ background: 'var(--sidebar-item-hover)' }}
+          >
+            <div
+              className="max-w-[200px] truncate text-[11px] font-semibold"
+              style={{ color: 'var(--sidebar-text-active)' }}
+            >
+              {userName ?? userEmail}
+            </div>
+            {userEmail && (
+              <div
+                className="max-w-[200px] truncate text-[9px]"
+                style={{ color: 'var(--sidebar-text)' }}
+              >
+                {userEmail}
+              </div>
+            )}
+          </div>
           <a
             href="/api/auth/keycloak-logout"
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-all"
