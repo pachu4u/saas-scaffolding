@@ -4,6 +4,7 @@ networks:
   platform:
     name: platform # exact name — matches Traefik's `providers.docker.network: platform`
     driver: bridge
+    external: true
 
 volumes:
   keycloak-db-data:
@@ -32,6 +33,21 @@ services:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
       - ./traefik/certs:/etc/traefik/certs:ro
+    environment:
+      - DOCKER_API_VERSION=1.44
+    # Use a custom Docker socket proxy to handle API version mismatch
+    # The host Docker API is 1.52 but Traefik expects 1.44+
+    # This is a workaround for the Docker client version mismatch
+    # command:
+    #   - /bin/sh
+    #   - -c
+    #   - |
+    #     # Start socat to proxy Docker API with compatible version
+    #     apt-get update && apt-get install -y socat 2>/dev/null || true
+    #     socat UNIX-LISTEN:/var/run/docker.sock.fork,mode=777,reuseaddr UNIX-CONNECT:/var/run/docker.sock &
+    #     sleep 1
+    #     # Run traefik with the forked socket
+    #     exec traefik --configFile=/etc/traefik/traefik.yml
     labels:
       - 'traefik.enable=true'
       - 'traefik.http.routers.dashboard.rule=Host(`traefik.lvh.me`)'
@@ -162,6 +178,18 @@ services:
       context: ../..
       dockerfile: infra/docker/web.Dockerfile
       target: runner
+      args:
+        - NEXT_PUBLIC_APP_URL=https://app.lvh.me
+        - DATABASE_URL=postgresql://postgres:postgres_secret@app-db:5432/saas_platform
+        - DATABASE_URL_MIGRATOR=postgresql://postgres:postgres_secret@app-db:5432/saas_platform
+        - KEYCLOAK_ISSUER=https://auth.lvh.me/realms/saas-platform
+        - KEYCLOAK_CLIENT_ID=web
+        - KEYCLOAK_CLIENT_SECRET=saas-scaffolding-keycloak-secret
+        - AUTH_SECRET=saas-auth-secret-32-chars-min-abc123
+        - AUTH_URL=https://app.lvh.me
+        - REDIS_URL=redis://redis:6379
+        - PLATFORM_INTERNAL_SECRET=internal-secret-16-chars
+        - NODE_ENV=production
     container_name: web
     restart: unless-stopped
     networks:
