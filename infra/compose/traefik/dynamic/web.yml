@@ -14,6 +14,13 @@ http:
         - websecure
       tls: {}
 
+    web-saas:
+      rule: 'Host(`saas.techhanker.com`)'
+      service: web-service
+      entryPoints:
+        - websecure
+      tls: {}
+
   services:
     web-service:
       loadBalancer:

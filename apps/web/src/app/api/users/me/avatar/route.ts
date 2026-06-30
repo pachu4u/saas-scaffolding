@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   const ext = extMap[avatarFile.type] ?? 'png';
 
   // Create a unique filename based on user ID and timestamp
-  const filename = `avatar_${session.user.id}_${Date.now()}.${ext}`;
+  const filename = `avatar_${session.user.id}_${String(Date.now())}.${ext}`;
 
   // For now, we'll store the avatar URL as a data URL
   // In production, you'd upload to S3/Cloudinary/etc.
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
  * DELETE /api/users/me/avatar
  * Removes the current user's avatar.
  */
-export async function DELETE(req: NextRequest) {
+export async function DELETE(_req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

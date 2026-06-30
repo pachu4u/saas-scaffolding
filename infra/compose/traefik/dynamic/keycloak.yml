@@ -8,6 +8,14 @@ http:
       service: keycloak
       priority: 100
 
+    keycloak-saas:
+      rule: 'Host(`auth.techhanker.com`)'
+      entryPoints:
+        - websecure
+      tls: {}
+      service: keycloak
+      priority: 100
+
   services:
     keycloak:
       loadBalancer:
