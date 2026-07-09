@@ -90,6 +90,62 @@
             "id.token.claim": "false",
             "access.token.claim": "true"
           }
+        },
+        {
+          "name": "saas_plan",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "saas_plan",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "saas_plan",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "saas_role",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "saas_role",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "saas_role",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "saas_tenant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "saas_tenant_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "saas_tenant_id",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "usage_locked",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "usage_locked",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "usage_locked",
+            "jsonType.label": "boolean"
+          }
         }
       ]
     },
@@ -121,7 +177,13 @@
         }
       ],
       "groups": ["acme"],
-      "realmRoles": []
+      "realmRoles": [],
+      "attributes": {
+        "saas_plan": ["pro"],
+        "saas_role": ["admin"],
+        "saas_tenant_id": ["acme"],
+        "usage_locked": ["false"]
+      }
     },
     {
       "username": "bob",
@@ -138,7 +200,13 @@
         }
       ],
       "groups": ["globex"],
-      "realmRoles": []
+      "realmRoles": [],
+      "attributes": {
+        "saas_plan": ["free"],
+        "saas_role": ["developer"],
+        "saas_tenant_id": ["globex"],
+        "usage_locked": ["false"]
+      }
     },
     {
       "username": "platform-admin",

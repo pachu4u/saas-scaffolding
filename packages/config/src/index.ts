@@ -44,6 +44,10 @@ const envSchema = z.object({
   // Internal
   PLATFORM_INTERNAL_SECRET: z.string().min(16),
 
+  // Riogentix integration
+  RIOGENTIX_INTERNAL_URL: z.string().url().optional(),
+  RIOGENTIX_SAAS_INTERNAL_SECRET: z.string().min(16).optional(),
+
   // Git
   GIT_SHA: z.string().default('dev'),
 
