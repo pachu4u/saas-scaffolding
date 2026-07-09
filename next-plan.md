@@ -425,3 +425,104 @@ Week 5:  P-1 â†’ P-2 â†’ P-3 â†’ P-4 â†’ P-5 â†’ P-6   
 - [ ] Responsive at â‰¥375px viewport
 - [ ] No TypeScript errors (`pnpm typecheck` green)
 - [ ] `pnpm lint` green
+
+---
+
+## 🔗 Riogentix Integration — SaaS ↔ AI Platform Architecture
+
+> **Context:** This SaaS layer acts as the control plane that spins up and manages per-tenant Riogentix instances. Roles, plans, and usage limits set here must propagate into each Riogentix instance.
+
+### Mental model
+
+```
+SaaS (saas-scaffolding)            Riogentix (per-tenant instance)
+─────────────────────────          ───────────────────────────────────
+Org/Tenant management              The actual AI platform
+Plan + billing                     Flows, KBs, Deployments
+Keycloak (identity)       ──→      Auth bridge (JWT claims)
+Plan features             ──→      Feature permission slugs
+Usage tracking            ──→      Quota lock (read-only mode)
+```
+
+---
+
+### Layer 1 — Auth bridge (Keycloak JWT → Riogentix)
+
+Keycloak issues JWTs. Add custom claims to every token:
+
+```json
+{
+  "sub": "user-uuid",
+  "saas_tenant_id": "org-uuid",
+  "saas_plan": "pro",
+  "saas_role": "admin",
+  "usage_locked": false
+}
+```
+
+Riogentix reads these claims on every request. `usage_locked: true` is the kill switch — all write operations return 403, reads pass through.
+
+**Where to add this in SaaS:**
+- Keycloak protocol mapper (custom claim from tenant DB row), or
+- Token enrichment API that Keycloak calls via a mapper script
+
+---
+
+### Layer 2 — Feature permissions per plan
+
+Map plan tiers to `feature:*` permission slugs in Riogentix:
+
+| Plan | Permitted features |
+|---|---|
+| `free` | `feature:chat:access`, `feature:flows:read` |
+| `pro` | + `feature:flows:write`, `feature:knowledge_bases:access` |
+| `enterprise` | + `feature:mcp:access`, `feature:memory:access`, `feature:deployments:access` |
+
+SaaS sends the plan slug in the JWT; Riogentix resolves it to permission slugs at startup and caches per-instance.
+
+---
+
+### Layer 3 — Usage quota lock
+
+When a tenant exceeds their plan quota:
+
+1. SaaS usage metering worker detects overage
+2. Calls `PUT /internal/tenant/{id}/usage-lock` on the Riogentix instance
+3. Riogentix sets `usage_locked = true` in its local config/Redis
+4. All write-path guards check this flag — flows can still be read, not modified
+5. Lock lifted via `DELETE /internal/tenant/{id}/usage-lock` when usage drops or plan upgrades
+
+---
+
+### Internal API (SaaS → Riogentix)
+
+```
+POST   /internal/tenant/{id}/provision      Create tenant context in a new instance
+PUT    /internal/tenant/{id}/plan           Update feature permissions when plan changes
+PUT    /internal/tenant/{id}/usage-lock     Engage read-only mode (quota exceeded)
+DELETE /internal/tenant/{id}/usage-lock     Lift read-only mode
+```
+
+All internal endpoints require a shared HMAC secret (`INTERNAL_API_SECRET`), not a user JWT.
+
+---
+
+### Implementation steps
+
+**In saas-scaffolding:**
+1. Keycloak protocol mapper — emit `saas_tenant_id`, `saas_plan`, `saas_role`, `usage_locked` claims
+2. `plan-changed.ts` worker — call `PUT /internal/tenant/{id}/plan` on Riogentix when Stripe webhook fires
+3. Usage metering worker — watch rollup table; call `/usage-lock` when quota threshold crossed
+4. Admin UI — show which Riogentix features are available per plan tier
+
+**In Riogentix:**
+1. JWT middleware — validate + extract custom claims; inject `saas_plan` and `usage_locked` into request context
+2. `usage_locked` guard — middleware that short-circuits all write operations with `{"detail": "Quota exceeded — upgrade your plan to continue writing"}` when flag is set
+3. Extend `AuthzRole.permissions` with `feature:*` slugs; map `saas_plan` → slug set
+4. Internal API endpoints (`/internal/tenant/*`) protected by `INTERNAL_API_SECRET` HMAC
+
+---
+
+### Key design decision
+
+The `usage_locked` check lives **inside Riogentix**, not enforced by SaaS proxying. Even if a user hits the Riogentix API directly with a valid JWT, the lock still holds. The JWT is signed by Keycloak so it cannot be tampered with client-side.
