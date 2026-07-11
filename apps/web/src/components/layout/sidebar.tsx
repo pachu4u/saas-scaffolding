@@ -195,6 +195,19 @@ const Icon = {
       <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
     </svg>
   ),
+  layers: (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      className="h-4 w-4"
+    >
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
+    </svg>
+  ),
   externalLink: (
     <svg
       viewBox="0 0 24 24"
@@ -286,7 +299,10 @@ const adminSections = [
   },
   {
     label: 'ANALYTICS',
-    items: [{ label: 'Revenue', href: '/admin/revenue', icon: Icon.trendingUp }],
+    items: [
+      { label: 'Revenue', href: '/admin/revenue', icon: Icon.trendingUp },
+      { label: 'Plans', href: '/admin/plans', icon: Icon.layers },
+    ],
   },
   {
     label: 'SYSTEM',
@@ -325,14 +341,14 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
 
   const sharedMouseEnter = (e: React.MouseEvent<HTMLElement>) => {
     if (!active) {
-      (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-item-hover)';
-      (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.8)';
+      e.currentTarget.style.background = 'var(--sidebar-item-hover)';
+      e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
     }
   };
   const sharedMouseLeave = (e: React.MouseEvent<HTMLElement>) => {
     if (!active) {
-      (e.currentTarget as HTMLElement).style.background = '';
-      (e.currentTarget as HTMLElement).style.color = 'var(--sidebar-text)';
+      e.currentTarget.style.background = '';
+      e.currentTarget.style.color = 'var(--sidebar-text)';
     }
   };
 
@@ -525,12 +541,12 @@ export function Sidebar({
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-all"
             style={{ color: 'var(--sidebar-text)' }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-item-hover)';
-              (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.8)';
+              e.currentTarget.style.background = 'var(--sidebar-item-hover)';
+              e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = '';
-              (e.currentTarget as HTMLElement).style.color = 'var(--sidebar-text)';
+              e.currentTarget.style.background = '';
+              e.currentTarget.style.color = 'var(--sidebar-text)';
             }}
           >
             <span style={{ color: 'var(--sidebar-text)', flexShrink: 0 }}>{Icon.logout}</span>

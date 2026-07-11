@@ -44,6 +44,10 @@ const envSchema = z.object({
   // Internal
   PLATFORM_INTERNAL_SECRET: z.string().min(16),
 
+  // Riogentix (optional — only required when Riogentix is deployed)
+  RIOGENTIX_INTERNAL_URL: z.string().url().optional(),
+  RIOGENTIX_INTERNAL_SECRET: z.string().min(16).optional(),
+
   // Git
   GIT_SHA: z.string().default('dev'),
 
@@ -65,7 +69,18 @@ function parseEnv(): Env {
     console.error(result.error.flatten().fieldErrors);
     throw new Error('Invalid environment variables — check .env');
   }
-  return result.data;
+  const data = result.data;
+
+  // Both Riogentix vars must be set together or not at all
+  const hasUrl = data.RIOGENTIX_INTERNAL_URL !== undefined;
+  const hasSecret = data.RIOGENTIX_INTERNAL_SECRET !== undefined;
+  if (hasUrl !== hasSecret) {
+    throw new Error(
+      'RIOGENTIX_INTERNAL_URL and RIOGENTIX_INTERNAL_SECRET must both be set or both be unset',
+    );
+  }
+
+  return data;
 }
 
 export const env = parseEnv();

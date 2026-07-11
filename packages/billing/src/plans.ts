@@ -7,6 +7,9 @@ export interface PlanFeatures {
   scim: boolean;
   webhooks: boolean;
   customDomain: boolean;
+  riogentix: {
+    features: string[];
+  };
 }
 
 export const PLAN_FEATURES: Record<PlanCode, PlanFeatures> = {
@@ -16,6 +19,9 @@ export const PLAN_FEATURES: Record<PlanCode, PlanFeatures> = {
     scim: false,
     webhooks: false,
     customDomain: false,
+    riogentix: {
+      features: ['feature:chat:access', 'feature:flows:read'],
+    },
   },
   pro: {
     notes: { maxCount: 1000, delete: true },
@@ -23,6 +29,14 @@ export const PLAN_FEATURES: Record<PlanCode, PlanFeatures> = {
     scim: true,
     webhooks: true,
     customDomain: false,
+    riogentix: {
+      features: [
+        'feature:chat:access',
+        'feature:flows:read',
+        'feature:flows:write',
+        'feature:knowledge_bases:access',
+      ],
+    },
   },
   enterprise: {
     notes: { maxCount: null, delete: true },
@@ -30,5 +44,16 @@ export const PLAN_FEATURES: Record<PlanCode, PlanFeatures> = {
     scim: true,
     webhooks: true,
     customDomain: true,
+    riogentix: {
+      features: [
+        'feature:chat:access',
+        'feature:flows:read',
+        'feature:flows:write',
+        'feature:knowledge_bases:access',
+        'feature:mcp:access',
+        'feature:memory:access',
+        'feature:deployments:access',
+      ],
+    },
   },
 };

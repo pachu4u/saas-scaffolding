@@ -1,3 +1,4 @@
+import { type PlanCode, updateTenantPlan } from '@platform/billing';
 import { redis } from '@platform/db';
 import type { PlanChangedJob } from '@platform/jobs';
 import { logger } from '@platform/logger';
@@ -17,4 +18,10 @@ export async function handlePlanChanged(job: Job<PlanChangedJob>): Promise<void>
   await redis.del(`tenant:slug:*`);
 
   logger.info({ tenantId, invalidated: keys.length }, 'Caches invalidated after plan change');
+
+  try {
+    await updateTenantPlan(tenantId, newPlan as PlanCode);
+  } catch (err) {
+    logger.error({ tenantId, newPlan, err }, 'Riogentix plan update failed — continuing');
+  }
 }

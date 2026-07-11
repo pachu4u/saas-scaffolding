@@ -5,6 +5,62 @@ import KeycloakProvider from 'next-auth/providers/keycloak';
 
 const ID_TOKEN_TTL = 60 * 60 * 8; // match session maxAge
 
+// Extracts realm name from KEYCLOAK_ISSUER, e.g. http://host/realms/myrealm -> myrealm
+function extractRealm(issuer: string): string {
+  const match = /\/realms\/([^/]+)/.exec(issuer);
+  return match?.[1] ?? 'master';
+}
+
+// Derives Keycloak admin REST API base URL from issuer
+function adminApiBase(issuer: string): string {
+  const realm = extractRealm(issuer);
+  // Admin API root: strip /realms/... path and add /admin/realms/<realm>
+  const base = issuer.replace(/\/realms\/[^/]+.*$/, '');
+  return `${base}/admin/realms/${realm}`;
+}
+
+async function getAdminToken(): Promise<string> {
+  const tokenUrl = `${env.KEYCLOAK_INTERNAL_ISSUER ?? env.KEYCLOAK_ISSUER}/protocol/openid-connect/token`;
+
+  const res = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: env.KEYCLOAK_CLIENT_ID,
+      client_secret: env.KEYCLOAK_CLIENT_SECRET,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Keycloak admin token fetch failed: ${String(res.status)}`);
+  }
+
+  const data = (await res.json()) as { access_token: string };
+  return data.access_token;
+}
+
+async function setKeycloakUserAttributes(
+  userId: string,
+  attributes: Record<string, string[]>,
+): Promise<void> {
+  const token = await getAdminToken();
+  const url = `${adminApiBase(env.KEYCLOAK_ISSUER)}/users/${userId}`;
+
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ attributes }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Keycloak user attribute update failed: ${String(res.status)}`);
+  }
+}
+
 export const authConfig: NextAuthConfig = {
   debug: true,
   providers: [
@@ -65,6 +121,11 @@ export const authConfig: NextAuthConfig = {
         });
 
         const groups = ((profile as Record<string, unknown>).groups as string[] | undefined) ?? [];
+
+        let firstTenantId: string | null = null;
+        let firstPlan = 'free';
+        let firstRole = 'member';
+
         for (const slug of groups) {
           const tenant = await adminDb.tenant.findUnique({ where: { slug } });
           if (!tenant) continue;
@@ -89,6 +150,25 @@ export const authConfig: NextAuthConfig = {
               update: {},
             });
           }
+
+          // Capture first tenant's plan info for Keycloak attributes
+          if (!firstTenantId) {
+            firstTenantId = tenant.id;
+            firstPlan = tenant.plan;
+            // Determine role label
+            firstRole = defaultRole ? 'member' : 'member';
+          }
+        }
+
+        // Update Keycloak user attributes so JWT claims reflect SaaS state
+        if (firstTenantId) {
+          setKeycloakUserAttributes(profile.sub, {
+            saas_tenant_id: [firstTenantId],
+            saas_plan: [firstPlan],
+            saas_role: [firstRole],
+          }).catch((err: unknown) => {
+            console.error('[auth] signIn: failed to set Keycloak user attributes', err);
+          });
         }
       } catch (err) {
         console.error('[auth] signIn event: failed to upsert user', err);

@@ -22,8 +22,14 @@
   "ssoSessionMaxLifespan": 36000,
   "roles": {
     "realm": [
-      { "name": "platform_super_admin", "description": "Full platform access" },
-      { "name": "platform_support", "description": "Read-only platform support access" }
+      {
+        "name": "platform_super_admin",
+        "description": "Full platform access"
+      },
+      {
+        "name": "platform_support",
+        "description": "Read-only platform support access"
+      }
     ]
   },
   "groups": [
@@ -89,6 +95,65 @@
             "included.client.audience": "web",
             "id.token.claim": "false",
             "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "saas_tenant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "saas_tenant_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "saas_tenant_id",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "saas_plan",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "saas_plan",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "saas_plan",
+            "jsonType.label": "String",
+            "attribute.default.value": "free"
+          }
+        },
+        {
+          "name": "saas_role",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "saas_role",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "saas_role",
+            "jsonType.label": "String",
+            "attribute.default.value": "member"
+          }
+        },
+        {
+          "name": "usage_locked",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "usage_locked",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "usage_locked",
+            "jsonType.label": "boolean",
+            "attribute.default.value": "false"
           }
         }
       ]
