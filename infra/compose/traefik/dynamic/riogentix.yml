@@ -1,0 +1,28 @@
+http:
+  routers:
+    riogentix-api:
+      rule: 'Host(`riogentix.techhanker.com`) && PathPrefix(`/api/`)'
+      entryPoints:
+        - websecure
+      tls: {}
+      service: riogentix-backend
+      priority: 200
+
+    riogentix:
+      rule: 'Host(`riogentix.techhanker.com`)'
+      entryPoints:
+        - websecure
+      tls: {}
+      service: riogentix-frontend
+      priority: 100
+
+  services:
+    riogentix-backend:
+      loadBalancer:
+        servers:
+          - url: 'http://riogentix:7860'
+
+    riogentix-frontend:
+      loadBalancer:
+        servers:
+          - url: 'http://riogentix:3000'

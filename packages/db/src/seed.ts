@@ -169,6 +169,7 @@ async function main() {
       name: 'Acme Corp',
       status: 'ACTIVE',
       plan: 'pro',
+      customDomains: [],
     },
   });
   console.log(`  ✓ Tenant: acme (${acme.id})`);
@@ -181,6 +182,7 @@ async function main() {
       name: 'Globex Corporation',
       status: 'ACTIVE',
       plan: 'free',
+      customDomains: [],
     },
   });
   console.log(`  ✓ Tenant: globex (${globex.id})`);

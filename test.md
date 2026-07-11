@@ -37,7 +37,7 @@ flowchart LR
     end
 
     subgraph ProductServices["Packaged Services"]
-        LF["Langflow Backend"]
+        RG["Riogentix"]
         CL["Chainlit Runtime"]
         LFO["Forked Langfuse"]
     end
@@ -77,15 +77,15 @@ flowchart LR
     API --> AUDIT
     API --> DEPLOY
     API --> SECRET
-    API --> LF
+    API --> RG
 
-    LF --> PG
-    LF --> REDIS
-    LF --> OBJ
-    LF --> VAULT
+    RG --> PG
+    RG --> REDIS
+    RG --> OBJ
+    RG --> VAULT
 
     CL --> PG
-    CL --> LF
+    CL --> RG
     CL --> LFO
 
     LFO --> PG

@@ -232,7 +232,15 @@ const tenantSections = [
   },
   {
     label: 'WORKSPACE',
-    items: [{ label: 'Notes', href: '/notes', icon: Icon.penSquare }],
+    items: [
+      { label: 'Notes', href: '/notes', icon: Icon.penSquare },
+      {
+        label: 'Riogentix',
+        href: '/api/riogentix/launch',
+        icon: Icon.externalLink,
+        external: true,
+      },
+    ],
   },
   {
     label: 'GOVERNANCE',
@@ -292,6 +300,7 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
+  external?: boolean;
 }
 
 interface NavSection {
@@ -310,33 +319,25 @@ interface SidebarProps {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function NavLink({ item, active }: { item: NavItem; active: boolean }) {
-  return (
-    <Link
-      href={item.href}
-      className="group flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150"
-      style={
-        active
-          ? {
-              background: 'var(--sidebar-item-active)',
-              color: 'var(--sidebar-text-active)',
-            }
-          : {
-              color: 'var(--sidebar-text)',
-            }
-      }
-      onMouseEnter={(e) => {
-        if (!active) {
-          (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-item-hover)';
-          (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.8)';
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!active) {
-          (e.currentTarget as HTMLElement).style.background = '';
-          (e.currentTarget as HTMLElement).style.color = 'var(--sidebar-text)';
-        }
-      }}
-    >
+  const sharedStyle = active
+    ? { background: 'var(--sidebar-item-active)', color: 'var(--sidebar-text-active)' }
+    : { color: 'var(--sidebar-text)' };
+
+  const sharedMouseEnter = (e: React.MouseEvent<HTMLElement>) => {
+    if (!active) {
+      (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-item-hover)';
+      (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.8)';
+    }
+  };
+  const sharedMouseLeave = (e: React.MouseEvent<HTMLElement>) => {
+    if (!active) {
+      (e.currentTarget as HTMLElement).style.background = '';
+      (e.currentTarget as HTMLElement).style.color = 'var(--sidebar-text)';
+    }
+  };
+
+  const inner = (
+    <>
       <span
         className="flex-shrink-0 transition-colors"
         style={{ color: active ? 'var(--sidebar-accent)' : 'var(--sidebar-text)' }}
@@ -350,6 +351,35 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
           style={{ background: 'var(--sidebar-accent)' }}
         />
       )}
+    </>
+  );
+
+  const className =
+    'group flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150';
+
+  if (item.external) {
+    return (
+      <a
+        href={item.href}
+        className={className}
+        style={sharedStyle}
+        onMouseEnter={sharedMouseEnter}
+        onMouseLeave={sharedMouseLeave}
+      >
+        {inner}
+      </a>
+    );
+  }
+
+  return (
+    <Link
+      href={item.href}
+      className={className}
+      style={sharedStyle}
+      onMouseEnter={sharedMouseEnter}
+      onMouseLeave={sharedMouseLeave}
+    >
+      {inner}
     </Link>
   );
 }

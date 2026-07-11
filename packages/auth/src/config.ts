@@ -1,7 +1,9 @@
 import { env } from '@platform/config';
-import { adminDb } from '@platform/db';
+import { adminDb, redis } from '@platform/db';
 import type { NextAuthConfig } from 'next-auth';
 import KeycloakProvider from 'next-auth/providers/keycloak';
+
+const ID_TOKEN_TTL = 60 * 60 * 8; // match session maxAge
 
 export const authConfig: NextAuthConfig = {
   debug: true,
@@ -10,10 +12,6 @@ export const authConfig: NextAuthConfig = {
       clientId: env.KEYCLOAK_CLIENT_ID,
       clientSecret: env.KEYCLOAK_CLIENT_SECRET,
       issuer: env.KEYCLOAK_ISSUER,
-      // In Docker, auth.lvh.me resolves to the Keycloak container IP but on
-      // port 8080, not port 80. KEYCLOAK_INTERNAL_ISSUER lets us fetch the OIDC
-      // discovery doc from the correct internal URL while keeping KEYCLOAK_ISSUER
-      // (matching the iss claim in tokens) for validation.
       ...(env.KEYCLOAK_INTERNAL_ISSUER && {
         wellKnown: `${env.KEYCLOAK_INTERNAL_ISSUER}/.well-known/openid-configuration`,
       }),
@@ -26,20 +24,16 @@ export const authConfig: NextAuthConfig = {
   },
 
   callbacks: {
-    // NextAuth's callback type requires a Promise return even though this
-    // implementation has no real await.
-    // eslint-disable-next-line @typescript-eslint/require-await
     async jwt({ token, account, profile }) {
-      // On first sign-in, account and profile are populated
       if (account && profile?.sub && profile.email) {
         token.sub = profile.sub;
         token.email = profile.email;
-        // Keycloak groups claim (mapped to tenant slugs)
         token.groups = (profile as Record<string, unknown>).groups ?? [];
-        token.accessToken = account.access_token;
-        token.idToken = account.id_token;
-        token.refreshToken = account.refresh_token;
         token.expiresAt = account.expires_at;
+        // Store id_token in Redis to keep the session cookie small
+        if (account.id_token) {
+          await redis.set(`idtoken:${profile.sub}`, account.id_token, 'EX', ID_TOKEN_TTL);
+        }
       }
       return token;
     },
@@ -51,10 +45,6 @@ export const authConfig: NextAuthConfig = {
       }
       if (token.groups) {
         (session as unknown as Record<string, unknown>).groups = token.groups;
-      }
-      // Expose id_token so the federated-logout route can pass it to Keycloak
-      if (token.idToken) {
-        session.idToken = token.idToken as string;
       }
       return session;
     },
@@ -74,9 +64,6 @@ export const authConfig: NextAuthConfig = {
           },
         });
 
-        // Keycloak groups claim maps to tenant slugs — JIT-provision tenant
-        // membership on first login so a fresh SSO user actually lands in a
-        // workspace instead of bouncing between "/" and "/dashboard" forever.
         const groups = ((profile as Record<string, unknown>).groups as string[] | undefined) ?? [];
         for (const slug of groups) {
           const tenant = await adminDb.tenant.findUnique({ where: { slug } });
@@ -124,7 +111,5 @@ declare module 'next-auth' {
       image?: string | null;
     };
     groups: string[];
-    /** OIDC id_token — used for federated logout with Keycloak */
-    idToken?: string;
   }
 }
