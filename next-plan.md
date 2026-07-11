@@ -510,16 +510,16 @@ All internal endpoints require a shared HMAC secret (`INTERNAL_API_SECRET`), not
 ### Implementation steps
 
 **In saas-scaffolding:**
-1. Keycloak protocol mapper — emit `saas_tenant_id`, `saas_plan`, `saas_role`, `usage_locked` claims
-2. `plan-changed.ts` worker — call `PUT /internal/tenant/{id}/plan` on Riogentix when Stripe webhook fires
-3. Usage metering worker — watch rollup table; call `/usage-lock` when quota threshold crossed
-4. Admin UI — show which Riogentix features are available per plan tier
+1. ✅ Keycloak protocol mapper — emit `saas_tenant_id`, `saas_plan`, `saas_role`, `usage_locked` claims
+2. ✅ `plan-changed.ts` worker — call `PUT /internal/tenant/{id}/plan` on Riogentix when Stripe webhook fires
+3. ✅ Usage metering worker — watch rollup table; call `/usage-lock` when quota threshold crossed
+4. ✅ Admin UI — `/admin/plans` page showing plan → Riogentix feature mapping + "Plans" sidebar item
 
 **In Riogentix:**
-1. JWT middleware — validate + extract custom claims; inject `saas_plan` and `usage_locked` into request context
-2. `usage_locked` guard — middleware that short-circuits all write operations with `{"detail": "Quota exceeded — upgrade your plan to continue writing"}` when flag is set
-3. Extend `AuthzRole.permissions` with `feature:*` slugs; map `saas_plan` → slug set
-4. Internal API endpoints (`/internal/tenant/*`) protected by `INTERNAL_API_SECRET` HMAC
+1. ✅ JWT middleware (`SaasClaimsMiddleware`) — reads `saas_plan`, `saas_role`, `saas_tenant_id`, `usage_locked` from JWT; attaches to `request.state`
+2. ✅ `usage_locked` guard (`UsageLockMiddleware`) — blocks POST/PUT/PATCH/DELETE with 403 when quota exceeded; exempt path for `/api/v1/internal/saas`
+3. ✅ Feature permission slugs — `saas_features.py` maps plan tiers to `feature:*` slugs; `require_feature()` dependency gates knowledge_bases, memories, mcp, mcp_projects, deployments, and agentic routers; Alembic migration `sa01b2c3d4e5` adds slugs to system roles
+4. ✅ Internal API endpoints (`/api/v1/internal/saas/tenant/{id}/plan|usage-lock|status`) protected by `RIOGENTIX_SAAS_INTERNAL_SECRET` header + SSO endpoint (`/api/v1/internal/saas/sso`)
 
 ---
 
