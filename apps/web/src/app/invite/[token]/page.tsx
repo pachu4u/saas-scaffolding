@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
-import { decodeInviteToken } from '@/app/api/team/invite/route';
+import { decodeInviteToken } from '@/lib/invite-token';
 
 export const metadata: Metadata = { title: 'Accept Invitation — riogentix' };
 

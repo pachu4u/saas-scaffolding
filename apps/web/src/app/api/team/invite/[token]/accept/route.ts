@@ -1,7 +1,7 @@
 import { adminDb } from '@platform/db';
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { decodeInviteToken } from '../../route';
+import { decodeInviteToken } from '@/lib/invite-token';
 
 /**
  * POST /api/team/invite/[token]/accept
