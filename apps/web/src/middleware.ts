@@ -81,7 +81,15 @@ export default auth(function middleware(req: NextRequest) {
   const session = (req as unknown as { auth: { user?: unknown } | null }).auth;
 
   if (!isPublic && !session?.user) {
-    const signInUrl = new URL('/auth/signin', req.url);
+    // Always redirect to the root-domain sign-in page so NextAuth's internal auth
+    // cookies (CSRF, state, callback-url) are all set on saas.techhanker.com — the
+    // same origin as the OAuth callback. If they were set on a tenant subdomain
+    // (different host) the callback would never find them.
+    const rootOrigin = process.env.AUTH_URL ?? `https://${ROOT_HOST}`;
+    const signInUrl = new URL(
+      slug ? `/auth/signin?tenant=${encodeURIComponent(slug)}` : '/auth/signin',
+      rootOrigin,
+    );
     return NextResponse.redirect(signInUrl);
   }
 

@@ -4,7 +4,16 @@ import Link from 'next/link';
 
 export const metadata = { title: 'Sign in' };
 
-export default function SignInPage() {
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tenant?: string }>;
+}) {
+  // Tenant slug: prefer x-tenant-slug header (set by middleware when on a subdomain)
+  // then fall back to the ?tenant= query param we inject when redirecting from a subdomain.
+  const h = await headers();
+  const tenantSlug = h.get('x-tenant-slug') ?? (await searchParams).tenant ?? '';
+
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--bg-main)' }}>
       {/* Left panel */}
@@ -69,16 +78,12 @@ export default function SignInPage() {
           <form
             action={async () => {
               'use server';
-              const h = await headers();
-              const host = h.get('host') ?? '';
-              const slug = h.get('x-tenant-slug');
-              // If on a tenant subdomain, redirect back to that subdomain's root after login.
-              // A relative redirectTo would resolve against AUTH_URL (root domain) and lose the subdomain.
-              // Always use /auth/redirect so NextAuth never has to pass a cross-origin
-              // URL through the OAuth state (unreliable in v5 beta). The redirect page
-              // reads the tenant param and forwards to the correct subdomain.
-              const redirectTo = slug
-                ? `/auth/redirect?tenant=${encodeURIComponent(slug)}`
+              // tenantSlug is captured from the page component scope (server-action closure).
+              // This is more reliable than re-reading headers/searchParams inside the action
+              // because the action always runs on saas.techhanker.com (AUTH_URL origin),
+              // so x-tenant-slug would be empty here — we need the value from the page render.
+              const redirectTo = tenantSlug
+                ? `/auth/redirect?tenant=${encodeURIComponent(tenantSlug)}`
                 : '/auth/redirect';
               await signIn('keycloak', { redirectTo });
             }}
