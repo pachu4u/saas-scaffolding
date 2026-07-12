@@ -20,7 +20,7 @@ export default async function AuthRedirectPage() {
     select: {
       tenantUsers: {
         where: { status: 'ACTIVE' },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { joinedAt: 'asc' },
         select: { tenant: { select: { slug: true } } },
       },
     },
