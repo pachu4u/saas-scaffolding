@@ -1,17 +1,20 @@
+import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
-import { resolveTenant } from '@platform/tenant';
 import { redirect } from 'next/navigation';
 
 import { TeamMembersTable } from '@/components/team/team-members-table';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
+import { getCurrentTenant } from '@/lib/server-tenant';
 import { timeAgo } from '@/lib/time';
 
 export const metadata = { title: 'Team — Members' };
 
 export default async function TeamMembersPage() {
-  const slug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
-  const tenantCtx = await resolveTenant(slug);
+  const session = await auth();
+  if (!session) redirect('/auth/signin');
+
+  const { tenant: tenantCtx } = await getCurrentTenant(session.user.id);
   if (!tenantCtx) redirect('/');
 
   const { tenantId } = tenantCtx;

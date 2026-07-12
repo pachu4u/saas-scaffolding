@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { InnerNav } from '@/components/layout/inner-nav';
 import { Topbar } from '@/components/layout/topbar';
 import { InviteButton } from '@/components/team/invite-button';
+import { getCurrentTenant } from '@/lib/server-tenant';
 
 const teamNav = [
   { label: 'Members', href: '/team' },
@@ -14,7 +15,8 @@ export default async function TeamLayout({ children }: { children: React.ReactNo
   const session = await auth();
   if (!session) redirect('/auth/signin');
 
-  const tenantSlug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
+  const { tenant } = await getCurrentTenant(session.user.id);
+  const tenantSlug = tenant?.slug ?? 'workspace';
 
   return (
     <div>

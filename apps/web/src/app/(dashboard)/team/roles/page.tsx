@@ -1,6 +1,6 @@
+import { auth } from '@platform/auth';
 import { PLATFORM_ROLE_NAMES } from '@platform/authz';
 import { adminDb } from '@platform/db';
-import { resolveTenant } from '@platform/tenant';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
@@ -8,6 +8,7 @@ import { CreateRoleButton } from './create-role-button';
 
 import { Badge } from '@/components/ui/badge';
 import { PERMISSION_CATALOG } from '@/lib/permission-catalog';
+import { getCurrentTenant } from '@/lib/server-tenant';
 
 export const metadata = { title: 'Roles & Permissions' };
 
@@ -27,8 +28,10 @@ function getRoleColor(
 }
 
 export default async function RolesPage() {
-  const slug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
-  const tenantCtx = await resolveTenant(slug);
+  const session = await auth();
+  if (!session) redirect('/auth/signin');
+
+  const { tenant: tenantCtx } = await getCurrentTenant(session.user.id);
   if (!tenantCtx) redirect('/');
 
   const { tenantId } = tenantCtx;

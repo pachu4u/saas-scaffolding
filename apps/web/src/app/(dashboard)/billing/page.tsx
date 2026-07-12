@@ -1,11 +1,11 @@
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
-import { resolveTenant } from '@platform/tenant';
 import { redirect } from 'next/navigation';
 
 import { ManageSubscriptionButton, UpgradePlanButton } from '@/components/billing/billing-buttons';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
+import { getCurrentTenant } from '@/lib/server-tenant';
 import { formatDate } from '@/lib/time';
 
 export const metadata = { title: 'Billing' };
@@ -20,8 +20,7 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
 
   const { checkout } = await searchParams;
 
-  const slug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
-  const tenantCtx = await resolveTenant(slug);
+  const { tenant: tenantCtx } = await getCurrentTenant(session.user.id);
   if (!tenantCtx) redirect('/');
 
   const { tenantId } = tenantCtx;

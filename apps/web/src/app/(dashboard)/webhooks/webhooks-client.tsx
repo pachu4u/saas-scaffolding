@@ -188,10 +188,8 @@ export function WebhooksClient() {
     setTestingId(endpointId);
     setTestResult(null);
     try {
-      const tenantSlug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
       const res = await fetch(`/api/webhooks/${endpointId}/test`, {
         method: 'POST',
-        headers: { 'x-tenant-slug': tenantSlug },
       });
       const json = (await res.json()) as { ok?: boolean; error?: string | null };
       setTestResult({ endpointId, ok: json.ok ?? false, error: json.error ?? null });

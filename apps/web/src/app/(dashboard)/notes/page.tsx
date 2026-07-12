@@ -34,13 +34,9 @@ export default function NotesPage() {
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const tenantSlug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
-
   const fetchNotes = useCallback(async () => {
     try {
-      const res = await fetch('/api/notes', {
-        headers: { 'x-tenant-slug': tenantSlug },
-      });
+      const res = await fetch('/api/notes');
       if (res.ok) {
         const data = (await res.json()) as ApiNote[];
         setNotes(data);
@@ -52,7 +48,7 @@ export default function NotesPage() {
     } finally {
       setLoading(false);
     }
-  }, [tenantSlug]);
+  }, []);
 
   useEffect(() => {
     void fetchNotes();
@@ -65,7 +61,7 @@ export default function NotesPage() {
     try {
       const res = await fetch('/api/notes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-slug': tenantSlug },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ body: body.trim() }),
       });
 
@@ -104,7 +100,6 @@ export default function NotesPage() {
     try {
       const res = await fetch(`/api/notes?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
-        headers: { 'x-tenant-slug': tenantSlug },
       });
       if (res.ok || res.status === 204) {
         setNotes((prev) => prev.filter((n) => n.id !== id));

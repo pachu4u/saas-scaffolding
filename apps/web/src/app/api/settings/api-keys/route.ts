@@ -2,8 +2,9 @@ import crypto from 'crypto';
 
 import { auth } from '@platform/auth';
 import { adminDb, withPlatformAdmin } from '@platform/db';
-import { resolveTenant } from '@platform/tenant';
 import { type NextRequest, NextResponse } from 'next/server';
+
+import { getTenantFromRequest } from '../../../../lib/server-tenant';
 
 export const runtime = 'nodejs';
 
@@ -18,10 +19,7 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const tenantSlug = req.headers.get('x-tenant-slug');
-  if (!tenantSlug) return NextResponse.json({ error: 'No tenant context' }, { status: 400 });
-
-  const tenantCtx = await resolveTenant(tenantSlug);
+  const tenantCtx = await getTenantFromRequest(req);
   if (!tenantCtx) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
   const body = (await req.json()) as { name?: string; scopes?: string[] };
@@ -76,10 +74,7 @@ export async function DELETE(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const tenantSlug = req.headers.get('x-tenant-slug');
-  if (!tenantSlug) return NextResponse.json({ error: 'No tenant context' }, { status: 400 });
-
-  const tenantCtx = await resolveTenant(tenantSlug);
+  const tenantCtx = await getTenantFromRequest(req);
   if (!tenantCtx) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
   const id = req.nextUrl.searchParams.get('id');

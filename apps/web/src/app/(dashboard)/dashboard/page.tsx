@@ -1,11 +1,11 @@
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
-import { resolveTenant } from '@platform/tenant';
 import { redirect } from 'next/navigation';
 
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
+import { getCurrentTenant } from '@/lib/server-tenant';
 import { formatDate, timeAgo } from '@/lib/time';
 
 export const metadata = { title: 'Dashboard' };
@@ -52,26 +52,7 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session) redirect('/auth/signin');
 
-  let tenantCtx = null;
-  const envSlug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG;
-
-  if (envSlug) {
-    tenantCtx = await resolveTenant(envSlug);
-  } else {
-    const userRecord = await adminDb.user.findUnique({
-      where: { email: session.user.email },
-      include: {
-        tenantUsers: {
-          where: { status: 'ACTIVE' },
-          include: { tenant: { select: { slug: true } } },
-          take: 1,
-        },
-      },
-    });
-    const firstTenantSlug = userRecord?.tenantUsers[0]?.tenant.slug;
-    if (firstTenantSlug) tenantCtx = await resolveTenant(firstTenantSlug);
-  }
-
+  const { tenant: tenantCtx } = await getCurrentTenant(session.user.id);
   if (!tenantCtx) redirect('/');
 
   const { tenantId } = tenantCtx;

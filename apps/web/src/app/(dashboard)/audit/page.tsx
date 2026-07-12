@@ -1,12 +1,12 @@
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
-import { resolveTenant } from '@platform/tenant';
 import { redirect } from 'next/navigation';
 
 import { AuditFilters } from './audit-filters';
 
 import { Topbar } from '@/components/layout/topbar';
 import { AuditLogTable, type AuditRow } from '@/components/ui/audit-log-table';
+import { getCurrentTenant } from '@/lib/server-tenant';
 
 export const metadata = { title: 'Audit Log' };
 
@@ -36,8 +36,7 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
   const session = await auth();
   if (!session) redirect('/auth/signin');
 
-  const slug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
-  const tenantCtx = await resolveTenant(slug);
+  const { tenant: tenantCtx } = await getCurrentTenant(session.user.id);
   if (!tenantCtx) redirect('/');
 
   const { tenantId } = tenantCtx;

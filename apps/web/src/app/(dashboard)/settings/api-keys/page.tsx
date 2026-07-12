@@ -40,10 +40,7 @@ export default function ApiKeysPage() {
 
   const fetchTokens = useCallback(async () => {
     try {
-      const tenantSlug = /x-tenant-slug=([^;]+)/.exec(document.cookie)?.[1] ?? 'acme';
-      const res = await fetch('/api/settings/api-keys-list', {
-        headers: { 'x-tenant-slug': tenantSlug },
-      });
+      const res = await fetch('/api/settings/api-keys-list');
       if (res.ok) {
         const data = (await res.json()) as ScimToken[];
         setTokens(data);
@@ -83,7 +80,7 @@ export default function ApiKeysPage() {
     try {
       const res = await fetch('/api/settings/api-keys', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-slug': getTenantSlug() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: tokenName.trim(), scopes: [...selectedScopes] }),
       });
       const json = (await res.json()) as { token?: string; error?: string } & ScimToken;
@@ -117,7 +114,6 @@ export default function ApiKeysPage() {
     try {
       const res = await fetch(`/api/settings/api-keys?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
-        headers: { 'x-tenant-slug': getTenantSlug() },
       });
       if (res.ok) {
         setTokens((prev) => prev.filter((t) => t.id !== id));
@@ -127,10 +123,6 @@ export default function ApiKeysPage() {
     } finally {
       setRevoking(null);
     }
-  }
-
-  function getTenantSlug() {
-    return process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
   }
 
   function fmtDate(iso: string) {

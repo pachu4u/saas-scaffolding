@@ -60,7 +60,10 @@ export function withAuthz<RouteCtx extends object = object>(
       return NextResponse.json({ error: 'User not found' }, { status: 401 });
     }
 
-    const tenantSlug = req.headers.get('x-tenant-slug');
+    // Prefer the subdomain-derived header; fall back to the configured
+    // single-tenant default only when no subdomain is present (local dev).
+    const tenantSlug =
+      req.headers.get('x-tenant-slug') ?? process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG;
 
     if (!tenantSlug) {
       return NextResponse.json({ error: 'No tenant context' }, { status: 400 });

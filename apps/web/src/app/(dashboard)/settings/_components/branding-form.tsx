@@ -70,10 +70,8 @@ export function BrandingForm({
     setIsSendingTest(true);
     setTestEmailMsg(null);
     try {
-      const tenantSlug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
       const res = await fetch('/api/notifications/test', {
         method: 'POST',
-        headers: { 'x-tenant-slug': tenantSlug },
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       setTestEmailMsg(

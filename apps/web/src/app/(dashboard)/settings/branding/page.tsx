@@ -1,14 +1,18 @@
+import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
-import { resolveTenant } from '@platform/tenant';
 import { redirect } from 'next/navigation';
 
 import { BrandingForm } from '../_components/branding-form';
 
+import { getCurrentTenant } from '@/lib/server-tenant';
+
 export const metadata = { title: 'Branding — Settings' };
 
 export default async function BrandingPage() {
-  const slug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
-  const tenantCtx = await resolveTenant(slug);
+  const session = await auth();
+  if (!session) redirect('/auth/signin');
+
+  const { tenant: tenantCtx } = await getCurrentTenant(session.user.id);
   if (!tenantCtx) redirect('/');
 
   const tenant = await adminDb.tenant.findUnique({

@@ -12,10 +12,7 @@ export function ComplianceActions() {
     setIsExporting(true);
     setError(null);
     try {
-      const tenantSlug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
-      const res = await fetch('/api/settings/compliance/export', {
-        headers: { 'x-tenant-slug': tenantSlug },
-      });
+      const res = await fetch('/api/settings/compliance/export');
       if (!res.ok) {
         const json = (await res.json().catch(() => ({}))) as { error?: string };
         setError(json.error ?? 'Export failed');
@@ -43,10 +40,8 @@ export function ComplianceActions() {
     setIsRequesting(true);
     setError(null);
     try {
-      const tenantSlug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
       const res = await fetch('/api/settings/compliance/delete-request', {
         method: 'POST',
-        headers: { 'x-tenant-slug': tenantSlug },
       });
       if (res.ok) {
         setDeleteRequested(true);

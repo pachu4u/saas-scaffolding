@@ -1,7 +1,8 @@
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
-import { resolveTenant } from '@platform/tenant';
 import { type NextRequest, NextResponse } from 'next/server';
+
+import { getTenantFromRequest } from '../../../../../lib/server-tenant';
 
 export const runtime = 'nodejs';
 
@@ -19,11 +20,7 @@ export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const tenantSlug =
-    req.headers.get('x-tenant-slug') ?? process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG;
-  if (!tenantSlug) return NextResponse.json({ error: 'No tenant context' }, { status: 400 });
-
-  const tenantCtx = await resolveTenant(tenantSlug);
+  const tenantCtx = await getTenantFromRequest(req);
   if (!tenantCtx) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
   const { tenantId } = tenantCtx;
