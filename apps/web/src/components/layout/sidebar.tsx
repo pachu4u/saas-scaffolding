@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+import { useSidebar } from './sidebar-context';
 import { WorkspaceSwitcher } from './workspace-switcher';
 
 // ─── Inline SVG icons ────────────────────────────────────────────────────────
@@ -207,6 +208,19 @@ const Icon = {
       <line x1="10" y1="14" x2="21" y2="3" />
     </svg>
   ),
+  layers: (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      className="h-4 w-4"
+    >
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
+    </svg>
+  ),
   logout: (
     <svg
       viewBox="0 0 24 24"
@@ -277,7 +291,10 @@ const adminSections = [
   },
   {
     label: 'ANALYTICS',
-    items: [{ label: 'Revenue', href: '/admin/revenue', icon: Icon.trendingUp }],
+    items: [
+      { label: 'Revenue', href: '/admin/revenue', icon: Icon.trendingUp },
+      { label: 'Plans', href: '/admin/plans', icon: Icon.layers },
+    ],
   },
   {
     label: 'SYSTEM',
@@ -302,6 +319,7 @@ interface SidebarProps {
   tenantName?: string;
   tenantSlug?: string;
   isAdmin?: boolean;
+  userName?: string;
   userEmail?: string;
 }
 
@@ -380,8 +398,15 @@ function SectionGroup({
 
 // ─── Main Sidebar ─────────────────────────────────────────────────────────────
 
-export function Sidebar({ tenantName = 'Workspace', tenantSlug, isAdmin }: SidebarProps) {
+export function Sidebar({
+  tenantName = 'Workspace',
+  tenantSlug,
+  isAdmin,
+  userName,
+  userEmail,
+}: SidebarProps) {
   const pathname = usePathname();
+  const { isOpen, close } = useSidebar();
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard';
@@ -394,79 +419,111 @@ export function Sidebar({ tenantName = 'Workspace', tenantSlug, isAdmin }: Sideb
   const sections: NavSection[] = isAdmin ? adminSections : tenantSections;
 
   return (
-    <aside
-      className="sidebar-scroll fixed bottom-0 left-0 top-0 z-40 flex flex-col overflow-y-auto"
-      style={{
-        width: 'var(--sidebar-width)',
-        background: 'var(--sidebar-bg)',
-        borderRight: '1px solid var(--sidebar-border)',
-      }}
-    >
-      {/* ── Logo ───────────────────────────────────────────────────────────── */}
-      <div
-        className="flex-shrink-0 px-4 py-5"
-        style={{ borderBottom: '1px solid var(--sidebar-border)' }}
+    <>
+      {/* Mobile backdrop — closes the drawer on tap outside */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30 lg:hidden"
+          onClick={close}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={`sidebar-scroll fixed bottom-0 left-0 top-0 z-50 flex flex-col overflow-y-auto transition-transform duration-200 lg:translate-x-0 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+        style={{
+          width: 'var(--sidebar-width)',
+          background: 'var(--sidebar-bg)',
+          borderRight: '1px solid var(--sidebar-border)',
+        }}
       >
-        <div className="flex items-center gap-2.5">
-          <div
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
-            style={{ background: 'var(--brand-gradient)' }}
-          >
-            {isAdmin ? 'P' : 'R'}
-          </div>
-          <div>
+        {/* ── Logo ───────────────────────────────────────────────────────────── */}
+        <div
+          className="flex-shrink-0 px-4 py-5"
+          style={{ borderBottom: '1px solid var(--sidebar-border)' }}
+        >
+          <div className="flex items-center gap-2.5">
             <div
-              className="text-sm font-bold leading-tight"
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
+              style={{ background: 'var(--brand-gradient)' }}
+            >
+              {isAdmin ? 'P' : 'R'}
+            </div>
+            <div>
+              <div
+                className="text-sm font-bold leading-tight"
+                style={{ color: 'var(--sidebar-text-active)' }}
+              >
+                {isAdmin ? 'Platform Admin' : 'riogentix'}
+              </div>
+              {!isAdmin && (
+                <div className="text-[11px] leading-tight" style={{ color: 'var(--sidebar-text)' }}>
+                  {tenantName}
+                </div>
+              )}
+            </div>
+          </div>
+          {!isAdmin && (
+            <div className="mt-3">
+              <WorkspaceSwitcher
+                currentName={tenantName}
+                {...(tenantSlug ? { currentSlug: tenantSlug } : {})}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* ── Nav ────────────────────────────────────────────────────────────── */}
+        <nav className="flex-1 overflow-y-auto px-2 py-4" onClick={close}>
+          {sections.map((section) => (
+            <SectionGroup key={section.label} section={section} isActive={isActive} />
+          ))}
+        </nav>
+
+        {/* ── Footer ─────────────────────────────────────────────────────────── */}
+        <div
+          className="flex-shrink-0 px-2 py-3"
+          style={{ borderTop: '1px solid var(--sidebar-border)' }}
+        >
+          {/* User info */}
+          <div
+            className="mb-2 rounded-lg px-2 py-2"
+            style={{ background: 'var(--sidebar-item-hover)' }}
+          >
+            <div
+              className="max-w-[200px] truncate text-[11px] font-semibold"
               style={{ color: 'var(--sidebar-text-active)' }}
             >
-              {isAdmin ? 'Platform Admin' : 'riogentix'}
+              {userName ?? userEmail}
             </div>
-            {!isAdmin && (
-              <div className="text-[11px] leading-tight" style={{ color: 'var(--sidebar-text)' }}>
-                {tenantName}
+            {userEmail && (
+              <div
+                className="max-w-[200px] truncate text-[9px]"
+                style={{ color: 'var(--sidebar-text)' }}
+              >
+                {userEmail}
               </div>
             )}
           </div>
+          <a
+            href="/api/auth/keycloak-logout"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-all"
+            style={{ color: 'var(--sidebar-text)' }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-item-hover)';
+              (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.8)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = '';
+              (e.currentTarget as HTMLElement).style.color = 'var(--sidebar-text)';
+            }}
+          >
+            <span style={{ color: 'var(--sidebar-text)', flexShrink: 0 }}>{Icon.logout}</span>
+            <span>Sign out</span>
+          </a>
         </div>
-        {!isAdmin && (
-          <div className="mt-3">
-            <WorkspaceSwitcher
-              currentName={tenantName}
-              {...(tenantSlug ? { currentSlug: tenantSlug } : {})}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* ── Nav ────────────────────────────────────────────────────────────── */}
-      <nav className="flex-1 overflow-y-auto px-2 py-4">
-        {sections.map((section) => (
-          <SectionGroup key={section.label} section={section} isActive={isActive} />
-        ))}
-      </nav>
-
-      {/* ── Footer ─────────────────────────────────────────────────────────── */}
-      <div
-        className="flex-shrink-0 px-2 py-3"
-        style={{ borderTop: '1px solid var(--sidebar-border)' }}
-      >
-        <a
-          href="/api/auth/keycloak-logout"
-          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-all"
-          style={{ color: 'var(--sidebar-text)' }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-item-hover)';
-            (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.8)';
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.background = '';
-            (e.currentTarget as HTMLElement).style.color = 'var(--sidebar-text)';
-          }}
-        >
-          <span style={{ color: 'var(--sidebar-text)', flexShrink: 0 }}>{Icon.logout}</span>
-          <span>Sign out</span>
-        </a>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }

@@ -1,5 +1,6 @@
-import type { TenantContext } from './context';
 import { adminDb, redis } from '@platform/db';
+
+import type { TenantContext } from './context';
 
 const CACHE_TTL_SECONDS = 60;
 const RESERVED_SUBDOMAINS = new Set([

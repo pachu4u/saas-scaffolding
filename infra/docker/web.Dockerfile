@@ -4,6 +4,8 @@ ARG NODE_VERSION=20
 # ─── Stage 1: deps ───────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-alpine AS deps
 RUN corepack enable && corepack prepare pnpm@9.6.0 --activate
+# Install OpenSSL 3.x which is compatible with Prisma query engine on Alpine 3.23
+RUN apk add --no-cache openssl
 WORKDIR /app
 
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
@@ -30,16 +32,27 @@ ARG GIT_SHA=unknown
 ENV GIT_SHA=${GIT_SHA}
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# next build statically collects route page data, which imports @platform/config —
+# its zod schema validates process.env eagerly at import time. These placeholders
+# only need to satisfy that schema; docker-compose's env_file/environment override
+# them at container runtime (see the runner stage's .env removal step below).
+ENV NEXT_PUBLIC_APP_URL=https://app.lvh.me
+ENV DATABASE_URL=postgresql://app:app@localhost:5432/saas_platform
+ENV KEYCLOAK_ISSUER=https://auth.lvh.me/realms/saas-platform
+ENV KEYCLOAK_CLIENT_ID=web
+ENV KEYCLOAK_CLIENT_SECRET=build-time-placeholder
+ENV AUTH_SECRET=build-time-placeholder-32-characters-min
+ENV AUTH_URL=https://app.lvh.me
+ENV REDIS_URL=redis://localhost:6379
+ENV PLATFORM_INTERNAL_SECRET=build-time-placeholder
+
 COPY tsconfig.base.json ./
 COPY apps/web ./apps/web
 COPY packages ./packages
 
-# Generate Prisma client — remove any stale cached engines first so binaryTargets
-# in schema.prisma (linux-musl-openssl-3.0.x) are honoured on Alpine.
-# Remove the stale linux-musl (OpenSSL 1.1) engine from installed node_modules.
-# Alpine 3.17+ uses OpenSSL 3.0 → prisma generate will download
-# libquery_engine-linux-musl-openssl-3.0.x which is what the runner needs.
-RUN find /app/node_modules -name "libquery_engine-linux-musl.so.node" -delete 2>/dev/null || true
+# Generate Prisma client before building packages that depend on it
+# Prisma schema is in packages/db/prisma/schema.prisma
+# We need to run generate in the packages/db directory so it can find the schema
 RUN pnpm --filter @platform/db db:generate
 
 # Build packages first (dependency order)
@@ -74,7 +87,8 @@ ENV HOSTNAME=0.0.0.0
 
 # openssl1.1-compat provides libssl.so.1.1 as a fallback for any cached Prisma
 # engine that was compiled against OpenSSL 1.1 (until the pnpm cache refreshes).
-RUN apk add --no-cache openssl openssl1.1-compat ca-certificates 2>/dev/null || apk add --no-cache openssl ca-certificates
+# Alpine 3.23 uses OpenSSL 3.x; the runner stage needs openssl and ca-certificates
+RUN apk add --no-cache openssl ca-certificates
 
 # Trust the mkcert dev CA so Node.js undici (fetch) can reach https://auth.lvh.me.
 # NODE_EXTRA_CA_CERTS only works for the legacy https module; undici reads from

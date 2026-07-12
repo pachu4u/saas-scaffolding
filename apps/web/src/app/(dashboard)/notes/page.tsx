@@ -20,10 +20,10 @@ function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
   if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return `${String(m)}m ago`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  if (h < 24) return `${String(h)}h ago`;
+  return `${String(Math.floor(h / 24))}d ago`;
 }
 
 export default function NotesPage() {
@@ -33,8 +33,6 @@ export default function NotesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  // quota info from headers
-  const [quota, setQuota] = useState<{ used: number; max: number | null } | null>(null);
 
   const tenantSlug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
 
@@ -126,33 +124,6 @@ export default function NotesPage() {
       <Topbar title="Notes" subtitle="Shared workspace notes — permission and quota enforced" />
 
       <main className="mx-auto max-w-3xl space-y-5 p-6">
-        {/* Quota info */}
-        {quota && quota.max !== null && (
-          <div
-            className="flex items-center justify-between rounded-xl border px-4 py-3"
-            style={{ background: 'var(--bg-white)', borderColor: 'var(--border-light)' }}
-          >
-            <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-              Notes used: <strong>{quota.used}</strong> / {quota.max}
-            </span>
-            <div
-              className="h-1.5 w-40 overflow-hidden rounded-full"
-              style={{ background: 'var(--border-light)' }}
-            >
-              <div
-                className="h-full rounded-full transition-all"
-                style={{
-                  width: `${String(Math.min(Math.round((quota.used / quota.max) * 100), 100))}%`,
-                  background:
-                    quota.used / quota.max > 0.85
-                      ? 'var(--status-warning)'
-                      : 'var(--brand-primary)',
-                }}
-              />
-            </div>
-          </div>
-        )}
-
         {/* Compose */}
         <div
           className="rounded-xl border p-5"
@@ -171,7 +142,12 @@ export default function NotesPage() {
           {error && (
             <div className="mb-3 rounded-lg border border-red-100 bg-red-50 px-4 py-2 text-sm text-red-700">
               {error}
-              <button onClick={() => setError(null)} className="ml-2 underline">
+              <button
+                onClick={() => {
+                  setError(null);
+                }}
+                className="ml-2 underline"
+              >
                 Dismiss
               </button>
             </div>
@@ -179,7 +155,9 @@ export default function NotesPage() {
           <textarea
             rows={4}
             value={body}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={(e) => {
+              setBody(e.target.value);
+            }}
             placeholder="Write a note for your team…"
             className="w-full resize-none rounded-xl border px-3 py-2.5 text-sm outline-none"
             style={{
@@ -193,7 +171,7 @@ export default function NotesPage() {
           />
           <div className="mt-3 flex items-center justify-between">
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              {body.length > 0 && `${body.length} chars · `}⌘+Enter to submit
+              {body.length > 0 && `${String(body.length)} chars · `}⌘+Enter to submit
             </span>
             <button
               onClick={() => void createNote()}

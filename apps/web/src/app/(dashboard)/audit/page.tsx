@@ -3,9 +3,10 @@ import { adminDb } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
 import { redirect } from 'next/navigation';
 
+import { AuditFilters } from './audit-filters';
+
 import { Topbar } from '@/components/layout/topbar';
 import { AuditLogTable, type AuditRow } from '@/components/ui/audit-log-table';
-import { AuditFilters } from './audit-filters';
 
 export const metadata = { title: 'Audit Log' };
 
@@ -100,13 +101,13 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
     category: getCategory(log.action),
   }));
 
-  const hasFilters = !!(
-    filters.action ||
-    filters.actor ||
-    filters.resource ||
-    filters.from ||
-    filters.to
-  );
+  const hasFilters = [
+    filters.action,
+    filters.actor,
+    filters.resource,
+    filters.from,
+    filters.to,
+  ].some(Boolean);
 
   return (
     <div>
@@ -140,8 +141,8 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
         <div className="flex items-center justify-between">
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             {hasFilters
-              ? `${rows.length} result${rows.length !== 1 ? 's' : ''} (filtered)`
-              : `Showing last ${rows.length} events`}
+              ? `${String(rows.length)} result${rows.length !== 1 ? 's' : ''} (filtered)`
+              : `Showing last ${String(rows.length)} events`}
           </p>
           {hasFilters && (
             <a

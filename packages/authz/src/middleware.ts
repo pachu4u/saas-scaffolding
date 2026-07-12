@@ -1,8 +1,7 @@
-import { type NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
+import { type NextRequest, NextResponse } from 'next/server';
 
 import { can, hasEntitlement, type AuthzContext } from './engine';
 import type { PermissionCode } from './permissions';
@@ -40,7 +39,7 @@ export function withAuthz(opts: AuthzOptions, handler: RouteHandler) {
     }
 
     const tenantId = tenantCtx.tenantId;
-    const plan = tenantCtx.plan ?? 'free';
+    const plan = tenantCtx.plan;
 
     const session = await auth();
     if (!session) {
@@ -92,7 +91,12 @@ export function withAuthz(opts: AuthzOptions, handler: RouteHandler) {
   };
 }
 
-/** ABAC policy: resource must belong to the same tenant */
+/**
+ * ABAC policy: resource must belong to the same tenant.
+ * Async to match the shape other ABAC policies need (e.g. ones backed by a
+ * DB lookup), even though this particular check has no real await.
+ */
+// eslint-disable-next-line @typescript-eslint/require-await
 export async function sameTenantPolicy(
   ctx: AuthzContext,
   resource: { tenantId: string },

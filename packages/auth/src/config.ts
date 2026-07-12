@@ -1,8 +1,7 @@
-import type { NextAuthConfig } from 'next-auth';
-import KeycloakProvider from 'next-auth/providers/keycloak';
-
 import { env } from '@platform/config';
 import { adminDb } from '@platform/db';
+import type { NextAuthConfig } from 'next-auth';
+import KeycloakProvider from 'next-auth/providers/keycloak';
 
 export const authConfig: NextAuthConfig = {
   debug: true,
@@ -27,13 +26,16 @@ export const authConfig: NextAuthConfig = {
   },
 
   callbacks: {
+    // NextAuth's callback type requires a Promise return even though this
+    // implementation has no real await.
+    // eslint-disable-next-line @typescript-eslint/require-await
     async jwt({ token, account, profile }) {
       // On first sign-in, account and profile are populated
-      if (account && profile) {
-        token.sub = profile.sub as string;
-        token.email = profile.email as string;
+      if (account && profile?.sub && profile.email) {
+        token.sub = profile.sub;
+        token.email = profile.email;
         // Keycloak groups claim (mapped to tenant slugs)
-        token.groups = ((profile as Record<string, unknown>)['groups'] as string[]) ?? [];
+        token.groups = (profile as Record<string, unknown>).groups ?? [];
         token.accessToken = account.access_token;
         token.idToken = account.id_token;
         token.refreshToken = account.refresh_token;
@@ -42,12 +44,13 @@ export const authConfig: NextAuthConfig = {
       return token;
     },
 
+    // eslint-disable-next-line @typescript-eslint/require-await
     async session({ session, token }) {
       if (token.sub) {
-        session.user.id = token.sub as string;
+        session.user.id = token.sub;
       }
       if (token.groups) {
-        (session as unknown as Record<string, unknown>)['groups'] = token.groups;
+        (session as unknown as Record<string, unknown>).groups = token.groups;
       }
       // Expose id_token so the federated-logout route can pass it to Keycloak
       if (token.idToken) {
@@ -58,18 +61,48 @@ export const authConfig: NextAuthConfig = {
   },
 
   events: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user, profile }) {
       if (!profile?.sub || !user.email) return;
       try {
-        await adminDb.user.upsert({
-          where: { externalId: profile.sub as string },
+        const dbUser = await adminDb.user.upsert({
+          where: { externalId: profile.sub },
           update: { email: user.email, updatedAt: new Date() },
           create: {
-            externalId: profile.sub as string,
+            externalId: profile.sub,
             email: user.email,
             status: 'ACTIVE',
           },
         });
+
+        // Keycloak groups claim maps to tenant slugs — JIT-provision tenant
+        // membership on first login so a fresh SSO user actually lands in a
+        // workspace instead of bouncing between "/" and "/dashboard" forever.
+        const groups = ((profile as Record<string, unknown>).groups as string[] | undefined) ?? [];
+        for (const slug of groups) {
+          const tenant = await adminDb.tenant.findUnique({ where: { slug } });
+          if (!tenant) continue;
+
+          await adminDb.tenantUser.upsert({
+            where: { tenantId_userId: { tenantId: tenant.id, userId: dbUser.id } },
+            create: { tenantId: tenant.id, userId: dbUser.id, status: 'ACTIVE' },
+            update: { status: 'ACTIVE' },
+          });
+
+          const defaultRole = await adminDb.role.findFirst({ where: { name: 'tenant_user' } });
+          if (defaultRole) {
+            await adminDb.roleBinding.upsert({
+              where: {
+                tenantId_userId_roleId: {
+                  tenantId: tenant.id,
+                  userId: dbUser.id,
+                  roleId: defaultRole.id,
+                },
+              },
+              create: { tenantId: tenant.id, userId: dbUser.id, roleId: defaultRole.id },
+              update: {},
+            });
+          }
+        }
       } catch (err) {
         console.error('[auth] signIn event: failed to upsert user', err);
       }

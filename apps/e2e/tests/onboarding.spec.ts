@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers/auth';
+import { signIn, TEST_USER_EMAIL, TEST_USER_PASSWORD } from './helpers/auth';
 
 /**
  * Onboarding wizard E2E tests.
@@ -14,7 +14,7 @@ import { signIn } from './helpers/auth';
 
 test.describe('Onboarding wizard', () => {
   test.beforeEach(async ({ page }) => {
-    await signIn(page);
+    await signIn(page, TEST_USER_EMAIL, TEST_USER_PASSWORD);
     await page.goto('/onboarding');
     await page.waitForLoadState('networkidle');
   });
@@ -22,7 +22,7 @@ test.describe('Onboarding wizard', () => {
   test('renders step progress indicators', async ({ page }) => {
     // All 5 step labels should be visible
     for (const label of ['Workspace', 'Invite team', 'Branding', 'Billing', 'Done!']) {
-      await expect(page.getByText(label)).toBeVisible();
+      await expect(page.getByText(label).first()).toBeVisible();
     }
   });
 
@@ -35,22 +35,22 @@ test.describe('Onboarding wizard', () => {
   test('step 1 – workspace: validates slug format', async ({ page }) => {
     await page.getByPlaceholder(/acme corporation/i).fill('Test Co');
     // Clear the auto-derived slug and type an invalid one
-    await page.getByPlaceholder('acme').clear();
-    await page.getByPlaceholder('acme').fill('INVALID SLUG!');
+    await page.getByPlaceholder('acme', { exact: true }).clear();
+    await page.getByPlaceholder('acme', { exact: true }).fill('INVALID SLUG!');
     await page.getByRole('button', { name: /continue/i }).click();
     await expect(page.getByText(/slug must be/i)).toBeVisible();
   });
 
   test('step 1 – workspace: auto-derives slug from name', async ({ page }) => {
     await page.getByPlaceholder(/acme corporation/i).fill('My Test Company');
-    const slugInput = page.getByPlaceholder('acme');
+    const slugInput = page.getByPlaceholder('acme', { exact: true });
     await expect(slugInput).toHaveValue('my-test-company');
   });
 
   test('step 1 → step 2: advances on valid input', async ({ page }) => {
     const uniqueSlug = `e2e-test-${Date.now()}`;
     await page.getByPlaceholder(/acme corporation/i).fill('E2E Test Workspace');
-    await page.getByPlaceholder('acme').fill(uniqueSlug);
+    await page.getByPlaceholder('acme', { exact: true }).fill(uniqueSlug);
 
     // Mock the API call to avoid actually creating a tenant
     await page.route('/api/settings/general', (route) => route.fulfill({ json: { ok: true } }));
@@ -65,7 +65,7 @@ test.describe('Onboarding wizard', () => {
 
     const uniqueSlug = `e2e-skip-${Date.now()}`;
     await page.getByPlaceholder(/acme corporation/i).fill('Skip Test');
-    await page.getByPlaceholder('acme').fill(uniqueSlug);
+    await page.getByPlaceholder('acme', { exact: true }).fill(uniqueSlug);
     await page.getByRole('button', { name: /continue/i }).click();
 
     // Now on invite step
@@ -84,7 +84,7 @@ test.describe('Onboarding wizard', () => {
 
     const uniqueSlug = `e2e-invite-${Date.now()}`;
     await page.getByPlaceholder(/acme corporation/i).fill('Invite Test');
-    await page.getByPlaceholder('acme').fill(uniqueSlug);
+    await page.getByPlaceholder('acme', { exact: true }).fill(uniqueSlug);
     await page.getByRole('button', { name: /continue/i }).click();
 
     await page.getByPlaceholder(/alice@acme/i).fill('teammate@example.com');
@@ -102,15 +102,20 @@ test.describe('Onboarding wizard', () => {
 
     const uniqueSlug = `e2e-brand-${Date.now()}`;
     await page.getByPlaceholder(/acme corporation/i).fill('Brand Test');
-    await page.getByPlaceholder('acme').fill(uniqueSlug);
+    await page.getByPlaceholder('acme', { exact: true }).fill(uniqueSlug);
     await page.getByRole('button', { name: /continue/i }).click();
     await page.getByRole('button', { name: /skip/i }).click();
 
     // Branding step is visible
     await expect(page.getByText(/brand color/i)).toBeVisible();
 
-    // Click a color swatch
-    const swatches = page.locator('button[style*="background: #"]');
+    // Click a color swatch. The swatch buttons render with no text, just an
+    // inline background-color style (browsers serialize hex as rgb(), so a
+    // "background: #" substring match never hits) — select them by their
+    // structural position right after the "Brand color" label instead.
+    const swatches = page
+      .getByText('Brand color', { exact: true })
+      .locator('xpath=following-sibling::div[1]/button');
     await swatches.first().click();
 
     // Preview should be visible
@@ -124,7 +129,7 @@ test.describe('Onboarding wizard', () => {
 
     const uniqueSlug = `e2e-free-${Date.now()}`;
     await page.getByPlaceholder(/acme corporation/i).fill('Free Plan Test');
-    await page.getByPlaceholder('acme').fill(uniqueSlug);
+    await page.getByPlaceholder('acme', { exact: true }).fill(uniqueSlug);
     await page.getByRole('button', { name: /continue/i }).click();
     await page.getByRole('button', { name: /skip/i }).click();
     await page.getByRole('button', { name: /continue/i }).click();
@@ -152,7 +157,7 @@ test.describe('Onboarding wizard', () => {
 
     const uniqueSlug = `e2e-pro-${Date.now()}`;
     await page.getByPlaceholder(/acme corporation/i).fill('Pro Plan Test');
-    await page.getByPlaceholder('acme').fill(uniqueSlug);
+    await page.getByPlaceholder('acme', { exact: true }).fill(uniqueSlug);
     await page.getByRole('button', { name: /continue/i }).click();
     await page.getByRole('button', { name: /skip/i }).click();
     await page.getByRole('button', { name: /continue/i }).click();
@@ -169,7 +174,7 @@ test.describe('Onboarding wizard', () => {
 
     const uniqueSlug = `e2e-done-${Date.now()}`;
     await page.getByPlaceholder(/acme corporation/i).fill('Done Test');
-    await page.getByPlaceholder('acme').fill(uniqueSlug);
+    await page.getByPlaceholder('acme', { exact: true }).fill(uniqueSlug);
     await page.getByRole('button', { name: /continue/i }).click();
     await page.getByRole('button', { name: /skip/i }).click();
     await page.getByRole('button', { name: /continue/i }).click();
@@ -190,7 +195,7 @@ test.describe('Onboarding wizard', () => {
 
     const uniqueSlug = `e2e-back-${Date.now()}`;
     await page.getByPlaceholder(/acme corporation/i).fill('Back Test');
-    await page.getByPlaceholder('acme').fill(uniqueSlug);
+    await page.getByPlaceholder('acme', { exact: true }).fill(uniqueSlug);
     await page.getByRole('button', { name: /continue/i }).click();
 
     // Now on step 2 — go back

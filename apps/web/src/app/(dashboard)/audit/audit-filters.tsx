@@ -76,7 +76,9 @@ export function AuditFilters({
           <input
             type="text"
             value={action}
-            onChange={(e) => setAction(e.target.value)}
+            onChange={(e) => {
+              setAction(e.target.value);
+            }}
             onKeyDown={handleKeyDown}
             placeholder="e.g. member.invited"
             className="w-full rounded-lg border px-2.5 py-1.5 text-xs outline-none"
@@ -93,7 +95,9 @@ export function AuditFilters({
           <input
             type="text"
             value={actor}
-            onChange={(e) => setActor(e.target.value)}
+            onChange={(e) => {
+              setActor(e.target.value);
+            }}
             onKeyDown={handleKeyDown}
             placeholder="user@example.com"
             className="w-full rounded-lg border px-2.5 py-1.5 text-xs outline-none"
@@ -110,7 +114,9 @@ export function AuditFilters({
           <input
             type="text"
             value={resource}
-            onChange={(e) => setResource(e.target.value)}
+            onChange={(e) => {
+              setResource(e.target.value);
+            }}
             onKeyDown={handleKeyDown}
             placeholder="e.g. user, Tenant"
             className="w-full rounded-lg border px-2.5 py-1.5 text-xs outline-none"
@@ -127,7 +133,9 @@ export function AuditFilters({
           <input
             type="date"
             value={from}
-            onChange={(e) => setFrom(e.target.value)}
+            onChange={(e) => {
+              setFrom(e.target.value);
+            }}
             className="w-full rounded-lg border px-2.5 py-1.5 text-xs outline-none"
             style={inputStyle}
           />
@@ -142,7 +150,9 @@ export function AuditFilters({
           <input
             type="date"
             value={to}
-            onChange={(e) => setTo(e.target.value)}
+            onChange={(e) => {
+              setTo(e.target.value);
+            }}
             className="w-full rounded-lg border px-2.5 py-1.5 text-xs outline-none"
             style={inputStyle}
           />

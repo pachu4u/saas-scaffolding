@@ -9,6 +9,7 @@ const settingsNav = [
   { label: 'Branding', href: '/settings/branding' },
   { label: 'Security & SSO', href: '/settings/security' },
   { label: 'API Keys', href: '/settings/api-keys' },
+  { label: 'Compliance', href: '/settings/compliance' },
 ];
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {

@@ -2,7 +2,7 @@ name: saas-platform
 
 networks:
   platform:
-    external: true
+    name: platform
 
 volumes:
   grafana-data:
@@ -58,6 +58,9 @@ services:
     image: grafana/tempo:2.5.0
     container_name: tempo
     restart: unless-stopped
+    # Named volumes are created root-owned; the image's default user (10001)
+    # can't mkdir under /tmp/tempo until ownership is fixed, so run as root.
+    user: '0:0'
     networks:
       - platform
     command: -config.file=/etc/tempo-config.yml

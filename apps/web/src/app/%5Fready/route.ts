@@ -10,18 +10,18 @@ export async function GET(_req: NextRequest) {
   try {
     const { db } = await import('@platform/db');
     await db.$queryRaw`SELECT 1`;
-    checks['db'] = 'ok';
+    checks.db = 'ok';
   } catch {
-    checks['db'] = 'fail';
+    checks.db = 'fail';
   }
 
   // Redis check
   try {
     const { redis } = await import('@platform/db');
     await redis.ping();
-    checks['redis'] = 'ok';
+    checks.redis = 'ok';
   } catch {
-    checks['redis'] = 'fail';
+    checks.redis = 'fail';
   }
 
   const healthy = Object.values(checks).every((v) => v === 'ok');

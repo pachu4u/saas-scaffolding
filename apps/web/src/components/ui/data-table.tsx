@@ -44,12 +44,25 @@ export interface DataTableProps<T extends Record<string, unknown>> {
   rowLabel?: string;
   /** Optional empty state message */
   emptyMessage?: string;
+  /** Richer empty state (icon/title/CTA) — takes precedence over emptyMessage */
+  emptyState?: React.ReactNode;
   /** Extra content to render in the toolbar right area (e.g. a "New" button) */
   toolbarRight?: React.ReactNode;
   /** Row click handler */
   onRowClick?: (row: T) => void;
   /** Optional row key extractor */
   rowKey?: (row: T) => string;
+}
+
+// Safely stringify a cell value for search/sort comparison. Plain `String()`
+// on an object/array falls back to Object.prototype.toString ("[object
+// Object]"), which would silently corrupt search/sort for any non-primitive
+// column value — return '' for those instead so they sort/filter as empty.
+function toComparable(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  return '';
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -87,6 +100,7 @@ export function DataTable<T extends Record<string, unknown>>({
   searchKeys,
   rowLabel = 'row',
   emptyMessage = 'No results found.',
+  emptyState,
   toolbarRight,
   onRowClick,
   rowKey,
@@ -123,9 +137,7 @@ export function DataTable<T extends Record<string, unknown>>({
   const handleFilter = useCallback((key: string, value: string) => {
     setActiveFilters((prev) => {
       if (!value) {
-        const next = { ...prev };
-        delete next[key];
-        return next;
+        return Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key));
       }
       return { ...prev, [key]: value };
     });
@@ -153,11 +165,7 @@ export function DataTable<T extends Record<string, unknown>>({
       rows = rows.filter((row) =>
         effectiveSearchKeys.some((k) => {
           const v = row[k];
-          return typeof v === 'string'
-            ? v.toLowerCase().includes(q)
-            : String(v ?? '')
-                .toLowerCase()
-                .includes(q);
+          return toComparable(v).toLowerCase().includes(q);
         }),
       );
     }
@@ -167,8 +175,8 @@ export function DataTable<T extends Record<string, unknown>>({
       rows = [...rows].sort((a, b) => {
         const av = a[sortKey];
         const bv = b[sortKey];
-        const aStr = typeof av === 'string' ? av.toLowerCase() : String(av ?? '');
-        const bStr = typeof bv === 'string' ? bv.toLowerCase() : String(bv ?? '');
+        const aStr = toComparable(av).toLowerCase();
+        const bStr = toComparable(bv).toLowerCase();
         const cmp = aStr < bStr ? -1 : aStr > bStr ? 1 : 0;
         return sortDir === 'asc' ? cmp : -cmp;
       });
@@ -212,7 +220,9 @@ export function DataTable<T extends Record<string, unknown>>({
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+            }}
             placeholder={searchPlaceholder}
             className="h-8 w-full rounded-lg border py-0 pl-8 pr-3 text-xs outline-none transition-colors focus:ring-2"
             style={{
@@ -223,7 +233,9 @@ export function DataTable<T extends Record<string, unknown>>({
           />
           {search && (
             <button
-              onClick={() => setSearch('')}
+              onClick={() => {
+                setSearch('');
+              }}
               className="absolute right-2.5 top-1/2 -translate-y-1/2"
               style={{ color: 'var(--text-muted)' }}
             >
@@ -243,7 +255,9 @@ export function DataTable<T extends Record<string, unknown>>({
           <select
             key={f.key}
             value={activeFilters[f.key] ?? ''}
-            onChange={(e) => handleFilter(f.key, e.target.value)}
+            onChange={(e) => {
+              handleFilter(f.key, e.target.value);
+            }}
             className="h-8 rounded-lg border px-2.5 text-xs outline-none"
             style={{
               borderColor: activeFilters[f.key] ? 'var(--brand-primary)' : 'var(--border-default)',
@@ -307,7 +321,13 @@ export function DataTable<T extends Record<string, unknown>>({
                     minWidth: col.minWidth,
                     whiteSpace: 'nowrap',
                   }}
-                  onClick={col.sortable ? () => handleSort(col.key) : undefined}
+                  onClick={
+                    col.sortable
+                      ? () => {
+                          handleSort(col.key);
+                        }
+                      : undefined
+                  }
                 >
                   {col.label}
                   {col.sortable && <SortIcon dir={sortKey === col.key ? sortDir : null} />}
@@ -318,12 +338,17 @@ export function DataTable<T extends Record<string, unknown>>({
           <tbody>
             {processed.length === 0 ? (
               <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-12 text-center text-sm"
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  {emptyMessage}
+                <td colSpan={columns.length}>
+                  {emptyState && data.length === 0 ? (
+                    emptyState
+                  ) : (
+                    <p
+                      className="px-4 py-12 text-center text-sm"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      {emptyMessage}
+                    </p>
+                  )}
                 </td>
               </tr>
             ) : (
@@ -332,7 +357,13 @@ export function DataTable<T extends Record<string, unknown>>({
                 return (
                   <tr
                     key={key}
-                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    onClick={
+                      onRowClick
+                        ? () => {
+                            onRowClick(row);
+                          }
+                        : undefined
+                    }
                     className="transition-colors"
                     style={{
                       borderBottom:
@@ -356,7 +387,7 @@ export function DataTable<T extends Record<string, unknown>>({
                           col.render(row)
                         ) : (
                           <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                            {String(row[col.key] ?? '—')}
+                            {toComparable(row[col.key]) || '—'}
                           </span>
                         )}
                       </td>

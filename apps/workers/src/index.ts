@@ -1,7 +1,4 @@
-import { Worker, type Job } from 'bullmq';
-
 import { env } from '@platform/config';
-import { logger } from '@platform/logger';
 import type {
   EmailJob,
   WebhookInboundJob,
@@ -9,12 +6,14 @@ import type {
   UsageRollupJob,
   PlanChangedJob,
 } from '@platform/jobs';
+import { logger } from '@platform/logger';
+import { Worker, type Job } from 'bullmq';
 
 import { handleEmail } from './handlers/email.js';
+import { handlePlanChanged } from './handlers/plan-changed.js';
+import { handleUsageRollup } from './handlers/usage-rollup.js';
 import { handleWebhookInbound } from './handlers/webhook-inbound.js';
 import { handleWebhookOutbound } from './handlers/webhook-outbound.js';
-import { handleUsageRollup } from './handlers/usage-rollup.js';
-import { handlePlanChanged } from './handlers/plan-changed.js';
 
 const connection = { url: env.REDIS_URL };
 
@@ -38,17 +37,20 @@ function makeWorker(name: string, handler: AnyJobHandler) {
   return worker;
 }
 
-makeWorker('email', (job) => handleEmail(job as Job<EmailJob>));
-makeWorker('webhook-inbound', (job) => handleWebhookInbound(job as Job<WebhookInboundJob>));
-makeWorker('webhook-outbound', (job) => handleWebhookOutbound(job as Job<WebhookOutboundJob>));
-makeWorker('usage-rollup', (job) => handleUsageRollup(job as Job<UsageRollupJob>));
-makeWorker('plan-changed', (job) => handlePlanChanged(job as Job<PlanChangedJob>));
+const workers = [
+  makeWorker('email', (job) => handleEmail(job as Job<EmailJob>)),
+  makeWorker('webhook-inbound', (job) => handleWebhookInbound(job as Job<WebhookInboundJob>)),
+  makeWorker('webhook-outbound', (job) => handleWebhookOutbound(job as Job<WebhookOutboundJob>)),
+  makeWorker('usage-rollup', (job) => handleUsageRollup(job as Job<UsageRollupJob>)),
+  makeWorker('plan-changed', (job) => handlePlanChanged(job as Job<PlanChangedJob>)),
+];
 
 logger.info('All workers registered. Listening for jobs...');
 
-// Graceful shutdown
+// Graceful shutdown — let in-flight jobs finish before exiting
 async function shutdown() {
   logger.info('Shutting down workers...');
+  await Promise.all(workers.map((w) => w.close()));
   process.exit(0);
 }
 

@@ -1,7 +1,6 @@
-import type { Job } from 'bullmq';
-
-import { logger } from '@platform/logger';
 import type { EmailJob } from '@platform/jobs';
+import { logger } from '@platform/logger';
+import type { Job } from 'bullmq';
 
 export async function handleEmail(job: Job<EmailJob>): Promise<void> {
   const { to, subject, templateId, tenantId } = job.data;

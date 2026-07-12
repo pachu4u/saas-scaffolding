@@ -91,7 +91,7 @@ export async function scimCreateUser(
         userId: user.id,
         idp: 'scim',
         idpUserId: data.externalId,
-        raw: data as object,
+        raw: data,
       },
     });
   }

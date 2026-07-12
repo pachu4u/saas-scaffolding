@@ -1,7 +1,6 @@
-import { type NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@platform/auth';
 import { adminDb, withPlatformAdmin } from '@platform/db';
+import { type NextRequest, NextResponse } from 'next/server';
 
 /**
  * GET /api/tenants
@@ -21,9 +20,7 @@ export async function GET() {
   // to the "platform_super_admin" group which maps to the platform:admin permission.
   const isPlatformAdmin =
     Array.isArray(session.groups) &&
-    (session.groups as string[]).some((g: string) =>
-      ['platform_super_admin', 'platform_support'].includes(g),
-    );
+    session.groups.some((g: string) => ['platform_super_admin', 'platform_support'].includes(g));
 
   if (!isPlatformAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -58,9 +55,7 @@ export async function POST(req: NextRequest) {
 
   const isPlatformAdmin =
     Array.isArray(session.groups) &&
-    (session.groups as string[]).some((g: string) =>
-      ['platform_super_admin', 'platform_support'].includes(g),
-    );
+    session.groups.some((g: string) => ['platform_super_admin', 'platform_support'].includes(g));
 
   if (!isPlatformAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

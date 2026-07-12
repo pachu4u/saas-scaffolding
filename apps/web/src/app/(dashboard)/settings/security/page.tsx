@@ -1,7 +1,6 @@
-import { redirect } from 'next/navigation';
-
 import { adminDb } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
+import { redirect } from 'next/navigation';
 
 import { SecurityForm } from '../_components/security-form';
 

@@ -21,23 +21,21 @@ test.describe('Provisioning', () => {
   });
 
   test('provisioning panel is visible on tenant detail', async ({ page }) => {
-    // Mock the tenant detail page data
-    await page.route(/\/api\/admin\/tenants\/[^/]+\/provision/, (route) => {
-      return route.fulfill({
-        json: {
-          id: MOCK_TENANT_ID,
-          name: 'Test Tenant',
-          provisioningStatus: 'PENDING',
-          provisioningError: null,
-          environments: [],
-        },
-      });
-    });
-
-    await page.goto(`/admin/tenants/${MOCK_TENANT_ID}`);
+    // The tenant detail page is server-rendered from a real DB row — route
+    // mocking only affects client-side fetches, so a fake tenant ID 404s
+    // before the mock ever applies. Navigate to a real seeded tenant instead.
+    await page.goto('/admin/tenants');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByText('Provisioning')).toBeVisible();
+    const viewLinks = page.getByRole('link', { name: 'View', exact: true });
+    if ((await viewLinks.count()) === 0) {
+      test.skip(true, 'No tenants to view');
+      return;
+    }
+    await viewLinks.first().click();
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.getByText('Provisioning').first()).toBeVisible();
     await expect(page.getByRole('button', { name: /provision environments/i })).toBeVisible();
   });
 
@@ -45,7 +43,7 @@ test.describe('Provisioning', () => {
     await page.goto('/admin/tenants');
     await page.waitForLoadState('networkidle');
 
-    const viewLinks = page.getByRole('link', { name: 'View' });
+    const viewLinks = page.getByRole('link', { name: 'View', exact: true });
     if ((await viewLinks.count()) === 0) {
       test.skip(true, 'No tenants to view');
       return;
@@ -70,7 +68,7 @@ test.describe('Provisioning', () => {
     await page.goto('/admin/tenants');
     await page.waitForLoadState('networkidle');
 
-    const viewLinks = page.getByRole('link', { name: 'View' });
+    const viewLinks = page.getByRole('link', { name: 'View', exact: true });
     if ((await viewLinks.count()) === 0) {
       test.skip(true, 'No tenants to view');
       return;
@@ -107,9 +105,10 @@ test.describe('Provisioning', () => {
     // Use a fake ID to confirm it returns 404 (not 500)
     const response = await request.get(`/api/admin/tenants/${MOCK_TENANT_ID}/provision`, {
       headers: { 'Content-Type': 'application/json' },
+      maxRedirects: 0,
     });
-    // 401 (not authenticated) or 404 (not found) are both acceptable
-    expect(response.status()).toBeOneOf([401, 403, 404]);
+    // 307 (redirected to sign-in), 401, or 404 are all acceptable
+    expect([307, 401, 403, 404]).toContain(response.status());
   });
 
   test('POST /api/admin/tenants/[id]/provision validates environment types', async ({
@@ -118,15 +117,16 @@ test.describe('Provisioning', () => {
     const response = await request.post(`/api/admin/tenants/${MOCK_TENANT_ID}/provision`, {
       data: { environments: ['INVALID'] },
       headers: { 'Content-Type': 'application/json' },
+      maxRedirects: 0,
     });
-    expect(response.status()).toBeOneOf([401, 403, 422]);
+    expect([307, 401, 403, 422]).toContain(response.status());
   });
 
   test('provisioning status display — IN_PROGRESS shows pulse animation', async ({ page }) => {
     await page.goto('/admin/tenants');
     await page.waitForLoadState('networkidle');
 
-    const viewLinks = page.getByRole('link', { name: 'View' });
+    const viewLinks = page.getByRole('link', { name: 'View', exact: true });
     if ((await viewLinks.count()) === 0) {
       test.skip(true, 'No tenants to view');
       return;
@@ -138,7 +138,7 @@ test.describe('Provisioning', () => {
     await page.waitForLoadState('networkidle');
 
     // Panel should be present (even if status varies)
-    await expect(page.getByText('Provisioning')).toBeVisible();
+    await expect(page.getByText('Provisioning').first()).toBeVisible();
   });
 
   test('provisioning panel shows environment endpoints after completion', async ({ page }) => {
@@ -151,7 +151,7 @@ test.describe('Provisioning', () => {
     await page.goto('/admin/tenants');
     await page.waitForLoadState('networkidle');
 
-    const viewLinks = page.getByRole('link', { name: 'View' });
+    const viewLinks = page.getByRole('link', { name: 'View', exact: true });
     if ((await viewLinks.count()) === 0) {
       test.skip(true, 'No tenants to view');
       return;

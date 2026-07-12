@@ -1,6 +1,6 @@
 export default function DashboardLoading() {
   return (
-    <div className="ml-60">
+    <div className="lg:ml-[var(--sidebar-width)]">
       {/* Topbar skeleton */}
       <div
         className="sticky top-0 z-30 flex items-center justify-between border-b px-6 py-4"

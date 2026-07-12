@@ -1,8 +1,8 @@
-import { type NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@platform/auth';
-import { adminDb, Prisma } from '@platform/db';
+import type { Prisma } from '@platform/db';
+import { adminDb } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
@@ -50,7 +50,7 @@ export async function PATCH(req: NextRequest) {
     if (body.idpCertificate !== undefined) sso.idpCertificate = body.idpCertificate;
     if (body.attributeMapping !== undefined) sso.attributeMapping = body.attributeMapping;
     merged.sso = sso;
-  } else if (body.section === 'session') {
+  } else {
     const policy: Record<string, unknown> =
       (merged.sessionPolicy as Record<string, unknown> | undefined) ?? {};
     if (body.sessionLifetime !== undefined) policy.sessionLifetime = body.sessionLifetime;
@@ -69,7 +69,7 @@ export async function PATCH(req: NextRequest) {
   await adminDb.auditLog.create({
     data: {
       tenantId: tenantCtx.tenantId,
-      action: `settings.security.${body.section ?? 'update'}`,
+      action: `settings.security.${body.section}`,
       resourceType: 'Tenant',
       resourceId: tenantCtx.tenantId,
       after: (body.section === 'sso'

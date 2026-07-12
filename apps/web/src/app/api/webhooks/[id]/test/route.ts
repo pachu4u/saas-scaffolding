@@ -1,10 +1,9 @@
 import crypto from 'crypto';
 
-import { type NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@platform/auth';
 import { adminDb, withPlatformAdmin, checkRateLimit, rateLimitHeaders } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
@@ -64,7 +63,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 10000); // 10s timeout
 
     const res = await fetch(endpoint.url, {
       method: 'POST',

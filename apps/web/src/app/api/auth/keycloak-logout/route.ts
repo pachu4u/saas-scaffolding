@@ -1,6 +1,5 @@
-import { NextResponse } from 'next/server';
-
 import { auth } from '@platform/auth';
+import { NextResponse } from 'next/server';
 
 /**
  * GET /api/auth/keycloak-logout

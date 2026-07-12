@@ -1,8 +1,7 @@
-import { type NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
@@ -38,8 +37,8 @@ export async function GET(req: NextRequest) {
   const byKindMonth: Record<string, Record<string, number>> = {};
   for (const ev of events) {
     const month = ev.occurredAt.toISOString().slice(0, 7); // YYYY-MM
-    if (!byKindMonth[ev.kind]) byKindMonth[ev.kind] = {};
-    byKindMonth[ev.kind]![month] = (byKindMonth[ev.kind]![month] ?? 0) + ev.quantity;
+    const monthBucket = (byKindMonth[ev.kind] ??= {});
+    monthBucket[month] = (monthBucket[month] ?? 0) + ev.quantity;
   }
 
   // Build a sorted list of months in range

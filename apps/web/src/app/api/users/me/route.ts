@@ -1,7 +1,6 @@
-import { type NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
@@ -42,24 +41,23 @@ export async function GET() {
       plan: tu.tenant.plan,
       status: tu.status,
     })),
-    groups: session.groups ?? [],
+    groups: session.groups,
   });
 }
 
 /**
  * PATCH /api/users/me
- * Body: { displayName?: string }
+ * Body: { displayName?: string; avatarUrl?: string }
  *
- * Currently: displayName is read from the Keycloak JWT and cannot be
- * persisted in the platform DB (no column). This route validates the
- * request and returns the session data; a future migration can add a
- * `display_name` column to `users` to make it sticky.
+ * Updates the current user's profile information.
  */
 export async function PATCH(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = (await req.json()) as { displayName?: string };
+  const body = (await req.json()) as { displayName?: string; avatarUrl?: string };
+
+  const updates: Record<string, unknown> = {};
 
   if (body.displayName !== undefined) {
     if (typeof body.displayName !== 'string' || body.displayName.trim().length === 0) {
@@ -74,17 +72,35 @@ export async function PATCH(req: NextRequest) {
         { status: 422 },
       );
     }
+    updates.name = body.displayName.trim();
   }
 
-  // TODO: once users.display_name column is added, persist here:
-  // await adminDb.user.update({
-  //   where: { externalId: session.user.id },
-  //   data: { displayName: body.displayName?.trim() },
-  // });
+  if (body.avatarUrl !== undefined) {
+    if (body.avatarUrl === '') {
+      updates.avatarUrl = null;
+    } else if (typeof body.avatarUrl === 'string') {
+      // Basic URL validation
+      try {
+        new URL(body.avatarUrl);
+        updates.avatarUrl = body.avatarUrl;
+      } catch {
+        return NextResponse.json({ error: 'avatarUrl must be a valid URL' }, { status: 422 });
+      }
+    } else {
+      return NextResponse.json({ error: 'avatarUrl must be a string' }, { status: 422 });
+    }
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await adminDb.user.update({
+      where: { externalId: session.user.id },
+      data: updates,
+    });
+  }
 
   return NextResponse.json({
-    name: body.displayName?.trim() ?? session.user.name,
+    name: updates.name ?? session.user.name,
     email: session.user.email,
-    _note: 'displayName changes take effect after next Keycloak token refresh',
+    avatarUrl: updates.avatarUrl ?? session.user.image,
   });
 }

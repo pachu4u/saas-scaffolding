@@ -1,8 +1,7 @@
+import { adminDb } from '@platform/db';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-
-import { adminDb } from '@platform/db';
 
 import { decodeInviteToken } from '@/app/api/team/invite/route';
 
@@ -20,6 +19,8 @@ async function acceptInvite(token: string) {
   }
 }
 
+// Next.js requires Server Actions to be async even with no real await.
+// eslint-disable-next-line @typescript-eslint/require-await
 async function declineInvite(_token: string) {
   'use server';
   redirect('/');

@@ -63,6 +63,30 @@ export function BrandingForm({
   const [activeTab, setActiveTab] = useState<'colors' | 'logo' | 'email' | 'login'>('colors');
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isSendingTest, setIsSendingTest] = useState(false);
+  const [testEmailMsg, setTestEmailMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function sendTestEmail() {
+    setIsSendingTest(true);
+    setTestEmailMsg(null);
+    try {
+      const tenantSlug = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme';
+      const res = await fetch('/api/notifications/test', {
+        method: 'POST',
+        headers: { 'x-tenant-slug': tenantSlug },
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      setTestEmailMsg(
+        json.ok
+          ? { ok: true, text: 'Test email sent — check your inbox.' }
+          : { ok: false, text: json.error ?? 'Failed to send test email' },
+      );
+    } catch {
+      setTestEmailMsg({ ok: false, text: 'Request failed' });
+    } finally {
+      setIsSendingTest(false);
+    }
+  }
 
   function saveBranding(
     section: 'colors' | 'logo' | 'email' | 'login',
@@ -146,7 +170,9 @@ export function BrandingForm({
             ).map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                }}
                 className="flex-1 rounded-lg py-2 text-xs font-semibold transition-all"
                 style={
                   activeTab === tab.id
@@ -267,7 +293,7 @@ export function BrandingForm({
                   </pre>
                 </div>
               </div>
-              {saveMsg && activeTab === 'colors' && (
+              {saveMsg && (
                 <div
                   className="border-t px-6 py-3 text-xs"
                   style={{
@@ -283,7 +309,9 @@ export function BrandingForm({
                 style={{ borderColor: 'var(--border-light)' }}
               >
                 <button
-                  onClick={() => saveBranding('colors')}
+                  onClick={() => {
+                    saveBranding('colors');
+                  }}
                   disabled={isPending}
                   className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                   style={{ background: primaryColor }}
@@ -396,7 +424,9 @@ export function BrandingForm({
                   <input
                     type="text"
                     value={logoText}
-                    onChange={(e) => setLogoText(e.target.value)}
+                    onChange={(e) => {
+                      setLogoText(e.target.value);
+                    }}
                     className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                     style={{
                       borderColor: 'var(--border-default)',
@@ -437,7 +467,7 @@ export function BrandingForm({
                   </div>
                 </div>
               </div>
-              {saveMsg && activeTab === 'logo' && (
+              {saveMsg && (
                 <div
                   className="border-t px-6 py-3 text-xs"
                   style={{
@@ -453,7 +483,9 @@ export function BrandingForm({
                 style={{ borderColor: 'var(--border-light)' }}
               >
                 <button
-                  onClick={() => saveBranding('logo')}
+                  onClick={() => {
+                    saveBranding('logo');
+                  }}
                   disabled={isPending}
                   className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                   style={{ background: primaryColor }}
@@ -486,7 +518,9 @@ export function BrandingForm({
                     <input
                       type="text"
                       value={emailFrom}
-                      onChange={(e) => setEmailFrom(e.target.value)}
+                      onChange={(e) => {
+                        setEmailFrom(e.target.value);
+                      }}
                       placeholder="Your workspace name"
                       className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                       style={{
@@ -509,7 +543,9 @@ export function BrandingForm({
                     <input
                       type="email"
                       value={emailReply}
-                      onChange={(e) => setEmailReply(e.target.value)}
+                      onChange={(e) => {
+                        setEmailReply(e.target.value);
+                      }}
                       placeholder={`hello@${appDomain}`}
                       className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                       style={{
@@ -593,7 +629,7 @@ export function BrandingForm({
                   </p>
                 </div>
               </div>
-              {saveMsg && activeTab === 'email' && (
+              {saveMsg && (
                 <div
                   className="border-t px-6 py-3 text-xs"
                   style={{
@@ -604,18 +640,33 @@ export function BrandingForm({
                   {saveMsg.text}
                 </div>
               )}
+              {testEmailMsg && (
+                <div
+                  className="border-t px-6 py-3 text-xs"
+                  style={{
+                    borderColor: 'var(--border-light)',
+                    color: testEmailMsg.ok ? 'var(--status-success)' : '#ef4444',
+                  }}
+                >
+                  {testEmailMsg.text}
+                </div>
+              )}
               <div
                 className="flex justify-end gap-2 border-t px-6 py-4"
                 style={{ borderColor: 'var(--border-light)' }}
               >
                 <button
-                  className="hover:bg-bg-subtle rounded-xl border px-4 py-2 text-sm font-semibold transition-colors"
+                  onClick={() => void sendTestEmail()}
+                  disabled={isSendingTest}
+                  className="hover:bg-bg-subtle rounded-xl border px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
                   style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
                 >
-                  Send test email
+                  {isSendingTest ? 'Sending…' : 'Send test email'}
                 </button>
                 <button
-                  onClick={() => saveBranding('email')}
+                  onClick={() => {
+                    saveBranding('email');
+                  }}
                   disabled={isPending}
                   className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                   style={{ background: primaryColor }}
@@ -737,7 +788,7 @@ export function BrandingForm({
                   />
                 </div>
               </div>
-              {saveMsg && activeTab === 'login' && (
+              {saveMsg && (
                 <div
                   className="border-t px-6 py-3 text-xs"
                   style={{
@@ -753,7 +804,9 @@ export function BrandingForm({
                 style={{ borderColor: 'var(--border-light)' }}
               >
                 <button
-                  onClick={() => saveBranding('login')}
+                  onClick={() => {
+                    saveBranding('login');
+                  }}
                   disabled={isPending}
                   className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                   style={{ background: primaryColor }}

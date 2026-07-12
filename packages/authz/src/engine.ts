@@ -1,6 +1,7 @@
+import { adminDb, redis } from '@platform/db';
+
 import type { PermissionCode } from './permissions';
 import { ROLE_PERMISSIONS } from './permissions';
-import { adminDb, redis } from '@platform/db';
 
 export interface AuthzUser {
   id: string;

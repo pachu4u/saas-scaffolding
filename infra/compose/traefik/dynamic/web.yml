@@ -1,0 +1,28 @@
+http:
+  routers:
+    web-app:
+      rule: 'Host(`app.lvh.me`)'
+      service: web-service
+      entryPoints:
+        - websecure
+      tls: {}
+
+    web-wildcard:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.lvh\\.me$`)"
+      service: web-service
+      entryPoints:
+        - websecure
+      tls: {}
+
+    web-saas:
+      rule: 'Host(`saas.techhanker.com`)'
+      service: web-service
+      entryPoints:
+        - websecure
+      tls: {}
+
+  services:
+    web-service:
+      loadBalancer:
+        servers:
+          - url: 'http://web:3000'

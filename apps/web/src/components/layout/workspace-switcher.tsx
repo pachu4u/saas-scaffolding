@@ -57,7 +57,9 @@ export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitche
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
     if (open) document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+    };
   }, [open]);
 
   function handleToggle() {
@@ -157,7 +159,10 @@ export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitche
             ) : (
               workspaces.map((ws) => {
                 const isCurrent = ws.tenantSlug === currentSlug;
-                const badge = PLAN_BADGE[ws.plan] ?? PLAN_BADGE.free!;
+                const badge = PLAN_BADGE[ws.plan] ?? {
+                  text: 'Free',
+                  color: 'rgba(255,255,255,0.4)',
+                };
                 return (
                   <button
                     key={ws.tenantId}
@@ -239,7 +244,9 @@ export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitche
               href="/onboarding"
               className="flex items-center gap-2 text-xs font-semibold transition-opacity hover:opacity-80"
               style={{ color: 'var(--brand-primary)' }}
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                setOpen(false);
+              }}
             >
               <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
                 <path

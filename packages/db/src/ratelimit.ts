@@ -47,7 +47,7 @@ export interface RateLimitOptions {
 export async function checkRateLimit(opts: RateLimitOptions): Promise<RateLimitResult> {
   const key = `rl:${opts.prefix}:${opts.id}`;
   const now = Date.now();
-  const member = `${now}-${Math.random().toString(36).slice(2)}`;
+  const member = `${String(now)}-${Math.random().toString(36).slice(2)}`;
 
   try {
     const result = (await redis.eval(

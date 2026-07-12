@@ -22,8 +22,8 @@ vi.mock('@platform/db', () => ({
 }));
 
 import { can, hasEntitlement } from './engine';
-import { isOwnerPolicy, isSelfPolicy } from './policies';
 import type { AuthzContext } from './engine';
+import { isOwnerPolicy, isSelfPolicy } from './policies';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 

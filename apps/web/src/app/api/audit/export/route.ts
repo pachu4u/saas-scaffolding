@@ -1,8 +1,7 @@
-import { type NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
@@ -66,8 +65,8 @@ export async function GET(req: NextRequest) {
     const cols = [
       log.occurredAt.toISOString(),
       log.action,
-      log.resourceType ?? '',
-      log.resourceId ?? '',
+      log.resourceType,
+      log.resourceId,
       log.actor?.email ?? '',
       log.ip ?? '',
     ];

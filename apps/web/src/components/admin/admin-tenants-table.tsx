@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 
-import { DataTable, type Column, type FilterConfig } from '@/components/ui/data-table';
-import { Badge } from '@/components/ui/badge';
 import { TenantStatusButton } from './tenant-status-button';
+
+import { Badge } from '@/components/ui/badge';
+import { DataTable, type Column, type FilterConfig } from '@/components/ui/data-table';
 
 export interface TenantRow extends Record<string, unknown> {
   id: string;
@@ -35,9 +36,9 @@ function formatDateShort(iso: string) {
 function timeAgoFn(iso: string) {
   const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (secs < 60) return 'just now';
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
-  if (secs < 604800) return `${Math.floor(secs / 86400)}d ago`;
+  if (secs < 3600) return `${String(Math.floor(secs / 60))}m ago`;
+  if (secs < 86400) return `${String(Math.floor(secs / 3600))}h ago`;
+  if (secs < 604800) return `${String(Math.floor(secs / 86400))}d ago`;
   return formatDateShort(iso);
 }
 
@@ -143,7 +144,9 @@ const columns: Column<TenantRow>[] = [
           href={`/admin/tenants/${row.id}`}
           className="rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-gray-50"
           style={{ borderColor: 'var(--border-light)', color: 'var(--text-secondary)' }}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
         >
           View
         </Link>

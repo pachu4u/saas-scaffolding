@@ -48,44 +48,55 @@ ALTER TABLE subscriptions FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE usage_events FORCE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS tenant_isolation ON tenant_users;
 -- RLS Policies: tenant-scoped isolation via session variable
+DROP POLICY IF EXISTS tenant_isolation ON tenant_users;
 CREATE POLICY tenant_isolation ON tenant_users
   USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
 
+DROP POLICY IF EXISTS tenant_isolation ON role_bindings;
 CREATE POLICY tenant_isolation ON role_bindings
   USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
 
+DROP POLICY IF EXISTS tenant_isolation ON scim_tokens;
 CREATE POLICY tenant_isolation ON scim_tokens
   USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
 
+DROP POLICY IF EXISTS tenant_isolation ON external_identities;
 CREATE POLICY tenant_isolation ON external_identities
   USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
 
+DROP POLICY IF EXISTS tenant_isolation ON audit_log;
 CREATE POLICY tenant_isolation ON audit_log
   USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
 
+DROP POLICY IF EXISTS tenant_isolation ON jobs;
 CREATE POLICY tenant_isolation ON jobs
   USING (tenant_id IS NULL OR tenant_id = current_setting('app.tenant_id', true)::uuid);
 
+DROP POLICY IF EXISTS tenant_isolation ON idempotency_keys;
 CREATE POLICY tenant_isolation ON idempotency_keys
   USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
 
+DROP POLICY IF EXISTS tenant_isolation ON webhook_endpoints;
 CREATE POLICY tenant_isolation ON webhook_endpoints
   USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
 
+DROP POLICY IF EXISTS tenant_isolation ON webhook_deliveries;
 CREATE POLICY tenant_isolation ON webhook_deliveries
   USING (endpoint_id IN (
     SELECT id FROM webhook_endpoints
     WHERE tenant_id = current_setting('app.tenant_id', true)::uuid
   ));
 
+DROP POLICY IF EXISTS tenant_isolation ON notes;
 CREATE POLICY tenant_isolation ON notes
   USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
 
+DROP POLICY IF EXISTS tenant_isolation ON subscriptions;
 CREATE POLICY tenant_isolation ON subscriptions
   USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
 
+DROP POLICY IF EXISTS tenant_isolation ON usage_events;
 CREATE POLICY tenant_isolation ON usage_events
   USING (tenant_id = current_setting('app.tenant_id', true)::uuid);
 

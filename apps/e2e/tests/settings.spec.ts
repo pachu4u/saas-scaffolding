@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers/auth';
+import { signIn, TEST_USER_EMAIL, TEST_USER_PASSWORD } from './helpers/auth';
 
 /**
  * Settings E2E tests.
@@ -14,7 +14,7 @@ import { signIn } from './helpers/auth';
 
 test.describe('Settings', () => {
   test.beforeEach(async ({ page }) => {
-    await signIn(page);
+    await signIn(page, TEST_USER_EMAIL, TEST_USER_PASSWORD);
   });
 
   // ── Navigation ─────────────────────────────────────────────────────────────
@@ -30,31 +30,34 @@ test.describe('Settings', () => {
     await page.goto('/settings/branding');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByText(/branding/i)).toBeVisible();
+    await expect(page.getByText(/branding/i).first()).toBeVisible();
   });
 
   test('security settings page renders', async ({ page }) => {
     await page.goto('/settings/security');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByText(/security/i)).toBeVisible();
+    await expect(page.getByText(/security/i).first()).toBeVisible();
   });
 
   test('API keys page renders', async ({ page }) => {
     await page.goto('/settings/api-keys');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByText(/api key/i)).toBeVisible();
+    await expect(page.getByText(/api key/i).first()).toBeVisible();
   });
 
   // ── General settings ───────────────────────────────────────────────────────
 
   test('general settings — PATCH /api/settings/general accepts valid data', async ({ request }) => {
+    // maxRedirects: 0 — unauthenticated requests get a 307 to /auth/signin
+    // from middleware; following it would replay PATCH onto a GET-only page.
     const response = await request.patch('/api/settings/general', {
       data: { name: 'Updated Name', timezone: 'UTC' },
+      maxRedirects: 0,
     });
-    // 200 if authorized, 401 if not
-    expect(response.status()).toBeOneOf([200, 401, 403]);
+    // 200 if authorized, 307/401 if not
+    expect([200, 307, 401, 403]).toContain(response.status());
   });
 
   test('general settings — PATCH /api/settings/general rejects invalid slug', async ({
@@ -62,8 +65,9 @@ test.describe('Settings', () => {
   }) => {
     const response = await request.patch('/api/settings/general', {
       data: { slug: 'INVALID SLUG!!!' },
+      maxRedirects: 0,
     });
-    expect(response.status()).toBeOneOf([400, 401, 403, 422]);
+    expect([307, 400, 401, 403, 422]).toContain(response.status());
   });
 
   test('general settings form submits successfully', async ({ page }) => {
@@ -93,8 +97,9 @@ test.describe('Settings', () => {
   }) => {
     const response = await request.patch('/api/settings/branding', {
       data: { section: 'colors', primaryColor: '#FF5733' },
+      maxRedirects: 0,
     });
-    expect(response.status()).toBeOneOf([200, 401, 403]);
+    expect([200, 307, 401, 403]).toContain(response.status());
   });
 
   test('branding page has color picker or color inputs', async ({ page }) => {
@@ -117,8 +122,9 @@ test.describe('Settings', () => {
   }) => {
     const response = await request.patch('/api/settings/security', {
       data: { mfaRequired: false },
+      maxRedirects: 0,
     });
-    expect(response.status()).toBeOneOf([200, 401, 403]);
+    expect([200, 307, 401, 403]).toContain(response.status());
   });
 
   // ── API keys page ──────────────────────────────────────────────────────────

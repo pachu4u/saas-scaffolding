@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers/auth';
+import { signIn, TEST_USER_EMAIL, TEST_USER_PASSWORD } from './helpers/auth';
 
 /**
  * Webhooks E2E tests.
@@ -15,7 +15,7 @@ import { signIn } from './helpers/auth';
 
 test.describe('Webhooks', () => {
   test.beforeEach(async ({ page }) => {
-    await signIn(page);
+    await signIn(page, TEST_USER_EMAIL, TEST_USER_PASSWORD);
   });
 
   // ── Webhooks list ──────────────────────────────────────────────────────────
@@ -24,17 +24,21 @@ test.describe('Webhooks', () => {
     await page.goto('/webhooks');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByRole('heading', { name: /webhook/i })).toBeVisible();
+    // .first() — the empty state's "No webhook endpoints" heading also
+    // matches /webhook/i when there are no endpoints yet.
+    await expect(page.getByRole('heading', { name: /webhook/i }).first()).toBeVisible();
   });
 
   test('webhooks page has add endpoint button', async ({ page }) => {
     await page.goto('/webhooks');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByRole('button', { name: /add|new|create/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /add|new|create/i }).first()).toBeVisible();
   });
 
   // ── Add webhook modal ──────────────────────────────────────────────────────
+  // The modal is a plain styled <div> overlay, not role="dialog" — these
+  // tests check its actual heading instead.
 
   test('add webhook modal opens', async ({ page }) => {
     await page.goto('/webhooks');
@@ -44,7 +48,7 @@ test.describe('Webhooks', () => {
       .getByRole('button', { name: /add|new|create/i })
       .first()
       .click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Add webhook endpoint' })).toBeVisible();
   });
 
   test('add webhook modal — URL field is required', async ({ page }) => {
@@ -55,7 +59,7 @@ test.describe('Webhooks', () => {
       .getByRole('button', { name: /add|new|create/i })
       .first()
       .click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Add webhook endpoint' })).toBeVisible();
 
     // Try submitting without URL
     const submitBtn = page.getByRole('button', { name: /save|add|create webhook/i });
@@ -134,7 +138,9 @@ test.describe('Webhooks', () => {
       const submitBtn = page.getByRole('button', { name: /save|add|create webhook/i });
       if ((await submitBtn.count()) > 0) {
         await submitBtn.last().click();
-        await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 3_000 });
+        await expect(page.getByRole('heading', { name: 'Add webhook endpoint' })).not.toBeVisible({
+          timeout: 3_000,
+        });
       }
     }
   });
@@ -159,8 +165,8 @@ test.describe('Webhooks', () => {
   // ── API tests ──────────────────────────────────────────────────────────────
 
   test('GET /api/webhooks returns list', async ({ request }) => {
-    const response = await request.get('/api/webhooks');
-    expect(response.status()).toBeOneOf([200, 401, 403]);
+    const response = await request.get('/api/webhooks', { maxRedirects: 0 });
+    expect([200, 307, 401, 403]).toContain(response.status());
     if (response.status() === 200) {
       const body = (await response.json()) as unknown[];
       expect(Array.isArray(body)).toBe(true);
@@ -173,24 +179,30 @@ test.describe('Webhooks', () => {
         url: 'https://example.com/test-hook',
         events: ['tenant.created', 'tenant.updated'],
       },
+      maxRedirects: 0,
     });
-    expect(response.status()).toBeOneOf([201, 400, 401, 403, 409]);
+    expect([201, 307, 400, 401, 403, 409]).toContain(response.status());
   });
 
   test('PATCH /api/webhooks/[id] updates endpoint', async ({ request }) => {
     const response = await request.patch('/api/webhooks/non-existent-id', {
       data: { status: 'PAUSED' },
+      maxRedirects: 0,
     });
-    expect(response.status()).toBeOneOf([200, 401, 403, 404]);
+    expect([200, 307, 401, 403, 404]).toContain(response.status());
   });
 
   test('DELETE /api/webhooks/[id] deletes endpoint', async ({ request }) => {
-    const response = await request.delete('/api/webhooks/non-existent-id');
-    expect(response.status()).toBeOneOf([200, 204, 401, 403, 404]);
+    const response = await request.delete('/api/webhooks/non-existent-id', {
+      maxRedirects: 0,
+    });
+    expect([200, 204, 307, 401, 403, 404]).toContain(response.status());
   });
 
   test('GET /api/webhooks/[id]/deliveries returns delivery history', async ({ request }) => {
-    const response = await request.get('/api/webhooks/non-existent-id/deliveries');
-    expect(response.status()).toBeOneOf([200, 401, 403, 404]);
+    const response = await request.get('/api/webhooks/non-existent-id/deliveries', {
+      maxRedirects: 0,
+    });
+    expect([200, 307, 401, 403, 404]).toContain(response.status());
   });
 });

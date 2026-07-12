@@ -1,10 +1,9 @@
-import { type NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@platform/auth';
 import { stripe } from '@platform/billing';
 import { env } from '@platform/config';
 import { adminDb } from '@platform/db';
 import { logger } from '@platform/logger';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 

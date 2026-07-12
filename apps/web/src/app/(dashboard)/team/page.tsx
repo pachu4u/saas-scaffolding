@@ -2,10 +2,10 @@ import { adminDb } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
 import { redirect } from 'next/navigation';
 
-import { timeAgo } from '@/lib/time';
+import { TeamMembersTable } from '@/components/team/team-members-table';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
-import { TeamMembersTable } from '@/components/team/team-members-table';
+import { timeAgo } from '@/lib/time';
 
 export const metadata = { title: 'Team — Members' };
 
@@ -61,7 +61,7 @@ export default async function TeamMembersPage() {
       email: tu.user.email,
       status: tu.status,
       roles: roles.length > 0 ? roles : ['Member'],
-      joinedAt: tu.joinedAt?.toISOString() ?? null,
+      joinedAt: tu.joinedAt.toISOString(),
     };
   });
 
@@ -113,7 +113,7 @@ export default async function TeamMembersPage() {
       </div>
 
       {/* Members data table */}
-      <TeamMembersTable data={tableData} />
+      <TeamMembersTable data={tableData} tenantSlug={tenantCtx.slug} />
 
       {/* SCIM provisioning status */}
       <div

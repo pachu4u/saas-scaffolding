@@ -48,7 +48,7 @@ export default function OnboardingPage() {
     if (prev) setStep(prev.id);
   }
 
-  async function saveWorkspace() {
+  function saveWorkspace() {
     if (!workspaceName.trim()) {
       setErrorMsg('Workspace name is required');
       return;
@@ -96,7 +96,7 @@ export default function OnboardingPage() {
     goNext();
   }
 
-  async function saveBranding() {
+  function saveBranding() {
     startTransition(async () => {
       try {
         await fetch('/api/settings/branding', {
@@ -270,7 +270,9 @@ export default function OnboardingPage() {
                   <input
                     type="text"
                     value={workspaceSlug}
-                    onChange={(e) => setWorkspaceSlug(e.target.value.toLowerCase())}
+                    onChange={(e) => {
+                      setWorkspaceSlug(e.target.value.toLowerCase());
+                    }}
                     placeholder="acme"
                     className="flex-1 px-3 py-2.5 text-sm outline-none"
                     style={{ background: 'var(--bg-main)', color: 'var(--text-primary)' }}
@@ -289,7 +291,9 @@ export default function OnboardingPage() {
                 </label>
                 <select
                   value={timezone}
-                  onChange={(e) => setTimezone(e.target.value)}
+                  onChange={(e) => {
+                    setTimezone(e.target.value);
+                  }}
                   className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
                   style={{
                     borderColor: 'var(--border-default)',
@@ -320,7 +324,9 @@ export default function OnboardingPage() {
                 <textarea
                   rows={4}
                   value={inviteEmails}
-                  onChange={(e) => setInviteEmails(e.target.value)}
+                  onChange={(e) => {
+                    setInviteEmails(e.target.value);
+                  }}
                   placeholder={`alice@acme.com\nbob@acme.com, carol@acme.com`}
                   className="w-full resize-none rounded-xl border px-3 py-2.5 text-sm outline-none"
                   style={{
@@ -367,7 +373,9 @@ export default function OnboardingPage() {
                 <input
                   type="text"
                   value={logoText}
-                  onChange={(e) => setLogoText(e.target.value)}
+                  onChange={(e) => {
+                    setLogoText(e.target.value);
+                  }}
                   placeholder={workspaceName || 'Acme Corp'}
                   className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
                   style={{
@@ -400,7 +408,9 @@ export default function OnboardingPage() {
                   ].map((c) => (
                     <button
                       key={c}
-                      onClick={() => setPrimaryColor(c)}
+                      onClick={() => {
+                        setPrimaryColor(c);
+                      }}
                       className="h-9 w-9 rounded-full border-2 transition-transform hover:scale-110"
                       style={{
                         background: c,
@@ -416,7 +426,9 @@ export default function OnboardingPage() {
                     <input
                       type="color"
                       value={primaryColor}
-                      onChange={(e) => setPrimaryColor(e.target.value)}
+                      onChange={(e) => {
+                        setPrimaryColor(e.target.value);
+                      }}
                       className="absolute inset-0 h-12 w-12 -translate-x-1 -translate-y-1 cursor-pointer border-none opacity-0"
                     />
                     <div
@@ -503,7 +515,9 @@ export default function OnboardingPage() {
               ].map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => handleBillingChoice(p.id)}
+                  onClick={() => {
+                    handleBillingChoice(p.id);
+                  }}
                   disabled={isPending}
                   className="w-full rounded-xl border p-4 text-left transition-all hover:shadow-md disabled:opacity-50"
                   style={{
@@ -615,7 +629,9 @@ export default function OnboardingPage() {
 
             {step === 'workspace' && (
               <button
-                onClick={() => void saveWorkspace()}
+                onClick={() => {
+                  saveWorkspace();
+                }}
                 disabled={isPending}
                 className="brand-gradient rounded-xl px-5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
               >
@@ -633,7 +649,9 @@ export default function OnboardingPage() {
             )}
             {step === 'branding' && (
               <button
-                onClick={() => void saveBranding()}
+                onClick={() => {
+                  saveBranding();
+                }}
                 disabled={isPending}
                 className="brand-gradient rounded-xl px-5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
               >

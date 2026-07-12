@@ -4,6 +4,13 @@ import { redirect } from 'next/navigation';
 
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
+import {
+  AvatarUpload,
+  DisplayNameForm,
+  ActiveSessions,
+  type ProfileData,
+  type SessionInfo,
+} from './profile-components';
 
 export const metadata = { title: 'Profile' };
 
@@ -13,12 +20,56 @@ const PLAN_BADGE: Record<string, 'blue' | 'purple' | 'gray'> = {
   free: 'gray',
 };
 
+// Get active sessions from Redis (sessions stored in format: sess:<sessionId>)
+async function getActiveSessions(userId: string, redis: any): Promise<SessionInfo[]> {
+  try {
+    // Scan for all session keys
+    const keys: string[] = [];
+    let cursor = '0';
+    do {
+      const result = await redis.scan(cursor, 'MATCH', 'sess:*', 'COUNT', '100');
+      cursor = result[0];
+      keys.push(...(result[1] as string[]));
+    } while (cursor !== '0');
+
+    const sessions: SessionInfo[] = [];
+
+    for (const key of keys) {
+      const sessionData = await redis.get(key);
+      if (!sessionData) continue;
+
+      try {
+        const parsed = JSON.parse(sessionData);
+        // Check if this session belongs to the current user
+        // The session format from next-auth is: { ...token, _fs: ..., _exp: ..., _rev: ... }
+        if (parsed?.user?.id === userId) {
+          sessions.push({
+            sessionId: key.replace('sess:', ''),
+            createdAt: parsed._fs ? new Date(parsed._fs).toISOString() : new Date().toISOString(),
+            lastActive: parsed._exp
+              ? new Date(parsed._exp).toISOString()
+              : new Date().toISOString(),
+            active: true,
+          });
+        }
+      } catch {
+        // Skip malformed session data
+      }
+    }
+
+    return sessions;
+  } catch (error) {
+    console.error('[profile] Failed to get active sessions from Redis:', error);
+    return [];
+  }
+}
+
 export default async function ProfilePage() {
   const session = await auth();
   if (!session) redirect('/auth/signin');
 
   // Load DB record + workspace memberships
-  const user = await adminDb.user.findUnique({
+  const userRecord = await adminDb.user.findUnique({
     where: { externalId: session.user.id },
     include: {
       tenantUsers: {
@@ -31,7 +82,34 @@ export default async function ProfilePage() {
     },
   });
 
-  const initials = (session.user.name ?? session.user.email)
+  // Get active sessions from Redis (if available)
+  let activeSessions: SessionInfo[] = [];
+  try {
+    const { redis } = await import('@platform/db/redis' as string);
+    const sessions = await getActiveSessions(session.user.id, redis);
+    activeSessions = sessions;
+  } catch {
+    // Redis not available, skip active sessions
+  }
+
+  const profileData: ProfileData = {
+    id: userRecord?.id ?? session.user.id,
+    email: session.user.email,
+    name: userRecord?.name ?? session.user.name ?? null,
+    avatarUrl: userRecord?.avatarUrl ?? session.user.image ?? null,
+    status: userRecord?.status ?? 'ACTIVE',
+    createdAt: userRecord?.createdAt?.toISOString() ?? new Date().toISOString(),
+    workspaces:
+      userRecord?.tenantUsers.map((tu) => ({
+        tenantId: tu.tenant.id,
+        tenantName: tu.tenant.name,
+        tenantSlug: tu.tenant.slug,
+        plan: tu.tenant.plan,
+        status: tu.status,
+      })) ?? [],
+  };
+
+  const initials = (profileData.name ?? profileData.email)
     .split(/\s+/)
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? '')
@@ -39,9 +117,13 @@ export default async function ProfilePage() {
 
   const isPlatformAdmin =
     Array.isArray(session.groups) &&
-    (session.groups as string[]).some((g) =>
-      ['platform_super_admin', 'platform_support'].includes(g),
-    );
+    session.groups.some((g) => ['platform_super_admin', 'platform_support'].includes(g));
+
+  // Force revalidation of session data when profile is updated
+  const forceRevalidate = () => {
+    // This is a client-side only function
+    // The server will re-fetch data on the next request
+  };
 
   return (
     <div>
@@ -68,15 +150,15 @@ export default async function ProfilePage() {
           />
           <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start">
             {/* Avatar */}
-            <div className="brand-gradient flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-xl text-2xl font-extrabold text-white">
-              {initials}
+            <div className="flex-shrink-0">
+              <AvatarUpload user={profileData} onUpdate={forceRevalidate} />
             </div>
 
             {/* Info */}
             <div className="min-w-0 flex-1">
               <div className="mb-1 flex flex-wrap items-center gap-2">
                 <h2 className="text-xl font-extrabold" style={{ color: 'var(--text-primary)' }}>
-                  {session.user.name ?? 'Unknown'}
+                  <DisplayNameForm user={profileData} onUpdate={forceRevalidate} />
                 </h2>
                 {isPlatformAdmin && (
                   <Badge variant="purple" dot>
@@ -84,9 +166,6 @@ export default async function ProfilePage() {
                   </Badge>
                 )}
               </div>
-              <p className="mb-4 text-sm" style={{ color: 'var(--text-muted)' }}>
-                {session.user.email}
-              </p>
 
               <dl className="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
                 <div className="flex items-center gap-2">
@@ -98,7 +177,7 @@ export default async function ProfilePage() {
                   </dt>
                   <dd>
                     <Badge variant="success" dot>
-                      {user?.status ?? 'ACTIVE'}
+                      {profileData.status}
                     </Badge>
                   </dd>
                 </div>
@@ -110,13 +189,11 @@ export default async function ProfilePage() {
                     Member since
                   </dt>
                   <dd className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                    {user?.createdAt
-                      ? user.createdAt.toLocaleDateString('en-US', {
-                          month: 'long',
-                          year: 'numeric',
-                          day: 'numeric',
-                        })
-                      : '—'}
+                    {new Date(profileData.createdAt).toLocaleDateString('en-US', {
+                      month: 'long',
+                      year: 'numeric',
+                      day: 'numeric',
+                    })}
                   </dd>
                 </div>
                 <div>
@@ -138,7 +215,7 @@ export default async function ProfilePage() {
                     Workspaces
                   </dt>
                   <dd className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    {user?.tenantUsers.length ?? 0}
+                    {profileData.workspaces.length}
                   </dd>
                 </div>
               </dl>
@@ -153,6 +230,29 @@ export default async function ProfilePage() {
               Sign out
             </a>
           </div>
+        </div>
+
+        {/* Active sessions */}
+        <div
+          className="rounded-xl border"
+          style={{
+            background: 'var(--bg-white)',
+            borderColor: 'var(--border-light)',
+            boxShadow: 'var(--shadow-card)',
+          }}
+        >
+          <div
+            className="flex items-center justify-between border-b px-6 py-4"
+            style={{ borderColor: 'var(--border-light)' }}
+          >
+            <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+              Active sessions
+            </h3>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {activeSessions.length} active
+            </span>
+          </div>
+          <ActiveSessions sessions={activeSessions} />
         </div>
 
         {/* Workspace memberships */}
@@ -172,7 +272,7 @@ export default async function ProfilePage() {
               Workspace memberships
             </h3>
           </div>
-          {!user || user.tenantUsers.length === 0 ? (
+          {profileData.workspaces.length === 0 ? (
             <div className="px-6 py-8 text-center">
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
                 You are not a member of any workspace.
@@ -180,26 +280,26 @@ export default async function ProfilePage() {
             </div>
           ) : (
             <div className="divide-y" style={{ borderColor: 'var(--border-light)' }}>
-              {user.tenantUsers.map((tu) => (
+              {profileData.workspaces.map((tu) => (
                 <div key={tu.tenantId} className="flex items-center justify-between px-6 py-4">
                   <div className="flex items-center gap-3">
                     <div className="brand-gradient flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white">
-                      {tu.tenant.name[0]?.toUpperCase()}
+                      {tu.tenantName[0]?.toUpperCase()}
                     </div>
                     <div>
                       <div
                         className="text-sm font-semibold"
                         style={{ color: 'var(--text-primary)' }}
                       >
-                        {tu.tenant.name}
+                        {tu.tenantName}
                       </div>
                       <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {tu.tenant.slug}.riogentix.app
+                        {tu.tenantSlug}.riogentix.app
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={PLAN_BADGE[tu.tenant.plan] ?? 'gray'}>{tu.tenant.plan}</Badge>
+                    <Badge variant={PLAN_BADGE[tu.plan] ?? 'gray'}>{tu.plan}</Badge>
                     <Badge variant={tu.status === 'ACTIVE' ? 'success' : 'gray'} dot>
                       {tu.status}
                     </Badge>
@@ -294,12 +394,14 @@ export default async function ProfilePage() {
                 Manage your identity account
               </span>
               <div className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                Change password, manage MFA, view linked social accounts and active sessions in
-                Keycloak.
+                Change password, manage MFA, view linked social accounts in Keycloak.
               </div>
             </div>
             <a
-              href={`${process.env.NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL ?? 'https://auth.lvh.me/realms/saas-platform/account'}`}
+              href={
+                process.env.NEXT_PUBLIC_KEYCLOAK_ACCOUNT_URL ??
+                'https://auth.lvh.me/realms/saas-platform/account'
+              }
               target="_blank"
               rel="noopener noreferrer"
               className="flex-shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-gray-50"

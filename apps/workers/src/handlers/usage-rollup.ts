@@ -1,8 +1,16 @@
-import type { Job } from 'bullmq';
-
 import { adminDb } from '@platform/db';
 import type { UsageRollupJob } from '@platform/jobs';
 import { logger } from '@platform/logger';
+import type { Job } from 'bullmq';
+
+import { setUsageLock } from './riogentix-client.js';
+
+// Monthly API call limits per riogentix plan. null = unlimited.
+const RIOGENTIX_MONTHLY_LIMITS: Record<string, number | null> = {
+  free: 500,
+  pro: 10_000,
+  enterprise: null,
+};
 
 export async function handleUsageRollup(job: Job<UsageRollupJob>): Promise<void> {
   const { tenantId, period } = job.data;
@@ -51,4 +59,22 @@ export async function handleUsageRollup(job: Job<UsageRollupJob>): Promise<void>
     { jobId: job.id, tenantId, period, totalEvents, kinds: Object.keys(summary) },
     'Usage rollup persisted',
   );
+
+  // Check quota breach and sync usage-lock state to riogentix.
+  const subscription = await adminDb.subscription.findUnique({
+    where: { tenantId },
+    include: { plan: true },
+  });
+  const planCode = subscription?.plan?.code ?? 'free';
+  const limit = RIOGENTIX_MONTHLY_LIMITS[planCode] ?? null;
+  const shouldLock = limit !== null && totalEvents >= limit;
+
+  await setUsageLock(tenantId, shouldLock);
+
+  if (shouldLock) {
+    logger.warn(
+      { tenantId, planCode, totalEvents, limit },
+      'Usage quota exceeded — riogentix locked',
+    );
+  }
 }

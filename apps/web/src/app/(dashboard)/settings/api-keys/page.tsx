@@ -40,7 +40,7 @@ export default function ApiKeysPage() {
 
   const fetchTokens = useCallback(async () => {
     try {
-      const tenantSlug = document.cookie.match(/x-tenant-slug=([^;]+)/)?.[1] ?? 'acme';
+      const tenantSlug = /x-tenant-slug=([^;]+)/.exec(document.cookie)?.[1] ?? 'acme';
       const res = await fetch('/api/settings/api-keys-list', {
         headers: { 'x-tenant-slug': tenantSlug },
       });
@@ -154,7 +154,9 @@ export default function ApiKeysPage() {
               Token created — copy it now, it won&apos;t be shown again
             </p>
             <button
-              onClick={() => setNewToken(null)}
+              onClick={() => {
+                setNewToken(null);
+              }}
               className="text-xs"
               style={{ color: 'var(--text-muted)' }}
             >
@@ -193,7 +195,7 @@ export default function ApiKeysPage() {
             API / SCIM Tokens
           </h2>
           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            {loading ? '…' : `${tokens.length} token${tokens.length !== 1 ? 's' : ''}`}
+            {loading ? '…' : `${String(tokens.length)} token${tokens.length !== 1 ? 's' : ''}`}
           </span>
         </div>
         <div
@@ -296,7 +298,9 @@ export default function ApiKeysPage() {
               <input
                 type="text"
                 value={tokenName}
-                onChange={(e) => setTokenName(e.target.value)}
+                onChange={(e) => {
+                  setTokenName(e.target.value);
+                }}
                 placeholder="my-integration-key"
                 className="w-full rounded-xl border px-3 py-2 font-mono text-sm outline-none"
                 style={{
@@ -350,7 +354,9 @@ export default function ApiKeysPage() {
                             <input
                               type="checkbox"
                               checked={selectedScopes.has(scope)}
-                              onChange={() => toggleScope(scope)}
+                              onChange={() => {
+                                toggleScope(scope);
+                              }}
                               className="h-3.5 w-3.5 rounded"
                               style={{ accentColor: 'var(--brand-primary)' }}
                             />
