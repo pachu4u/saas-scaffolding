@@ -5,15 +5,22 @@ import { redirect } from 'next/navigation';
 export const dynamic = 'force-dynamic';
 
 /**
- * Post-login redirect handler for root-domain sign-ins.
+ * Post-login redirect handler.
  *
- * When a user signs in from saas.techhanker.com (no tenant subdomain), NextAuth
- * can only redirect to the same origin. This page looks up the user's tenant
- * memberships and forwards them to the correct subdomain.
+ * NextAuth's callback always lands on saas.techhanker.com. This page reads the
+ * optional `tenant` query param (set by the signin page when the user started on a
+ * subdomain) and redirects them to the right workspace. Falls back to their first
+ * active tenant if the param is absent or the user isn't a member of that tenant.
  */
-export default async function AuthRedirectPage() {
+export default async function AuthRedirectPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tenant?: string }>;
+}) {
   const session = await auth();
   if (!session?.user) redirect('/auth/signin');
+
+  const { tenant: tenantParam } = await searchParams;
 
   const dbUser = await adminDb.user.findUnique({
     where: { externalId: session.user.id },
@@ -32,10 +39,6 @@ export default async function AuthRedirectPage() {
     redirect('/no-workspace');
   }
 
-  // Pick the first (oldest) tenant membership.
-  // A multi-tenant picker can be added here later if needed.
-  const slug = tenants[0]!.tenant.slug;
-
   // Derive the base domain from AUTH_URL (e.g. "saas.techhanker.com" → "techhanker.com").
   const authHost = process.env.AUTH_URL
     ? (() => {
@@ -48,7 +51,14 @@ export default async function AuthRedirectPage() {
     : '';
   const baseDomain = authHost.split('.').slice(1).join('.');
   const proto = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-  const tenantUrl = baseDomain ? `${proto}://${slug}.${baseDomain}/` : `/${slug}`;
 
+  // If the user started on a specific tenant subdomain, go back there — but only
+  // if they're actually a member of that tenant (security check).
+  const slugs = tenants.map((t) => t.tenant.slug);
+  const targetSlug = tenantParam && slugs.includes(tenantParam) ? tenantParam : (slugs[0] ?? null);
+
+  if (!targetSlug) redirect('/no-workspace');
+
+  const tenantUrl = baseDomain ? `${proto}://${targetSlug}.${baseDomain}/` : `/${targetSlug}`;
   redirect(tenantUrl);
 }

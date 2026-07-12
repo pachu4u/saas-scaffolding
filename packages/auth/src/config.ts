@@ -3,8 +3,40 @@ import { adminDb } from '@platform/db';
 import type { NextAuthConfig } from 'next-auth';
 import KeycloakProvider from 'next-auth/providers/keycloak';
 
+// Derive the root domain from AUTH_URL so session cookies are shared across all
+// tenant subdomains (e.g. AUTH_URL=https://saas.techhanker.com → .techhanker.com).
+const authUrlHost = (() => {
+  try {
+    return process.env.AUTH_URL ? new URL(process.env.AUTH_URL).hostname : '';
+  } catch {
+    return '';
+  }
+})();
+const isSecure = !!process.env.AUTH_URL?.startsWith('https');
+// "saas.techhanker.com" → "techhanker.com"; single-label hosts (localhost) get no domain.
+const cookieDomain = authUrlHost.includes('.')
+  ? '.' + authUrlHost.split('.').slice(-2).join('.')
+  : undefined;
+const sessionCookieName = isSecure ? '__Secure-authjs.session-token' : 'authjs.session-token';
+
 export const authConfig: NextAuthConfig = {
   debug: true,
+  ...(cookieDomain
+    ? {
+        cookies: {
+          sessionToken: {
+            name: sessionCookieName,
+            options: {
+              httpOnly: true,
+              sameSite: 'lax' as const,
+              path: '/',
+              secure: isSecure,
+              domain: cookieDomain,
+            },
+          },
+        },
+      }
+    : {}),
   providers: [
     KeycloakProvider({
       clientId: env.KEYCLOAK_CLIENT_ID,

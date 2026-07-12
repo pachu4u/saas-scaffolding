@@ -74,11 +74,12 @@ export default function SignInPage() {
               const slug = h.get('x-tenant-slug');
               // If on a tenant subdomain, redirect back to that subdomain's root after login.
               // A relative redirectTo would resolve against AUTH_URL (root domain) and lose the subdomain.
-              const proto = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-              // If on a tenant subdomain, redirect back to that subdomain's root.
-              // If on the root domain (no slug), redirect to /auth/redirect which
-              // resolves the user's tenant from DB and forwards to the right subdomain.
-              const redirectTo = slug ? `${proto}://${host}/` : '/auth/redirect';
+              // Always use /auth/redirect so NextAuth never has to pass a cross-origin
+              // URL through the OAuth state (unreliable in v5 beta). The redirect page
+              // reads the tenant param and forwards to the correct subdomain.
+              const redirectTo = slug
+                ? `/auth/redirect?tenant=${encodeURIComponent(slug)}`
+                : '/auth/redirect';
               await signIn('keycloak', { redirectTo });
             }}
             className="space-y-4"
