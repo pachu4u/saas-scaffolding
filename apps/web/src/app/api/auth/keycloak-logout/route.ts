@@ -14,7 +14,7 @@ export async function GET() {
   const idToken = session?.idToken;
 
   const keycloakIssuer = process.env.KEYCLOAK_ISSUER ?? 'https://auth.lvh.me/realms/saas-platform';
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.AUTH_URL ?? 'https://app.lvh.me';
+  const appUrl = process.env.AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.lvh.me';
 
   // Build Keycloak end_session URL
   const logoutUrl = new URL(`${keycloakIssuer}/protocol/openid-connect/logout`);

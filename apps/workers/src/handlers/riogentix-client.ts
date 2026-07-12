@@ -5,13 +5,17 @@ function baseUrl(): string | null {
   return env.RIOGENTIX_INTERNAL_URL ?? null;
 }
 
-function secret(): string | null {
+function saasSecret(): string | null {
   return env.RIOGENTIX_SAAS_INTERNAL_SECRET ?? null;
 }
 
-async function call(method: string, path: string, body?: unknown): Promise<void> {
+function internalSecret(): string | null {
+  return env.RIOGENTIX_INTERNAL_SECRET ?? null;
+}
+
+async function callSaas(method: string, path: string, body?: unknown): Promise<void> {
   const url = baseUrl();
-  const sec = secret();
+  const sec = saasSecret();
 
   if (!url || !sec) {
     logger.debug({ path }, 'Riogentix integration not configured — skipping sync');
@@ -24,7 +28,7 @@ async function call(method: string, path: string, body?: unknown): Promise<void>
       'Content-Type': 'application/json',
       'X-Saas-Internal-Secret': sec,
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    ...(body !== undefined && { body: JSON.stringify(body) }),
   });
 
   if (!res.ok) {
@@ -33,12 +37,43 @@ async function call(method: string, path: string, body?: unknown): Promise<void>
   }
 }
 
+async function callInternal(method: string, path: string, body?: unknown): Promise<Response> {
+  const url = baseUrl();
+  const sec = internalSecret();
+
+  if (!url || !sec) {
+    logger.debug({ path }, 'Riogentix internal API not configured — skipping');
+    throw new Error('Riogentix internal API not configured');
+  }
+
+  const res = await fetch(`${url}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Internal-Secret': sec,
+    },
+    ...(body !== undefined && { body: JSON.stringify(body) }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Riogentix API ${method} ${path} → ${res.status}: ${text}`);
+  }
+
+  return res;
+}
+
+export async function provisionTenant(tenantId: string, plan: string): Promise<void> {
+  await callInternal('POST', `/internal/tenant/${tenantId}/provision`, { plan });
+  logger.info({ tenantId, plan }, 'Provisioned tenant in riogentix');
+}
+
 export async function syncPlan(tenantId: string, plan: string): Promise<void> {
-  await call('PUT', `/api/v1/internal/saas/tenant/${tenantId}/plan`, { plan });
+  await callSaas('PUT', `/api/v1/internal/saas/tenant/${tenantId}/plan`, { plan });
   logger.info({ tenantId, plan }, 'Synced plan to riogentix');
 }
 
 export async function setUsageLock(tenantId: string, locked: boolean): Promise<void> {
-  await call('PUT', `/api/v1/internal/saas/tenant/${tenantId}/usage-lock`, { locked });
+  await callSaas('PUT', `/api/v1/internal/saas/tenant/${tenantId}/usage-lock`, { locked });
   logger.info({ tenantId, locked }, 'Synced usage-lock to riogentix');
 }

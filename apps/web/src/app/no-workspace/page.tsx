@@ -1,12 +1,10 @@
+import Link from 'next/link';
+
 import { auth } from '@platform/auth';
 import { redirect } from 'next/navigation';
 
 export const metadata = { title: 'No workspace access' };
 
-// Landing spot for authenticated users who aren't a member of any tenant yet.
-// Tenants are provisioned by platform admins (via /onboarding) — there is no
-// self-serve tenant creation, so this page just points the user at their admin
-// rather than offering a "create workspace" action.
 export default async function NoWorkspacePage() {
   const session = await auth();
   if (!session) redirect('/auth/signin');
@@ -34,16 +32,26 @@ export default async function NoWorkspacePage() {
           No workspace yet
         </h1>
         <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
-          {session.user.email} isn&apos;t a member of any tenant yet. Ask your administrator to
-          invite you, or contact them to have a tenant set up.
+          {session.user.email} isn&apos;t a member of any tenant yet.
         </p>
-        <a
-          href="/api/auth/keycloak-logout"
-          className="mt-6 inline-block text-sm font-semibold hover:underline"
-          style={{ color: 'var(--brand-primary)' }}
-        >
-          Sign out
-        </a>
+        <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+          Ask your administrator to invite you, or create your own workspace.
+        </p>
+        <div className="mt-6 flex flex-col gap-3">
+          <Link
+            href="/signup"
+            className="brand-gradient block rounded-xl py-2.5 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            Create a workspace →
+          </Link>
+          <a
+            href="/api/auth/keycloak-logout"
+            className="block text-sm font-semibold hover:underline"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            Sign out
+          </a>
+        </div>
       </div>
     </div>
   );

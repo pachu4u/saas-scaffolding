@@ -27,9 +27,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect('/suspended');
   }
 
-  // New user with no tenant membership yet. Tenants are provisioned by
-  // platform admins (via /onboarding), not self-serve, so send them to a
-  // holding page rather than a "create your workspace" flow.
+  // New user with no tenant membership yet. Send them to the holding page
+  // with a link to create an account via /signup.
   if (membershipCount === 0) {
     redirect('/no-workspace');
   }
@@ -46,6 +45,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           tenantSlug={tenantSlug}
           userName={userName}
           userEmail={session.user.email}
+          riogentixUrl={process.env.RIOGENTIX_PUBLIC_URL}
         />
         <div className="lg:ml-[var(--sidebar-width)]">{children}</div>
       </div>

@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import { signIn } from '@platform/auth';
 
 export const metadata = { title: 'Sign in' };
@@ -91,7 +93,18 @@ export default function SignInPage() {
             automatically redirected to the admin area after login.
           </p>
 
-          <p className="mt-8 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
+          <p className="mt-5 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
+            Don&apos;t have an account?{' '}
+            <Link
+              href="/signup"
+              className="font-semibold underline"
+              style={{ color: 'var(--brand-primary)' }}
+            >
+              Create one free →
+            </Link>
+          </p>
+
+          <p className="mt-6 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
             By signing in, you agree to our{' '}
             <a href="#" className="hover:text-brand-primary underline">
               Terms

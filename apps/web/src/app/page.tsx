@@ -53,6 +53,7 @@ const plans = [
       '7-day audit log',
     ],
     cta: 'Start free',
+    ctaHref: '/signup',
     highlighted: false,
   },
   {
@@ -70,6 +71,7 @@ const plans = [
       'Webhook integrations',
     ],
     cta: 'Start Pro trial',
+    ctaHref: '/signup',
     highlighted: true,
   },
   {
@@ -88,6 +90,7 @@ const plans = [
       'Compliance exports',
     ],
     cta: 'Contact sales',
+    ctaHref: '/signup',
     highlighted: false,
   },
 ];
@@ -141,7 +144,7 @@ export default function LandingPage() {
               Sign in
             </Link>
             <Link
-              href="/auth/signin"
+              href="/signup"
               className="brand-gradient rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
             >
               Get started
@@ -191,7 +194,7 @@ export default function LandingPage() {
 
           <div className="mb-16 flex flex-col justify-center gap-4 sm:flex-row">
             <Link
-              href="/auth/signin"
+              href="/signup"
               className="brand-gradient brand-shadow rounded-xl px-8 py-4 text-base font-semibold text-white transition-opacity hover:opacity-90"
             >
               Start building free →
@@ -484,7 +487,7 @@ export default function LandingPage() {
                 </ul>
 
                 <Link
-                  href="/auth/signin"
+                  href={(plan as typeof plan & { ctaHref: string }).ctaHref}
                   className={`w-full rounded-xl py-3 text-center text-sm font-semibold transition-all ${
                     plan.highlighted
                       ? 'brand-gradient text-white hover:opacity-90'
@@ -524,7 +527,7 @@ export default function LandingPage() {
                 makes their product unique.
               </p>
               <Link
-                href="/auth/signin"
+                href="/signup"
                 className="inline-block rounded-xl bg-white px-8 py-4 text-base font-semibold transition-opacity hover:opacity-90"
                 style={{ color: 'var(--brand-primary)' }}
               >

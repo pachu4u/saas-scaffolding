@@ -221,6 +221,14 @@ services:
       NODE_EXTRA_CA_CERTS: /etc/ssl/certs/mkcert-rootCA.pem
       AUTH_URL: https://saas.techhanker.com
       NEXT_PUBLIC_APP_URL: https://saas.techhanker.com
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      KEYCLOAK_REALM: saas-platform
+      KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      RIOGENTIX_INTERNAL_URL: http://riogentix:7860
+      RIOGENTIX_INTERNAL_SECRET: ${RIOGENTIX_INTERNAL_SECRET:-riogentix-saas-internal-secret-dev}
+      RIOGENTIX_SAAS_INTERNAL_SECRET: ${RIOGENTIX_SAAS_INTERNAL_SECRET:-riogentix-saas-internal-secret-dev}
+      RIOGENTIX_PUBLIC_URL: https://riogentix.techhanker.com
     labels:
       - 'traefik.enable=true'
       - 'traefik.http.routers.web-app.rule=Host(`app.lvh.me`)'

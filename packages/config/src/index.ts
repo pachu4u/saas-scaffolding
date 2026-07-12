@@ -47,6 +47,14 @@ const envSchema = z.object({
   // Riogentix integration
   RIOGENTIX_INTERNAL_URL: z.string().url().optional(),
   RIOGENTIX_SAAS_INTERNAL_SECRET: z.string().min(16).optional(),
+  RIOGENTIX_INTERNAL_SECRET: z.string().min(16).optional(),
+  RIOGENTIX_PUBLIC_URL: z.string().url().optional(),
+
+  // Keycloak admin (for user creation during signup)
+  KEYCLOAK_INTERNAL_URL: z.string().url().optional(),
+  KEYCLOAK_REALM: z.string().default('saas-platform'),
+  KEYCLOAK_ADMIN_USERNAME: z.string().optional(),
+  KEYCLOAK_ADMIN_PASSWORD: z.string().optional(),
 
   // Git
   GIT_SHA: z.string().default('dev'),

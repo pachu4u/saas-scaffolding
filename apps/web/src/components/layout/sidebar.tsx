@@ -238,40 +238,45 @@ const Icon = {
 
 // ─── Navigation definitions ───────────────────────────────────────────────────
 
-const tenantSections = [
-  {
-    label: 'OVERVIEW',
-    items: [{ label: 'Dashboard', href: '/dashboard', icon: Icon.layout }],
-  },
-  {
-    label: 'WORKSPACE',
-    items: [{ label: 'Notes', href: '/notes', icon: Icon.penSquare }],
-  },
-  {
-    label: 'GOVERNANCE',
-    items: [
-      { label: 'Members', href: '/team', icon: Icon.users },
-      { label: 'Roles & Permissions', href: '/team/roles', icon: Icon.shield },
-      { label: 'Audit Log', href: '/audit', icon: Icon.fileText },
-    ],
-  },
-  {
-    label: 'ANALYTICS',
-    items: [
-      { label: 'Billing', href: '/billing', icon: Icon.creditCard },
-      { label: 'Webhooks', href: '/webhooks', icon: Icon.webhook },
-    ],
-  },
-  {
-    label: 'SYSTEM',
-    items: [
-      { label: 'General', href: '/settings', icon: Icon.settings },
-      { label: 'Branding', href: '/settings/branding', icon: Icon.palette },
-      { label: 'Security & SSO', href: '/settings/security', icon: Icon.lock },
-      { label: 'API Keys', href: '/settings/api-keys', icon: Icon.key },
-    ],
-  },
-];
+function buildTenantSections(riogentixUrl?: string) {
+  return [
+    {
+      label: 'OVERVIEW',
+      items: [{ label: 'Dashboard', href: '/dashboard', icon: Icon.layout }],
+    },
+    {
+      label: 'WORKSPACE',
+      items: [
+        { label: 'Notes', href: '/notes', icon: Icon.penSquare },
+        ...(riogentixUrl ? [{ label: 'Riogentix AI', href: riogentixUrl, icon: Icon.layers }] : []),
+      ],
+    },
+    {
+      label: 'GOVERNANCE',
+      items: [
+        { label: 'Members', href: '/team', icon: Icon.users },
+        { label: 'Roles & Permissions', href: '/team/roles', icon: Icon.shield },
+        { label: 'Audit Log', href: '/audit', icon: Icon.fileText },
+      ],
+    },
+    {
+      label: 'ANALYTICS',
+      items: [
+        { label: 'Billing', href: '/billing', icon: Icon.creditCard },
+        { label: 'Webhooks', href: '/webhooks', icon: Icon.webhook },
+      ],
+    },
+    {
+      label: 'SYSTEM',
+      items: [
+        { label: 'General', href: '/settings', icon: Icon.settings },
+        { label: 'Branding', href: '/settings/branding', icon: Icon.palette },
+        { label: 'Security & SSO', href: '/settings/security', icon: Icon.lock },
+        { label: 'API Keys', href: '/settings/api-keys', icon: Icon.key },
+      ],
+    },
+  ]; // end buildTenantSections
+}
 
 const adminSections = [
   {
@@ -321,6 +326,7 @@ interface SidebarProps {
   isAdmin?: boolean;
   userName?: string;
   userEmail?: string;
+  riogentixUrl?: string | undefined;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -404,6 +410,7 @@ export function Sidebar({
   isAdmin,
   userName,
   userEmail,
+  riogentixUrl,
 }: SidebarProps) {
   const pathname = usePathname();
   const { isOpen, close } = useSidebar();
@@ -416,7 +423,7 @@ export function Sidebar({
     return pathname === href || pathname.startsWith(href + '/');
   };
 
-  const sections: NavSection[] = isAdmin ? adminSections : tenantSections;
+  const sections: NavSection[] = isAdmin ? adminSections : buildTenantSections(riogentixUrl);
 
   return (
     <>

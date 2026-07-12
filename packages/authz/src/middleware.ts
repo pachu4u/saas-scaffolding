@@ -17,7 +17,7 @@ export interface AuthzOptions {
 // RouteCtx carries whatever Next.js passes as the second handler argument —
 // for dynamic segments, that's `{ params: Promise<{ id: string }> }`. It's
 // merged alongside `authz` so wrapped handlers can still destructure params.
-type RouteHandler<RouteCtx extends object = object> = (
+type RouteHandler<RouteCtx extends { params: Promise<unknown> } = { params: Promise<unknown> }> = (
   req: NextRequest,
   ctx: { authz: AuthzContext } & RouteCtx,
 ) => Promise<NextResponse>;
@@ -40,10 +40,9 @@ type RouteHandler<RouteCtx extends object = object> = (
  *   },
  * );
  */
-export function withAuthz<RouteCtx extends object = object>(
-  opts: AuthzOptions,
-  handler: RouteHandler<RouteCtx>,
-) {
+export function withAuthz<
+  RouteCtx extends { params: Promise<unknown> } = { params: Promise<unknown> },
+>(opts: AuthzOptions, handler: RouteHandler<RouteCtx>) {
   return async function protectedHandler(req: NextRequest, routeCtx: RouteCtx) {
     const session = await auth();
     if (!session) {
