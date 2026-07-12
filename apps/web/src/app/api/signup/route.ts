@@ -205,6 +205,7 @@ export async function POST(req: NextRequest) {
           plan,
           status: 'ACTIVE' as const,
           provisioningStatus: 'IN_PROGRESS' as const,
+          customDomains: [],
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           branding,
         },
