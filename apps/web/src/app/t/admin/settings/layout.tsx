@@ -5,11 +5,11 @@ import { InnerNav } from '@/components/layout/inner-nav';
 import { Topbar } from '@/components/layout/topbar';
 
 const settingsNav = [
-  { label: 'General', href: '/settings' },
-  { label: 'Branding', href: '/settings/branding' },
-  { label: 'Security & SSO', href: '/settings/security' },
-  { label: 'API Keys', href: '/settings/api-keys' },
-  { label: 'Compliance', href: '/settings/compliance' },
+  { label: 'General', href: '/admin/settings' },
+  { label: 'Branding', href: '/admin/settings/branding' },
+  { label: 'Security & SSO', href: '/admin/settings/security' },
+  { label: 'API Keys', href: '/admin/settings/api-keys' },
+  { label: 'Compliance', href: '/admin/settings/compliance' },
 ];
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {

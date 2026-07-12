@@ -145,7 +145,7 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
           </p>
           {hasFilters && (
             <a
-              href="/audit"
+              href="/admin/audit"
               className="text-xs font-semibold hover:underline"
               style={{ color: 'var(--brand-primary)' }}
             >

@@ -71,7 +71,7 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
         <Link
-          href="/team/roles"
+          href="/admin/team/roles"
           className="hover:underline"
           style={{ color: 'var(--brand-primary)' }}
         >
@@ -195,7 +195,7 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
               </p>
             )}
             <Link
-              href="/team"
+              href="/admin/team"
               className="mt-3 block text-xs font-semibold hover:underline"
               style={{ color: 'var(--brand-primary)' }}
             >

@@ -35,7 +35,7 @@ async function getKeycloakAdminToken(): Promise<string> {
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`Keycloak admin token failed (${res.status}): ${text}`);
+    throw new Error(`Keycloak admin token failed (${String(res.status)}): ${text}`);
   }
 
   const data = (await res.json()) as { access_token?: string };
@@ -50,7 +50,7 @@ async function createKeycloakUser(
   name: string,
 ): Promise<string> {
   const kcUrl = env.KEYCLOAK_INTERNAL_URL ?? env.KEYCLOAK_ISSUER.replace(/\/realms\/.*$/, '');
-  const realm = env.KEYCLOAK_REALM ?? 'saas-platform';
+  const realm = env.KEYCLOAK_REALM;
 
   const [firstName, ...rest] = name.trim().split(' ');
   const lastName = rest.join(' ') || firstName;
@@ -74,7 +74,7 @@ async function createKeycloakUser(
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`Keycloak user creation failed (${res.status}): ${text}`);
+    throw new Error(`Keycloak user creation failed (${String(res.status)}): ${text}`);
   }
 
   // 201 Location header: .../admin/realms/{realm}/users/{userId}
@@ -87,7 +87,7 @@ async function createKeycloakUser(
 
 async function deleteKeycloakUser(token: string, kcUserId: string): Promise<void> {
   const kcUrl = env.KEYCLOAK_INTERNAL_URL ?? env.KEYCLOAK_ISSUER.replace(/\/realms\/.*$/, '');
-  const realm = env.KEYCLOAK_REALM ?? 'saas-platform';
+  const realm = env.KEYCLOAK_REALM;
 
   await fetch(`${kcUrl}/admin/realms/${realm}/users/${kcUserId}`, {
     method: 'DELETE',
@@ -112,7 +112,7 @@ async function provisionRiogentixTenant(tenantId: string, plan: string): Promise
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`Riogentix provision failed (${res.status}): ${text}`);
+    throw new Error(`Riogentix provision failed (${String(res.status)}): ${text}`);
   }
 }
 
@@ -193,8 +193,7 @@ export async function POST(req: NextRequest) {
   try {
     const result = await withPlatformAdmin(async (tx) => {
       // Create tenant
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const branding: any = {};
+      const branding: Record<string, string> = {};
       if (primaryColor) branding.primaryColor = primaryColor;
       if (timezone) branding.timezone = timezone;
 
@@ -206,7 +205,6 @@ export async function POST(req: NextRequest) {
           status: 'ACTIVE' as const,
           provisioningStatus: 'IN_PROGRESS' as const,
           customDomains: [],
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           branding,
         },
         select: { id: true, slug: true, name: true },
@@ -216,15 +214,13 @@ export async function POST(req: NextRequest) {
       // externalId will be overwritten on first real SSO login
       const pendingExternalId = `pending-${crypto.randomUUID()}`;
       let dbUser = await tx.user.findUnique({ where: { email: emailNorm } });
-      if (!dbUser) {
-        dbUser = await tx.user.create({
-          data: {
-            email: emailNorm,
-            externalId: pendingExternalId,
-            name: adminName || emailNorm,
-          },
-        });
-      }
+      dbUser ??= await tx.user.create({
+        data: {
+          email: emailNorm,
+          externalId: pendingExternalId,
+          name: adminName || emailNorm,
+        },
+      });
 
       // Add as active tenant member
       await tx.tenantUser.upsert({
@@ -270,7 +266,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const workspaceUrl = `${env.AUTH_URL.replace('saas.', `${slugNorm}.`)}`;
+    const workspaceUrl = env.AUTH_URL.replace('saas.', `${slugNorm}.`);
 
     return NextResponse.json(
       {

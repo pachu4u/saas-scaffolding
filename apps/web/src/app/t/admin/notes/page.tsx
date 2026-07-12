@@ -252,7 +252,11 @@ export default function NotesPage() {
           <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
             Free plan: up to <strong>10 notes</strong>, no deletion. Pro: up to{' '}
             <strong>1,000 notes</strong> with deletion. Enterprise: unlimited.{' '}
-            <a href="/billing" className="underline" style={{ color: 'var(--brand-primary)' }}>
+            <a
+              href="/admin/billing"
+              className="underline"
+              style={{ color: 'var(--brand-primary)' }}
+            >
               Upgrade
             </a>
           </p>

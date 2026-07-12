@@ -177,7 +177,7 @@ export function RolePermissionEditor({
       {/* Save */}
       <div className="flex items-center justify-between pt-4">
         <Link
-          href="/team/roles"
+          href="/admin/team/roles"
           className="text-sm font-semibold hover:underline"
           style={{ color: 'var(--text-muted)' }}
         >

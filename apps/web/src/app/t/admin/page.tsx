@@ -34,18 +34,28 @@ function getActivityType(action: string): keyof typeof activityTypeConfig {
 const quickActions = [
   {
     label: 'Invite member',
-    href: '/team',
+    href: '/admin/team',
     icon: '👤',
     description: 'Add someone to your workspace',
   },
   {
     label: 'Manage subscription',
-    href: '/billing',
+    href: '/admin/billing',
     icon: '💳',
     description: 'View plans and usage',
   },
-  { label: 'Configure SSO', href: '/settings', icon: '🔐', description: 'Set up SAML or OIDC' },
-  { label: 'View audit log', href: '/audit', icon: '📋', description: 'Track all user actions' },
+  {
+    label: 'Configure SSO',
+    href: '/admin/settings',
+    icon: '🔐',
+    description: 'Set up SAML or OIDC',
+  },
+  {
+    label: 'View audit log',
+    href: '/admin/audit',
+    icon: '📋',
+    description: 'Track all user actions',
+  },
 ];
 
 export default async function DashboardPage() {
@@ -342,7 +352,7 @@ export default async function DashboardPage() {
               Recent Activity
             </h2>
             <a
-              href="/audit"
+              href="/admin/audit"
               className="text-xs font-semibold hover:underline"
               style={{ color: 'var(--brand-primary)' }}
             >
@@ -420,7 +430,7 @@ export default async function DashboardPage() {
             </div>
           </div>
           <a
-            href="/billing"
+            href="/admin/billing"
             className="rounded-lg px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: 'var(--brand-gradient)' }}
           >

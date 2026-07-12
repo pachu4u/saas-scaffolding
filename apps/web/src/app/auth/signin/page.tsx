@@ -1,6 +1,5 @@
-import Link from 'next/link';
-
 import { signIn } from '@platform/auth';
+import Link from 'next/link';
 
 export const metadata = { title: 'Sign in' };
 

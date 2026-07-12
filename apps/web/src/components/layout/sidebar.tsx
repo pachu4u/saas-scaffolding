@@ -242,37 +242,39 @@ function buildTenantSections(riogentixUrl?: string) {
   return [
     {
       label: 'OVERVIEW',
-      items: [{ label: 'Dashboard', href: '/dashboard', icon: Icon.layout }],
+      items: [{ label: 'Dashboard', href: '/admin', icon: Icon.layout }],
     },
     {
       label: 'WORKSPACE',
       items: [
-        { label: 'Notes', href: '/notes', icon: Icon.penSquare },
-        ...(riogentixUrl ? [{ label: 'Riogentix AI', href: riogentixUrl, icon: Icon.layers }] : []),
+        { label: 'Notes', href: '/admin/notes', icon: Icon.penSquare },
+        ...(riogentixUrl
+          ? [{ label: 'Riogentix AI', href: riogentixUrl, icon: Icon.layers }]
+          : [{ label: 'Riogentix App', href: '/app', icon: Icon.layers }]),
       ],
     },
     {
       label: 'GOVERNANCE',
       items: [
-        { label: 'Members', href: '/team', icon: Icon.users },
-        { label: 'Roles & Permissions', href: '/team/roles', icon: Icon.shield },
-        { label: 'Audit Log', href: '/audit', icon: Icon.fileText },
+        { label: 'Members', href: '/admin/team', icon: Icon.users },
+        { label: 'Roles & Permissions', href: '/admin/team/roles', icon: Icon.shield },
+        { label: 'Audit Log', href: '/admin/audit', icon: Icon.fileText },
       ],
     },
     {
       label: 'ANALYTICS',
       items: [
-        { label: 'Billing', href: '/billing', icon: Icon.creditCard },
-        { label: 'Webhooks', href: '/webhooks', icon: Icon.webhook },
+        { label: 'Billing', href: '/admin/billing', icon: Icon.creditCard },
+        { label: 'Webhooks', href: '/admin/webhooks', icon: Icon.webhook },
       ],
     },
     {
       label: 'SYSTEM',
       items: [
-        { label: 'General', href: '/settings', icon: Icon.settings },
-        { label: 'Branding', href: '/settings/branding', icon: Icon.palette },
-        { label: 'Security & SSO', href: '/settings/security', icon: Icon.lock },
-        { label: 'API Keys', href: '/settings/api-keys', icon: Icon.key },
+        { label: 'General', href: '/admin/settings', icon: Icon.settings },
+        { label: 'Branding', href: '/admin/settings/branding', icon: Icon.palette },
+        { label: 'Security & SSO', href: '/admin/settings/security', icon: Icon.lock },
+        { label: 'API Keys', href: '/admin/settings/api-keys', icon: Icon.key },
       ],
     },
   ]; // end buildTenantSections
@@ -416,10 +418,9 @@ export function Sidebar({
   const { isOpen, close } = useSidebar();
 
   const isActive = (href: string) => {
-    if (href === '/dashboard') return pathname === '/dashboard';
-    if (href === '/team') return pathname === '/team';
-    if (href === '/settings') return pathname === '/settings';
     if (href === '/admin') return pathname === '/admin';
+    if (href === '/admin/team') return pathname === '/admin/team';
+    if (href === '/admin/settings') return pathname === '/admin/settings';
     return pathname === href || pathname.startsWith(href + '/');
   };
 

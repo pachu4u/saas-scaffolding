@@ -12,9 +12,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     Array.isArray(session.groups) &&
     session.groups.some((g: string) => ['platform_super_admin', 'platform_support'].includes(g));
 
-  if (!isPlatformAdmin) redirect('/dashboard');
+  if (!isPlatformAdmin) redirect('/');
 
-  const userName = session.user.name ?? session.user.email?.split('@')[0] ?? 'Admin';
+  const userName = session.user.name ?? session.user.email.split('@')[0] ?? 'Admin';
 
   return (
     <SidebarProvider>

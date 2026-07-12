@@ -9,6 +9,7 @@ const RESERVED = new Set([
   'api',
   'admin',
   'app',
+  't',
   'www',
   'traefik',
   'grafana',
@@ -28,26 +29,26 @@ const PUBLIC_PREFIXES = [
   '/scim/',
 ];
 
-// Exact public paths (not prefix-matched)
-const PUBLIC_EXACT = new Set(['/']);
+// Paths that are public only on the root domain (no tenant subdomain)
+const PUBLIC_EXACT_ROOT = new Set(['/']);
 
 function extractSlug(host: string): string | null {
-  // Strip port, take leftmost label
   const label = host.split(':')[0]?.split('.')[0]?.toLowerCase() ?? '';
   if (!label || label === 'localhost' || RESERVED.has(label)) return null;
   if (!/^[a-z0-9-]+$/.test(label)) return null;
   return label;
 }
 
-// NOTE: on `localhost` (no subdomain) this returns null, so `x-tenant-slug`
-// is never set below and callers (API routes via getTenantFromRequest, and
-// Server Components via getCurrentTenant in lib/server-tenant.ts) fall back
-// to the signed-in user's own tenant membership, then to
-// NEXT_PUBLIC_DEFAULT_TENANT_SLUG (or 'acme') as a last resort. That's fine
-// for single-tenant local dev, but it means local testing cannot exercise
-// real cross-tenant isolation without either running through subdomains
-// (e.g. *.lvh.me, as the e2e suite does) or an explicit x-tenant-slug
-// override.
+// Old tenant paths that redirect to their new /admin/* equivalents
+const LEGACY_TENANT_REDIRECTS: Record<string, string> = {
+  '/dashboard': '/admin',
+  '/notes': '/admin/notes',
+  '/profile': '/admin/profile',
+  '/billing': '/admin/billing',
+  '/audit': '/admin/audit',
+  '/webhooks': '/admin/webhooks',
+  '/settings': '/admin/settings',
+};
 
 export default auth(function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -59,7 +60,9 @@ export default auth(function middleware(req: NextRequest) {
   if (slug) headers.set('x-tenant-slug', slug);
 
   const isPublic =
-    PUBLIC_EXACT.has(pathname) || PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
+    PUBLIC_PREFIXES.some((p) => pathname.startsWith(p)) ||
+    (!slug && PUBLIC_EXACT_ROOT.has(pathname));
+
   const session = (req as unknown as { auth: { user?: unknown } | null }).auth;
 
   if (!isPublic && !session?.user) {
@@ -67,9 +70,37 @@ export default auth(function middleware(req: NextRequest) {
     return NextResponse.redirect(signInUrl);
   }
 
-  // Redirect authenticated users from the landing page to the dashboard
-  if (pathname === '/' && session?.user) {
-    return NextResponse.redirect(new URL('/dashboard', req.url));
+  // Root domain: redirect authenticated users from / to marketing landing (already there)
+  // or let them through to sign in / sign up.
+  if (!slug && pathname === '/' && session?.user) {
+    // On root domain, authenticated users stay on the marketing page.
+    // They can navigate to their tenant subdomain from there.
+    return NextResponse.next({ request: { headers } });
+  }
+
+  if (slug) {
+    // Legacy path redirects on tenant subdomains
+    const legacyTarget = LEGACY_TENANT_REDIRECTS[pathname];
+    if (legacyTarget) {
+      return NextResponse.redirect(new URL(legacyTarget, req.url));
+    }
+
+    // Handle /team/* legacy paths
+    if (pathname === '/team' || pathname.startsWith('/team/')) {
+      const newPath = '/admin' + pathname;
+      return NextResponse.redirect(new URL(newPath, req.url));
+    }
+
+    // Rewrite tenant subdomain requests into the /t/* internal tree
+    if (pathname === '/') {
+      return NextResponse.rewrite(new URL('/t', req.url), { request: { headers } });
+    }
+    if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+      return NextResponse.rewrite(new URL('/t' + pathname, req.url), { request: { headers } });
+    }
+    if (pathname === '/app' || pathname.startsWith('/app/')) {
+      return NextResponse.rewrite(new URL('/t' + pathname, req.url), { request: { headers } });
+    }
   }
 
   return NextResponse.next({ request: { headers } });

@@ -2,8 +2,6 @@ import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
 
-import { Topbar } from '@/components/layout/topbar';
-import { Badge } from '@/components/ui/badge';
 import {
   AvatarUpload,
   DisplayNameForm,
@@ -12,6 +10,9 @@ import {
   type SessionInfo,
 } from './profile-components';
 
+import { Topbar } from '@/components/layout/topbar';
+import { Badge } from '@/components/ui/badge';
+
 export const metadata = { title: 'Profile' };
 
 const PLAN_BADGE: Record<string, 'blue' | 'purple' | 'gray'> = {
@@ -19,50 +20,6 @@ const PLAN_BADGE: Record<string, 'blue' | 'purple' | 'gray'> = {
   enterprise: 'purple',
   free: 'gray',
 };
-
-// Get active sessions from Redis (sessions stored in format: sess:<sessionId>)
-async function getActiveSessions(userId: string, redis: any): Promise<SessionInfo[]> {
-  try {
-    // Scan for all session keys
-    const keys: string[] = [];
-    let cursor = '0';
-    do {
-      const result = await redis.scan(cursor, 'MATCH', 'sess:*', 'COUNT', '100');
-      cursor = result[0];
-      keys.push(...(result[1] as string[]));
-    } while (cursor !== '0');
-
-    const sessions: SessionInfo[] = [];
-
-    for (const key of keys) {
-      const sessionData = await redis.get(key);
-      if (!sessionData) continue;
-
-      try {
-        const parsed = JSON.parse(sessionData);
-        // Check if this session belongs to the current user
-        // The session format from next-auth is: { ...token, _fs: ..., _exp: ..., _rev: ... }
-        if (parsed?.user?.id === userId) {
-          sessions.push({
-            sessionId: key.replace('sess:', ''),
-            createdAt: parsed._fs ? new Date(parsed._fs).toISOString() : new Date().toISOString(),
-            lastActive: parsed._exp
-              ? new Date(parsed._exp).toISOString()
-              : new Date().toISOString(),
-            active: true,
-          });
-        }
-      } catch {
-        // Skip malformed session data
-      }
-    }
-
-    return sessions;
-  } catch (error) {
-    console.error('[profile] Failed to get active sessions from Redis:', error);
-    return [];
-  }
-}
 
 export default async function ProfilePage() {
   const session = await auth();
@@ -82,15 +39,7 @@ export default async function ProfilePage() {
     },
   });
 
-  // Get active sessions from Redis (if available)
-  let activeSessions: SessionInfo[] = [];
-  try {
-    const { redis } = await import('@platform/db/redis' as string);
-    const sessions = await getActiveSessions(session.user.id, redis);
-    activeSessions = sessions;
-  } catch {
-    // Redis not available, skip active sessions
-  }
+  const activeSessions: SessionInfo[] = [];
 
   const profileData: ProfileData = {
     id: userRecord?.id ?? session.user.id,
@@ -98,7 +47,7 @@ export default async function ProfilePage() {
     name: userRecord?.name ?? session.user.name ?? null,
     avatarUrl: userRecord?.avatarUrl ?? session.user.image ?? null,
     status: userRecord?.status ?? 'ACTIVE',
-    createdAt: userRecord?.createdAt?.toISOString() ?? new Date().toISOString(),
+    createdAt: userRecord?.createdAt.toISOString() ?? new Date().toISOString(),
     workspaces:
       userRecord?.tenantUsers.map((tu) => ({
         tenantId: tu.tenant.id,
@@ -109,21 +58,9 @@ export default async function ProfilePage() {
       })) ?? [],
   };
 
-  const initials = (profileData.name ?? profileData.email)
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? '')
-    .join('');
-
   const isPlatformAdmin =
     Array.isArray(session.groups) &&
     session.groups.some((g) => ['platform_super_admin', 'platform_support'].includes(g));
-
-  // Force revalidation of session data when profile is updated
-  const forceRevalidate = () => {
-    // This is a client-side only function
-    // The server will re-fetch data on the next request
-  };
 
   return (
     <div>
@@ -151,14 +88,14 @@ export default async function ProfilePage() {
           <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start">
             {/* Avatar */}
             <div className="flex-shrink-0">
-              <AvatarUpload user={profileData} onUpdate={forceRevalidate} />
+              <AvatarUpload user={profileData} onUpdate={() => undefined} />
             </div>
 
             {/* Info */}
             <div className="min-w-0 flex-1">
               <div className="mb-1 flex flex-wrap items-center gap-2">
                 <h2 className="text-xl font-extrabold" style={{ color: 'var(--text-primary)' }}>
-                  <DisplayNameForm user={profileData} onUpdate={forceRevalidate} />
+                  <DisplayNameForm user={profileData} onUpdate={() => undefined} />
                 </h2>
                 {isPlatformAdmin && (
                   <Badge variant="purple" dot>

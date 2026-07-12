@@ -90,7 +90,7 @@ export default async function MePage() {
 
         <div className="text-center">
           <a
-            href="/dashboard"
+            href="/admin"
             className="text-sm font-semibold hover:underline"
             style={{ color: 'var(--brand-primary)' }}
           >

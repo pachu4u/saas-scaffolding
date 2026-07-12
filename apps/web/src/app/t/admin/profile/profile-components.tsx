@@ -11,13 +11,13 @@ export interface ProfileData {
   avatarUrl?: string | null;
   status: string;
   createdAt: string;
-  workspaces: Array<{
+  workspaces: {
     tenantId: string;
     tenantName: string;
     tenantSlug: string;
     plan: string;
     status: string;
-  }>;
+  }[];
 }
 
 export interface SessionInfo {
@@ -67,8 +67,8 @@ export function AvatarUpload({ user, onUpdate }: { user: ProfileData; onUpdate: 
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to upload avatar');
+        const data = (await response.json()) as { error?: string };
+        throw new Error(data.error ?? 'Failed to upload avatar');
       }
 
       onUpdate();
@@ -148,14 +148,18 @@ export function AvatarUpload({ user, onUpdate }: { user: ProfileData; onUpdate: 
           <input
             type="file"
             accept="image/png,image/jpeg,image/gif,image/webp"
-            onChange={handleAvatarChange}
+            onChange={(e) => {
+              void handleAvatarChange(e);
+            }}
             className="hidden"
             disabled={uploading}
           />
         </label>
         {user.avatarUrl && !uploading && (
           <button
-            onClick={handleAvatarRemove}
+            onClick={() => {
+              void handleAvatarRemove();
+            }}
             className="absolute bottom-0 left-0 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-red-500 text-white shadow transition-all hover:scale-110 hover:bg-red-600"
             title="Remove avatar"
           >
@@ -175,7 +179,9 @@ export function AvatarUpload({ user, onUpdate }: { user: ProfileData; onUpdate: 
         <input
           type="file"
           accept="image/png,image/jpeg,image/gif,image/webp"
-          onChange={handleAvatarChange}
+          onChange={(e) => {
+            void handleAvatarChange(e);
+          }}
           className="hidden"
           id="avatar-input"
           disabled={uploading}
@@ -221,8 +227,8 @@ export function DisplayNameForm({ user, onUpdate }: { user: ProfileData; onUpdat
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to update display name');
+        const data = (await response.json()) as { error?: string };
+        throw new Error(data.error ?? 'Failed to update display name');
       }
 
       setEditing(false);
@@ -247,7 +253,9 @@ export function DisplayNameForm({ user, onUpdate }: { user: ProfileData; onUpdat
           <input
             type="text"
             value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
+            onChange={(e) => {
+              setDisplayName(e.target.value);
+            }}
             className="focus:border-brand-primary focus:ring-brand-primary w-full rounded-lg border px-3 py-2 text-sm outline-none focus:ring-1"
             style={{ borderColor: 'var(--border-default)' }}
             placeholder="Enter your display name"
@@ -256,7 +264,9 @@ export function DisplayNameForm({ user, onUpdate }: { user: ProfileData; onUpdat
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={handleSave}
+            onClick={() => {
+              void handleSave();
+            }}
             disabled={saving}
             className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${saving ? 'cursor-not-allowed bg-gray-400' : 'bg-brand-primary hover:bg-brand-secondary text-white'} `}
           >
@@ -290,7 +300,9 @@ export function DisplayNameForm({ user, onUpdate }: { user: ProfileData; onUpdat
         </p>
       </div>
       <button
-        onClick={() => setEditing(true)}
+        onClick={() => {
+          setEditing(true);
+        }}
         className="hover:bg-bg-subtle rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors"
         style={{ borderColor: 'var(--border-default)' }}
       >
@@ -344,7 +356,9 @@ export function ActiveSessions({ sessions }: { sessions: SessionInfo[] }) {
                 </div>
               </div>
               <button
-                onClick={() => console.log('Revoke session:', session.sessionId)}
+                onClick={() => {
+                  console.log('Revoke session:', session.sessionId);
+                }}
                 className="text-xs font-semibold text-red-500 hover:underline"
               >
                 Revoke

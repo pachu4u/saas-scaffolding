@@ -1,6 +1,5 @@
-import Link from 'next/link';
-
 import { auth } from '@platform/auth';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 export const metadata = { title: 'No workspace access' };

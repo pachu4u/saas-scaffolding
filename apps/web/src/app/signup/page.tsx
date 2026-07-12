@@ -303,9 +303,9 @@ export default function SignupPage() {
                   <input
                     type="text"
                     value={slug}
-                    onChange={(e) =>
-                      setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))
-                    }
+                    onChange={(e) => {
+                      setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''));
+                    }}
                     placeholder="acme"
                     className="flex-1 px-3 py-2.5 text-sm outline-none"
                     style={{ background: 'var(--bg-white)', color: 'var(--text-primary)' }}
@@ -328,7 +328,9 @@ export default function SignupPage() {
                     <button
                       key={c}
                       type="button"
-                      onClick={() => setPrimaryColor(c)}
+                      onClick={() => {
+                        setPrimaryColor(c);
+                      }}
                       className="h-8 w-8 rounded-full border-2 transition-transform hover:scale-110"
                       style={{
                         background: c,
@@ -348,7 +350,9 @@ export default function SignupPage() {
                 </label>
                 <select
                   value={timezone}
-                  onChange={(e) => setTimezone(e.target.value)}
+                  onChange={(e) => {
+                    setTimezone(e.target.value);
+                  }}
                   className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
                   style={{
                     borderColor: 'var(--border-default)',
@@ -396,7 +400,9 @@ export default function SignupPage() {
                 <input
                   type="text"
                   value={adminName}
-                  onChange={(e) => setAdminName(e.target.value)}
+                  onChange={(e) => {
+                    setAdminName(e.target.value);
+                  }}
                   placeholder="Jane Smith"
                   autoFocus
                   className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
@@ -418,7 +424,9 @@ export default function SignupPage() {
                 <input
                   type="email"
                   value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
+                  onChange={(e) => {
+                    setAdminEmail(e.target.value);
+                  }}
                   placeholder="jane@acme.com"
                   className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
                   style={{
@@ -439,7 +447,9 @@ export default function SignupPage() {
                 <input
                   type="password"
                   value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
+                  onChange={(e) => {
+                    setAdminPassword(e.target.value);
+                  }}
                   placeholder="At least 8 characters"
                   className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
                   style={{
@@ -460,7 +470,9 @@ export default function SignupPage() {
                 <input
                   type="password"
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                  }}
                   placeholder="Repeat your password"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !isPending) handleSubmit();

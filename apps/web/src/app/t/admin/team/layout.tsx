@@ -7,8 +7,8 @@ import { InviteButton } from '@/components/team/invite-button';
 import { getCurrentTenant } from '@/lib/server-tenant';
 
 const teamNav = [
-  { label: 'Members', href: '/team' },
-  { label: 'Roles & Permissions', href: '/team/roles' },
+  { label: 'Members', href: '/admin/team' },
+  { label: 'Roles & Permissions', href: '/admin/team/roles' },
 ];
 
 export default async function TeamLayout({ children }: { children: React.ReactNode }) {
