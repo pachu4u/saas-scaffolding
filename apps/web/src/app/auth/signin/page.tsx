@@ -1,4 +1,5 @@
 import { signIn } from '@platform/auth';
+import { headers } from 'next/headers';
 import Link from 'next/link';
 
 export const metadata = { title: 'Sign in' };
@@ -68,7 +69,14 @@ export default function SignInPage() {
           <form
             action={async () => {
               'use server';
-              await signIn('keycloak', { redirectTo: '/dashboard' });
+              const h = await headers();
+              const host = h.get('host') ?? '';
+              const slug = h.get('x-tenant-slug');
+              // If on a tenant subdomain, redirect back to that subdomain's root after login.
+              // A relative redirectTo would resolve against AUTH_URL (root domain) and lose the subdomain.
+              const proto = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+              const redirectTo = slug ? `${proto}://${host}/` : '/';
+              await signIn('keycloak', { redirectTo });
             }}
             className="space-y-4"
           >

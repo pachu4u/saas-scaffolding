@@ -26,6 +26,26 @@ export const authConfig: NextAuthConfig = {
   },
 
   callbacks: {
+    // Allow post-login redirects to any subdomain of the root domain (e.g. tenant.techhanker.com).
+    // NextAuth v5 blocks cross-origin redirectTo by default; this whitelists *.rootdomain only.
+    // eslint-disable-next-line @typescript-eslint/require-await
+    async redirect({ url, baseUrl }) {
+      try {
+        const target = new URL(url);
+        const base = new URL(baseUrl);
+        const parts = base.hostname.split('.');
+        // Root domain = last two labels (works for .com, .io, etc.)
+        const rootDomain = parts.slice(-2).join('.');
+        if (target.hostname === base.hostname || target.hostname.endsWith('.' + rootDomain)) {
+          return url;
+        }
+      } catch {
+        // url may be a relative path — allow it
+        if (url.startsWith('/')) return `${baseUrl}${url}`;
+      }
+      return baseUrl;
+    },
+
     // NextAuth's callback type requires a Promise return even though this
     // implementation has no real await.
     // eslint-disable-next-line @typescript-eslint/require-await
