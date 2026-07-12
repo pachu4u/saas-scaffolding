@@ -64,15 +64,35 @@ export const authConfig: NextAuthConfig = {
     async signIn({ user, profile }) {
       if (!profile?.sub || !user.email) return;
       try {
-        const dbUser = await adminDb.user.upsert({
-          where: { externalId: profile.sub },
-          update: { email: user.email, updatedAt: new Date() },
-          create: {
-            externalId: profile.sub,
-            email: user.email,
-            status: 'ACTIVE',
-          },
-        });
+        // Try to find the user by their real Keycloak ID first. If not found,
+        // look up by email — this handles self-serve signups where the DB user
+        // was created with a `pending-<uuid>` externalId before the first login.
+        let dbUser = await adminDb.user.findUnique({ where: { externalId: profile.sub } });
+        if (!dbUser) {
+          const emailUser = await adminDb.user.findUnique({
+            where: { email: user.email.toLowerCase() },
+          });
+          if (emailUser) {
+            // Claim the pending user record so their tenant memberships are visible.
+            dbUser = await adminDb.user.update({
+              where: { id: emailUser.id },
+              data: { externalId: profile.sub, updatedAt: new Date() },
+            });
+          } else {
+            dbUser = await adminDb.user.create({
+              data: {
+                externalId: profile.sub,
+                email: user.email.toLowerCase(),
+                status: 'ACTIVE',
+              },
+            });
+          }
+        } else {
+          dbUser = await adminDb.user.update({
+            where: { id: dbUser.id },
+            data: { email: user.email.toLowerCase(), updatedAt: new Date() },
+          });
+        }
 
         // Keycloak groups claim maps to tenant slugs — JIT-provision tenant
         // membership on first login so a fresh SSO user actually lands in a
