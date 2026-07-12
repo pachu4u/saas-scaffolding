@@ -75,7 +75,10 @@ export default function SignInPage() {
               // If on a tenant subdomain, redirect back to that subdomain's root after login.
               // A relative redirectTo would resolve against AUTH_URL (root domain) and lose the subdomain.
               const proto = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-              const redirectTo = slug ? `${proto}://${host}/` : '/';
+              // If on a tenant subdomain, redirect back to that subdomain's root.
+              // If on the root domain (no slug), redirect to /auth/redirect which
+              // resolves the user's tenant from DB and forwards to the right subdomain.
+              const redirectTo = slug ? `${proto}://${host}/` : '/auth/redirect';
               await signIn('keycloak', { redirectTo });
             }}
             className="space-y-4"
