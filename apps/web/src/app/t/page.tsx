@@ -1,4 +1,5 @@
 import { auth } from '@platform/auth';
+import { adminDb } from '@platform/db';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
@@ -18,10 +19,24 @@ export default async function TenantHomePage() {
     Array.isArray(session.groups) &&
     session.groups.some((g: string) => ['platform_super_admin', 'platform_support'].includes(g));
 
-  const isTenantAdmin =
-    !isPlatformAdmin &&
-    Array.isArray(session.groups) &&
-    session.groups.some((g: string) => g.includes('admin') || g.includes('owner'));
+  // Check admin status via DB role bindings — Keycloak groups are tenant slugs,
+  // not role names, so we cannot use them for the admin check.
+  let isTenantAdmin = false;
+  if (!isPlatformAdmin && tenant) {
+    const dbUser = await adminDb.user.findUnique({
+      where: { externalId: session.user.id },
+      select: {
+        roleBindings: {
+          where: { tenantId: tenant.tenantId },
+          select: { role: { select: { name: true } } },
+        },
+      },
+    });
+    isTenantAdmin =
+      dbUser?.roleBindings.some(
+        (rb) => rb.role.name.includes('admin') || rb.role.name.includes('owner'),
+      ) ?? false;
+  }
 
   const tiles = [
     ...(isTenantAdmin || isPlatformAdmin

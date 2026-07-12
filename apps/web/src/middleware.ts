@@ -4,6 +4,18 @@ import NextAuth from 'next-auth';
 
 const { auth } = NextAuth(edgeAuthConfig);
 
+// The hostname of the root domain (e.g. "saas.techhanker.com"). Any request
+// whose host matches this exactly is the marketing/auth site, not a tenant subdomain.
+const ROOT_HOST = process.env.AUTH_URL
+  ? (() => {
+      try {
+        return new URL(process.env.AUTH_URL).host;
+      } catch {
+        return '';
+      }
+    })()
+  : '';
+
 const RESERVED = new Set([
   'auth',
   'api',
@@ -33,7 +45,10 @@ const PUBLIC_PREFIXES = [
 const PUBLIC_EXACT_ROOT = new Set(['/']);
 
 function extractSlug(host: string): string | null {
-  const label = host.split(':')[0]?.split('.')[0]?.toLowerCase() ?? '';
+  // Strip port, then check if this IS the root domain before treating the first label as a slug.
+  const bareHost = host.split(':')[0] ?? '';
+  if (ROOT_HOST && bareHost === ROOT_HOST.split(':')[0]) return null;
+  const label = bareHost.split('.')[0]?.toLowerCase() ?? '';
   if (!label || label === 'localhost' || RESERVED.has(label)) return null;
   if (!/^[a-z0-9-]+$/.test(label)) return null;
   return label;
