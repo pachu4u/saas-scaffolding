@@ -1,9 +1,8 @@
 import crypto from 'crypto';
 
-import { auth } from '@platform/auth';
+import { PLATFORM_ROLE_NAMES, Permission, withAuthz } from '@platform/authz';
 import { adminDb, withPlatformAdmin, checkRateLimit, rateLimitHeaders } from '@platform/db';
 import { sendEmail } from '@platform/notifications';
-import { resolveTenant } from '@platform/tenant';
 import { NextResponse, type NextRequest } from 'next/server';
 
 /**
@@ -11,23 +10,10 @@ import { NextResponse, type NextRequest } from 'next/server';
  * Body: { email: string; roleId: string }
  *
  * Creates a TenantUser record with status INVITED and sends an invite email.
- * Requires: member:invite permission (admin/owner only).
+ * Requires USERS_CREATE.
  */
-export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const tenantSlug = req.headers.get('x-tenant-slug');
-  if (!tenantSlug) {
-    return NextResponse.json({ error: 'No tenant context' }, { status: 400 });
-  }
-
-  const tenantCtx = await resolveTenant(tenantSlug);
-  if (!tenantCtx) {
-    return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-  }
+export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (req, { authz }) => {
+  const tenantCtx = { tenantId: authz.tenantId };
 
   // Rate limit: 20 invites per hour per tenant
   const rl = await checkRateLimit({
@@ -50,8 +36,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'email and roleId are required' }, { status: 400 });
   }
 
+  // Platform-level roles are never assignable via a tenant's own invite flow.
+  if ((PLATFORM_ROLE_NAMES as readonly string[]).includes(roleId)) {
+    return NextResponse.json(
+      { error: `Role "${roleId}" cannot be assigned within a tenant` },
+      { status: 403 },
+    );
+  }
+
   // Normalise email
   const normalizedEmail = email.trim().toLowerCase();
+
+  // Fetch the tenant name for the invite email
+  const tenant = await adminDb.tenant.findUnique({
+    where: { id: tenantCtx.tenantId },
+    select: { name: true },
+  });
+  if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
   // All writes use withPlatformAdmin to bypass FORCE ROW LEVEL SECURITY
   const user = await withPlatformAdmin(async (tx) => {
@@ -115,6 +116,7 @@ export async function POST(req: NextRequest) {
     await tx.auditLog.create({
       data: {
         tenantId: tenantCtx.tenantId,
+        actorUserId: authz.user.id,
         action: 'member.invited',
         resourceType: 'user',
         resourceId: user.id,
@@ -126,14 +128,14 @@ export async function POST(req: NextRequest) {
   // Send invite email
   await sendEmail({
     to: normalizedEmail,
-    subject: `You've been invited to join ${tenantCtx.name} on riogentix`,
+    subject: `You've been invited to join ${tenant.name} on riogentix`,
     templateId: 'invite-user',
-    data: { tenantName: tenantCtx.name, inviteUrl },
+    data: { tenantName: tenant.name, inviteUrl },
     tenantId: tenantCtx.tenantId,
   });
 
   return NextResponse.json({ success: true, inviteUrl }, { status: 201 });
-}
+});
 
 /**
  * GET /api/team/invite?token=<token>

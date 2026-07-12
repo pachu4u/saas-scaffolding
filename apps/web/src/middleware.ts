@@ -37,6 +37,14 @@ function extractSlug(host: string): string | null {
   return label;
 }
 
+// NOTE: on `localhost` (no subdomain) this returns null, so `x-tenant-slug`
+// is never set below and every page falls back to a hardcoded default
+// tenant slug (NEXT_PUBLIC_DEFAULT_TENANT_SLUG, or 'acme') regardless of who
+// is actually logged in. That's fine for single-tenant local dev, but it
+// means local testing cannot exercise real cross-tenant isolation without
+// either running through subdomains (e.g. *.lvh.me, as the e2e suite does)
+// or an explicit x-tenant-slug override.
+
 export default auth(function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const host = req.headers.get('host') ?? '';

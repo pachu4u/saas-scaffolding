@@ -1,78 +1,15 @@
+import { PLATFORM_ROLE_NAMES } from '@platform/authz';
 import { adminDb } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { CreateRoleButton } from './create-role-button';
+
 import { Badge } from '@/components/ui/badge';
+import { PERMISSION_CATALOG } from '@/lib/permission-catalog';
 
 export const metadata = { title: 'Roles & Permissions' };
-
-// Static permission catalog — labels/descriptions are app code, not DB data
-const permissionGroups = [
-  {
-    resource: 'Members',
-    permissions: [
-      { code: 'member:invite', label: 'Invite members' },
-      { code: 'member:remove', label: 'Remove members' },
-      { code: 'member:suspend', label: 'Suspend members' },
-      { code: 'member:read', label: 'View members' },
-    ],
-  },
-  {
-    resource: 'Roles',
-    permissions: [
-      { code: 'role:read', label: 'View roles' },
-      { code: 'role:assign', label: 'Assign roles' },
-      { code: 'role:manage', label: 'Create/edit roles' },
-    ],
-  },
-  {
-    resource: 'Billing',
-    permissions: [
-      { code: 'billing:read', label: 'View invoices & plan' },
-      { code: 'billing:manage', label: 'Change plan / payment' },
-    ],
-  },
-  {
-    resource: 'Settings',
-    permissions: [
-      { code: 'settings:read', label: 'View settings' },
-      { code: 'settings:manage', label: 'Edit settings' },
-      { code: 'branding:manage', label: 'Manage branding' },
-      { code: 'domain:manage', label: 'Manage custom domains' },
-    ],
-  },
-  {
-    resource: 'SSO / SCIM',
-    permissions: [
-      { code: 'sso:read', label: 'View SSO config' },
-      { code: 'sso:manage', label: 'Configure SSO/SAML' },
-      { code: 'scim:manage', label: 'Rotate SCIM tokens' },
-    ],
-  },
-  {
-    resource: 'API Keys',
-    permissions: [
-      { code: 'apikey:read', label: 'View API keys' },
-      { code: 'apikey:create', label: 'Create API keys' },
-      { code: 'apikey:revoke', label: 'Revoke API keys' },
-    ],
-  },
-  {
-    resource: 'Audit Log',
-    permissions: [
-      { code: 'audit:read', label: 'View audit log' },
-      { code: 'audit:export', label: 'Export audit log' },
-    ],
-  },
-  {
-    resource: 'Webhooks',
-    permissions: [
-      { code: 'webhook:read', label: 'View webhooks' },
-      { code: 'webhook:manage', label: 'Create/edit webhooks' },
-    ],
-  },
-];
 
 const roleColorMap: Record<string, 'purple' | 'blue' | 'default' | 'gray' | 'success'> = {
   Admin: 'purple',
@@ -96,10 +33,13 @@ export default async function RolesPage() {
 
   const { tenantId } = tenantCtx;
 
-  // Fetch all roles applicable to this tenant: system roles + tenant-specific roles
+  // Fetch all roles applicable to this tenant: tenant-scoped roles + tenant-level
+  // system roles. Platform-level system roles (platform_super_admin,
+  // platform_support) are excluded — they have tenantId: null but are not
+  // relevant to, or assignable within, a single tenant's role management.
   const roles = await adminDb.role.findMany({
     where: {
-      OR: [{ tenantId }, { isSystem: true }],
+      OR: [{ tenantId }, { isSystem: true, name: { notIn: [...PLATFORM_ROLE_NAMES] } }],
     },
     include: {
       _count: { select: { bindings: { where: { tenantId } } } },
@@ -164,23 +104,7 @@ export default async function RolesPage() {
         })}
 
         {/* Create custom role */}
-        <button
-          className="hover:border-brand-secondary hover:bg-bg-subtle rounded-xl border-2 border-dashed p-5 text-left transition-all"
-          style={{ borderColor: 'var(--border-default)' }}
-        >
-          <div
-            className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl text-2xl"
-            style={{ background: 'var(--bg-subtle)' }}
-          >
-            +
-          </div>
-          <div className="mb-1 text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-            Create custom role
-          </div>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Define a role with exactly the permissions your team needs.
-          </p>
-        </button>
+        <CreateRoleButton />
       </div>
 
       {/* Permission matrix */}
@@ -225,7 +149,7 @@ export default async function RolesPage() {
                 </tr>
               </thead>
               <tbody>
-                {permissionGroups.map((group) => (
+                {PERMISSION_CATALOG.map((group) => (
                   <>
                     <tr key={`group-${group.resource}`}>
                       <td

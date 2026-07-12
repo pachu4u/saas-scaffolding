@@ -21,8 +21,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // Platform admins don't belong in the tenant dashboard — send them to /admin
   if (isPlatformAdmin) redirect('/admin');
 
-  // Resolve the tenant from the x-tenant-slug header set by middleware.
-  // In dev / non-subdomain setups we fall back to 'acme'.
+  // NOTE: this does NOT read the per-request x-tenant-slug header (layouts
+  // don't have access to it) — it always resolves the same configured
+  // default tenant. That's correct for this app's current single-tenant-per-
+  // deployment model, but means this layout cannot distinguish tenants by
+  // subdomain the way individual API routes (which do read the header) can.
+  // See apps/web/src/middleware.ts for how/when that header gets set.
   const slug =
     typeof process !== 'undefined'
       ? (process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? 'acme')
@@ -35,18 +39,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect('/suspended');
   }
 
-  // New user with no workspace membership → onboarding
+  // New user with no tenant membership yet. Tenants are provisioned by
+  // platform admins (via /onboarding), not self-serve, so send them to a
+  // holding page rather than a "create your workspace" flow.
   const dbUser = await adminDb.user.findUnique({
     where: { externalId: session.user.id },
     select: { _count: { select: { tenantUsers: { where: { status: { not: 'SUSPENDED' } } } } } },
   });
   if (dbUser?._count.tenantUsers === 0 && !tenant) {
-    redirect('/onboarding');
+    redirect('/no-workspace');
   }
 
   const tenantName = tenant?.name ?? 'Workspace';
   const tenantSlug = tenant?.slug ?? slug;
-  const userName = session.user.name ?? session.user.email?.split('@')[0] ?? 'User';
+  const userName = session.user.name ?? session.user.email.split('@')[0] ?? 'User';
 
   return (
     <SidebarProvider>

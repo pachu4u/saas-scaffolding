@@ -61,8 +61,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const body = (await req.json()) as { name?: string; slug?: string; plan?: string };
-  const { name, slug, plan = 'free' } = body;
+  const body = (await req.json()) as {
+    name?: string;
+    slug?: string;
+    plan?: string;
+    timezone?: string;
+  };
+  const { name, slug, plan = 'free', timezone } = body;
 
   if (!name || !slug) {
     return NextResponse.json({ error: 'name and slug are required' }, { status: 400 });
@@ -84,6 +89,7 @@ export async function POST(req: NextRequest) {
           slug: slug.trim(),
           plan,
           status: 'ACTIVE',
+          ...(timezone ? { branding: { timezone } } : {}),
         },
         select: { id: true, slug: true, name: true, status: true, plan: true, createdAt: true },
       });

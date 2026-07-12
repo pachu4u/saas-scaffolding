@@ -234,30 +234,6 @@ export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitche
               })
             )}
           </div>
-
-          {/* Footer */}
-          <div
-            className="border-t px-4 py-2.5"
-            style={{ borderColor: 'var(--border-light)', background: 'var(--bg-main)' }}
-          >
-            <a
-              href="/onboarding"
-              className="flex items-center gap-2 text-xs font-semibold transition-opacity hover:opacity-80"
-              style={{ color: 'var(--brand-primary)' }}
-              onClick={() => {
-                setOpen(false);
-              }}
-            >
-              <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
-                <path
-                  fillRule="evenodd"
-                  d="M10 3a1 1 0 0 1 1 1v5h5a1 1 0 1 1 0 2h-5v5a1 1 0 1 1-2 0v-5H4a1 1 0 1 1 0-2h5V4a1 1 0 0 1 1-1z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              Create new workspace
-            </a>
-          </div>
         </div>
       )}
     </div>

@@ -1,130 +1,15 @@
+import { PLATFORM_ROLE_NAMES } from '@platform/authz';
 import { adminDb } from '@platform/db';
 import { resolveTenant } from '@platform/tenant';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
+import { RolePermissionEditor } from './role-permission-editor';
+
 import { Badge } from '@/components/ui/badge';
+import { PERMISSION_CATALOG } from '@/lib/permission-catalog';
 
 export const metadata = { title: 'Edit Role' };
-
-// Static permission catalog — labels/descriptions are app-level constants
-const permissionGroups = [
-  {
-    resource: 'Members',
-    icon: '👤',
-    permissions: [
-      {
-        code: 'member:read',
-        label: 'View members',
-        desc: 'See the team member list and their roles',
-      },
-      {
-        code: 'member:invite',
-        label: 'Invite members',
-        desc: 'Send email invitations to new members',
-      },
-      { code: 'member:remove', label: 'Remove members', desc: 'Remove members from the workspace' },
-      {
-        code: 'member:suspend',
-        label: 'Suspend members',
-        desc: "Temporarily revoke a member's access",
-      },
-    ],
-  },
-  {
-    resource: 'Roles & Permissions',
-    icon: '🛡️',
-    permissions: [
-      { code: 'role:read', label: 'View roles', desc: 'See all roles and their permission sets' },
-      { code: 'role:assign', label: 'Assign roles', desc: "Assign or change a member's role" },
-      { code: 'role:manage', label: 'Manage roles', desc: 'Create, edit, or delete custom roles' },
-    ],
-  },
-  {
-    resource: 'Billing',
-    icon: '💳',
-    permissions: [
-      {
-        code: 'billing:read',
-        label: 'View billing',
-        desc: 'See current plan, usage, and invoice history',
-      },
-      {
-        code: 'billing:manage',
-        label: 'Manage billing',
-        desc: 'Change plan, update payment method, cancel',
-      },
-    ],
-  },
-  {
-    resource: 'Settings',
-    icon: '⚙️',
-    permissions: [
-      { code: 'settings:read', label: 'View settings', desc: 'View workspace configuration' },
-      {
-        code: 'settings:manage',
-        label: 'Edit settings',
-        desc: 'Change workspace name, timezone, etc.',
-      },
-      {
-        code: 'branding:manage',
-        label: 'Manage branding',
-        desc: 'Configure logo, colors, email templates',
-      },
-      { code: 'domain:manage', label: 'Manage domains', desc: 'Add or remove custom domains' },
-    ],
-  },
-  {
-    resource: 'SSO & SCIM',
-    icon: '🔐',
-    permissions: [
-      { code: 'sso:read', label: 'View SSO config', desc: 'See SSO/SAML configuration' },
-      { code: 'sso:manage', label: 'Manage SSO', desc: 'Configure SAML/OIDC identity provider' },
-      { code: 'scim:manage', label: 'Manage SCIM', desc: 'Rotate SCIM bearer tokens' },
-    ],
-  },
-  {
-    resource: 'API Keys',
-    icon: '🔑',
-    permissions: [
-      { code: 'apikey:read', label: 'View API keys', desc: 'List API keys (values are masked)' },
-      {
-        code: 'apikey:create',
-        label: 'Create API keys',
-        desc: 'Generate new API keys with chosen scopes',
-      },
-      { code: 'apikey:revoke', label: 'Revoke API keys', desc: 'Permanently revoke an API key' },
-    ],
-  },
-  {
-    resource: 'Audit Log',
-    icon: '📋',
-    permissions: [
-      {
-        code: 'audit:read',
-        label: 'View audit log',
-        desc: 'Search and read workspace audit events',
-      },
-      { code: 'audit:export', label: 'Export audit log', desc: 'Download audit log as CSV' },
-    ],
-  },
-  {
-    resource: 'Webhooks',
-    icon: '🔁',
-    permissions: [
-      {
-        code: 'webhook:read',
-        label: 'View webhooks',
-        desc: 'See webhook endpoints and delivery history',
-      },
-      {
-        code: 'webhook:manage',
-        label: 'Manage webhooks',
-        desc: 'Create, edit, pause, or delete webhooks',
-      },
-    ],
-  },
-];
 
 const roleColorMap: Record<string, 'purple' | 'blue' | 'default' | 'gray' | 'success'> = {
   Admin: 'purple',
@@ -150,9 +35,15 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
 
   const { tenantId } = tenantCtx;
 
-  // Fetch role from DB (system roles have tenantId=null, custom roles have tenantId set)
+  // Fetch role from DB, scoped to what this tenant is allowed to see: its own
+  // custom roles, or tenant-level system roles. Platform-level system roles
+  // (platform_super_admin, platform_support) are deliberately excluded so a
+  // tenant admin can't view/reach platform role details via this page.
   const role = await adminDb.role.findFirst({
-    where: { id },
+    where: {
+      id,
+      OR: [{ tenantId }, { isSystem: true, name: { notIn: [...PLATFORM_ROLE_NAMES] } }],
+    },
     include: {
       permissions: { include: { permission: { select: { id: true, code: true } } } },
       bindings: {
@@ -168,7 +59,7 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
 
   const grants = new Set(role.permissions.map((rp) => rp.permission.code));
   const memberCount = role._count.bindings;
-  const totalPerms = permissionGroups.reduce((acc, g) => acc + g.permissions.length, 0);
+  const totalPerms = PERMISSION_CATALOG.reduce((acc, g) => acc + g.permissions.length, 0);
   const grantedCount = grants.size;
   const color = getRoleColor(role.name, role.isSystem);
 
@@ -209,7 +100,7 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                 {role.isSystem
                   ? 'System-managed role. Permissions can be adjusted but the role cannot be deleted.'
-                  : 'Custom role for your workspace.'}
+                  : 'Custom role for your tenant.'}
               </p>
             </div>
             <div className="flex-shrink-0 text-right">
@@ -241,136 +132,12 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
             </div>
           )}
 
-          {/* Permission groups */}
-          <div className="space-y-3">
-            {permissionGroups.map((group) => {
-              const groupGranted = group.permissions.filter((p) => grants.has(p.code)).length;
-              return (
-                <div
-                  key={group.resource}
-                  className="overflow-hidden rounded-xl border"
-                  style={{
-                    background: 'var(--bg-white)',
-                    borderColor: 'var(--border-light)',
-                    boxShadow: 'var(--shadow-card)',
-                  }}
-                >
-                  <div
-                    className="flex items-center justify-between border-b px-5 py-3.5"
-                    style={{ borderColor: 'var(--border-light)', background: 'var(--bg-main)' }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">{group.icon}</span>
-                      <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                        {group.resource}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {groupGranted}/{group.permissions.length} granted
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="divide-y" style={{ borderColor: 'var(--border-light)' }}>
-                    {group.permissions.map((perm) => {
-                      const granted = grants.has(perm.code);
-                      return (
-                        <div
-                          key={perm.code}
-                          className="hover:bg-bg-main flex items-center gap-4 px-5 py-3.5 transition-colors"
-                        >
-                          <div
-                            className="relative h-5 w-9 flex-shrink-0 rounded-full"
-                            style={{
-                              background: granted
-                                ? 'var(--brand-primary)'
-                                : 'var(--border-default)',
-                            }}
-                          >
-                            <span
-                              className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow"
-                              style={{ left: granted ? '18px' : '2px' }}
-                            />
-                          </div>
-
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <code
-                                className="rounded px-1.5 py-0.5 font-mono text-xs"
-                                style={{
-                                  background: granted
-                                    ? 'rgba(79,123,255,0.08)'
-                                    : 'var(--bg-subtle)',
-                                  color: granted ? 'var(--brand-primary)' : 'var(--text-muted)',
-                                }}
-                              >
-                                {perm.code}
-                              </code>
-                              <span
-                                className="text-sm font-semibold"
-                                style={{ color: 'var(--text-primary)' }}
-                              >
-                                {perm.label}
-                              </span>
-                            </div>
-                            <p className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                              {perm.desc}
-                            </p>
-                          </div>
-
-                          <div className="flex-shrink-0">
-                            {granted ? (
-                              <svg
-                                viewBox="0 0 16 16"
-                                fill="currentColor"
-                                className="h-4 w-4"
-                                style={{ color: 'var(--status-success)' }}
-                              >
-                                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
-                                <path d="M10.97 4.97a.235.235 0 0 0-.02.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05z" />
-                              </svg>
-                            ) : (
-                              <svg
-                                viewBox="0 0 16 16"
-                                fill="currentColor"
-                                className="h-4 w-4 opacity-25"
-                                style={{ color: 'var(--text-muted)' }}
-                              >
-                                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
-                                <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z" />
-                              </svg>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Save */}
-          <div className="flex items-center justify-between pt-2">
-            <Link
-              href="/team/roles"
-              className="text-sm font-semibold hover:underline"
-              style={{ color: 'var(--text-muted)' }}
-            >
-              ← Back to roles
-            </Link>
-            <div className="flex gap-3">
-              {!role.isSystem && (
-                <button className="rounded-xl border border-red-100 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100">
-                  Delete role
-                </button>
-              )}
-              <button className="brand-gradient rounded-xl px-5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90">
-                Save changes
-              </button>
-            </div>
-          </div>
+          <RolePermissionEditor
+            roleId={role.id}
+            isSystem={role.isSystem}
+            initialGrants={[...grants]}
+            permissionGroups={PERMISSION_CATALOG}
+          />
         </div>
 
         {/* Right: role info sidebar */}
@@ -449,7 +216,7 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
               Permission summary
             </h3>
             <div className="space-y-1.5">
-              {permissionGroups.map((group) => {
+              {PERMISSION_CATALOG.map((group) => {
                 const granted = group.permissions.filter((p) => grants.has(p.code)).length;
                 return (
                   <div key={group.resource} className="flex items-center justify-between text-xs">
@@ -475,13 +242,10 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
               <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-red-500">
                 Danger
               </h3>
-              <p className="mb-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
-                Deleting this role will unassign it from all members. They will fall back to the
-                Member role.
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                Deleting this role will unassign it from all members — use the "Delete role" button
+                below the permission editor.
               </p>
-              <button className="w-full rounded-xl border border-red-100 bg-red-50 py-2 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100">
-                Delete role
-              </button>
             </div>
           )}
         </div>

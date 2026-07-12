@@ -240,7 +240,7 @@ const Icon = {
 
 const tenantSections = [
   {
-    label: 'PLATFORM',
+    label: 'OVERVIEW',
     items: [{ label: 'Dashboard', href: '/dashboard', icon: Icon.layout }],
   },
   {
