@@ -1,4 +1,4 @@
-import { auth, signOut } from '@platform/auth';
+import { auth } from '@platform/auth';
 import { redirect } from 'next/navigation';
 
 export const metadata = { title: 'My Profile' };
@@ -47,20 +47,13 @@ export default async function MePage() {
                 </p>
               </div>
             </div>
-            <form
-              action={async () => {
-                'use server';
-                await signOut({ redirectTo: '/' });
-              }}
+            <a
+              href="/api/auth/keycloak-logout"
+              className="hover:bg-bg-subtle rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors"
+              style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
             >
-              <button
-                type="submit"
-                className="hover:bg-bg-subtle rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors"
-                style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
-              >
-                Sign out
-              </button>
-            </form>
+              Sign out
+            </a>
           </div>
 
           <dl className="divide-y px-6" style={{ borderColor: 'var(--border-light)' }}>
