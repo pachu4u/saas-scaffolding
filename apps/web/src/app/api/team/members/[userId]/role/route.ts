@@ -33,7 +33,11 @@ export const PATCH = withAuthz<{ params: Promise<{ userId: string }> }>(
     });
     if (!tenantUser) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
 
-    const role = await adminDb.role.findFirst({ where: { name: roleName } });
+    // Only system roles or this tenant's own custom roles are assignable —
+    // never another tenant's custom role that happens to share the name.
+    const role = await adminDb.role.findFirst({
+      where: { name: roleName, OR: [{ isSystem: true }, { tenantId: authz.tenantId }] },
+    });
     if (!role) return NextResponse.json({ error: `Unknown role "${roleName}"` }, { status: 422 });
 
     await withPlatformAdmin(async (tx) => {

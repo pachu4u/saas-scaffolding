@@ -79,9 +79,10 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
       update: { status: 'INVITED' },
     });
 
-    // Assign requested role — roles are system-level (tenantId = null), looked up by name
+    // Assign requested role — either a system role or one of this tenant's
+    // own custom roles, looked up by name.
     const role = await tx.role.findFirst({
-      where: { name: roleId },
+      where: { name: roleId, OR: [{ isSystem: true }, { tenantId: tenantCtx.tenantId }] },
     });
     if (role) {
       await tx.roleBinding.upsert({

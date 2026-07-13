@@ -24,7 +24,8 @@ const roleColors: Record<string, 'purple' | 'blue' | 'default' | 'gray'> = {
   Viewer: 'gray',
 };
 
-// Display label -> system role name, the reverse of ChangeRoleModal's ROLES list.
+// Display label -> system role name, the reverse of the role-picker labels.
+// Custom roles are displayed under their raw name, so unknown labels pass through.
 const ROLE_NAME_BY_LABEL: Record<string, string> = {
   Admin: 'tenant_admin',
   'Billing Admin': 'tenant_billing_admin',
@@ -188,11 +189,15 @@ export function TeamMembersTable({ data, tenantSlug }: { data: MemberRow[]; tena
       />
       {editingMember && (
         <ChangeRoleModal
+          tenantSlug={tenantSlug}
           member={{
             userId: editingMember.userId,
             name: editingMember.email,
             email: editingMember.email,
-            currentRole: ROLE_NAME_BY_LABEL[editingMember.roles[0] ?? 'Member'] ?? 'tenant_user',
+            currentRole: (() => {
+              const label = editingMember.roles[0] ?? 'Member';
+              return ROLE_NAME_BY_LABEL[label] ?? label;
+            })(),
           }}
           onClose={() => {
             setEditingMember(null);

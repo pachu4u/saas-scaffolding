@@ -2,19 +2,15 @@
 
 import { useRef, useState, useTransition } from 'react';
 
+import { useTenantRoles } from '@/lib/use-tenant-roles';
+
 interface InviteModalProps {
   onClose: () => void;
   tenantSlug: string;
 }
 
-const ROLES = [
-  { id: 'tenant_admin', name: 'Admin', description: 'Full workspace control' },
-  { id: 'tenant_billing_admin', name: 'Billing Admin', description: 'Billing management only' },
-  { id: 'tenant_user', name: 'Member', description: 'Standard access' },
-  { id: 'tenant_viewer', name: 'Viewer', description: 'Read-only access' },
-];
-
 export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
+  const { roleOptions } = useTenantRoles(tenantSlug);
   const [email, setEmail] = useState('');
   const [roleId, setRoleId] = useState('tenant_user');
   const [isPending, startTransition] = useTransition();
@@ -160,7 +156,12 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
                   Role
                 </label>
                 <div className="space-y-2">
-                  {ROLES.map((role) => (
+                  {!roleOptions && (
+                    <p className="px-1 py-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      Loading roles…
+                    </p>
+                  )}
+                  {roleOptions?.map((role) => (
                     <label
                       key={role.id}
                       className="flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all"
@@ -233,7 +234,7 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
               </button>
               <button
                 type="submit"
-                disabled={isPending || !email}
+                disabled={isPending || !email || !roleOptions}
                 className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
               >
                 {isPending ? 'Sending…' : 'Send invite'}
