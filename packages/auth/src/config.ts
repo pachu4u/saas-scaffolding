@@ -82,15 +82,16 @@ export const authConfig: NextAuthConfig = {
     // implementation has no real await.
     // eslint-disable-next-line @typescript-eslint/require-await
     async jwt({ token, account, profile }) {
-      // On first sign-in, account and profile are populated
+      // On first sign-in, account and profile are populated.
+      // We only keep id_token (needed for Keycloak federated logout) and skip
+      // access_token / refresh_token — storing all three Keycloak JWTs in the
+      // cookie would push the cookie size past 8 KB and cause HTTP 431 errors.
       if (account && profile?.sub && profile.email) {
         token.sub = profile.sub;
         token.email = profile.email;
         // Keycloak groups claim (mapped to tenant slugs)
         token.groups = (profile as Record<string, unknown>).groups ?? [];
-        token.accessToken = account.access_token;
         token.idToken = account.id_token;
-        token.refreshToken = account.refresh_token;
         token.expiresAt = account.expires_at;
       }
       return token;
