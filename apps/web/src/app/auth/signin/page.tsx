@@ -1,4 +1,5 @@
 import { signIn } from '@platform/auth';
+import { adminDb } from '@platform/db';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 
@@ -10,9 +11,17 @@ export default async function SignInPage({
   searchParams: Promise<{ tenant?: string }>;
 }) {
   // Tenant slug: prefer x-tenant-slug header (set by middleware when on a subdomain)
-  // then fall back to the ?tenant= query param we inject when redirecting from a subdomain.
+  // then fall back to the optional ?tenant= query param for legacy links.
   const h = await headers();
   const tenantSlug = h.get('x-tenant-slug') ?? (await searchParams).tenant ?? '';
+
+  // Load the tenant's display name for branding. Fails gracefully (null) if the
+  // slug doesn't exist or we're on the root domain (no slug).
+  const tenant = tenantSlug
+    ? await adminDb.tenant.findUnique({ where: { slug: tenantSlug }, select: { name: true } })
+    : null;
+  const displayName = tenant?.name ?? tenantSlug ?? 'Platform';
+  const displayInitial = displayName[0]?.toUpperCase() ?? 'P';
 
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--bg-main)' }}>
@@ -28,14 +37,14 @@ export default async function SignInPage({
         <div className="relative flex flex-1 flex-col">
           <div className="mb-auto flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-sm font-bold text-white">
-              R
+              {displayInitial}
             </div>
-            <span className="text-lg font-bold text-white">riogentix</span>
+            <span className="text-lg font-bold text-white">{displayName}</span>
           </div>
           <div className="mb-auto">
             <blockquote className="mb-4 text-xl font-medium leading-relaxed text-white/90">
-              &ldquo;riogentix cut our time-to-market by 3 months. The multi-tenant architecture and
-              built-in SSO are exactly what enterprise clients expect.&rdquo;
+              &ldquo;{displayName} cut our time-to-market by 3 months. The multi-tenant architecture
+              and built-in SSO are exactly what enterprise clients expect.&rdquo;
             </blockquote>
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-white/20" />
@@ -61,10 +70,10 @@ export default async function SignInPage({
           {/* Mobile logo */}
           <div className="mb-10 flex items-center gap-2 lg:hidden">
             <div className="brand-gradient flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white">
-              R
+              {displayInitial}
             </div>
             <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
-              riogentix
+              {displayName}
             </span>
           </div>
 

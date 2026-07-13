@@ -19,21 +19,35 @@ const cookieDomain = authUrlHost.includes('.')
   : undefined;
 const sessionCookieName = isSecure ? '__Secure-authjs.session-token' : 'authjs.session-token';
 
+const sharedCookieOptions = cookieDomain
+  ? {
+      httpOnly: true,
+      sameSite: 'lax' as const,
+      path: '/',
+      secure: isSecure,
+      domain: cookieDomain,
+    }
+  : undefined;
+
 export const authConfig: NextAuthConfig = {
   debug: true,
-  ...(cookieDomain
+  ...(sharedCookieOptions
     ? {
         cookies: {
           sessionToken: {
             name: sessionCookieName,
-            options: {
-              httpOnly: true,
-              sameSite: 'lax' as const,
-              path: '/',
-              secure: isSecure,
-              domain: cookieDomain,
-            },
+            options: sharedCookieOptions,
           },
+          // Share OAuth flow cookies across all subdomains so the sign-in page can
+          // live on demo.techhanker.com while the Keycloak callback lands on
+          // saas.techhanker.com. Without domain sharing the callback can't read the
+          // state/PKCE cookies that were set during the subdomain-initiated flow.
+          // csrfToken is intentionally excluded — it uses the __Host- prefix which
+          // spec-forbids the domain attribute.
+          callbackUrl: { options: sharedCookieOptions },
+          pkceCodeVerifier: { options: sharedCookieOptions },
+          state: { options: sharedCookieOptions },
+          nonce: { options: sharedCookieOptions },
         },
       }
     : {}),

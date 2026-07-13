@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 import { useSidebar } from './sidebar-context';
-import { WorkspaceSwitcher } from './workspace-switcher';
 
 // ─── Inline SVG icons ────────────────────────────────────────────────────────
 
@@ -456,30 +455,25 @@ export function Sidebar({
               className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
               style={{ background: 'var(--brand-gradient)' }}
             >
-              {isAdmin ? 'P' : 'R'}
+              {isAdmin ? 'P' : (tenantName[0]?.toUpperCase() ?? 'W')}
             </div>
-            <div>
+            <div className="min-w-0">
               <div
-                className="text-sm font-bold leading-tight"
+                className="truncate text-sm font-bold leading-tight"
                 style={{ color: 'var(--sidebar-text-active)' }}
               >
-                {isAdmin ? 'Platform Admin' : 'riogentix'}
+                {isAdmin ? 'Platform Admin' : tenantName}
               </div>
-              {!isAdmin && (
-                <div className="text-[11px] leading-tight" style={{ color: 'var(--sidebar-text)' }}>
-                  {tenantName}
+              {!isAdmin && tenantSlug && (
+                <div
+                  className="truncate text-[11px] leading-tight"
+                  style={{ color: 'var(--sidebar-text)' }}
+                >
+                  {tenantSlug}
                 </div>
               )}
             </div>
           </div>
-          {!isAdmin && (
-            <div className="mt-3">
-              <WorkspaceSwitcher
-                currentName={tenantName}
-                {...(tenantSlug ? { currentSlug: tenantSlug } : {})}
-              />
-            </div>
-          )}
         </div>
 
         {/* ── Nav ────────────────────────────────────────────────────────────── */}

@@ -81,15 +81,13 @@ export default auth(function middleware(req: NextRequest) {
   const session = (req as unknown as { auth: { user?: unknown } | null }).auth;
 
   if (!isPublic && !session?.user) {
-    // Always redirect to the root-domain sign-in page so NextAuth's internal auth
-    // cookies (CSRF, state, callback-url) are all set on saas.techhanker.com — the
-    // same origin as the OAuth callback. If they were set on a tenant subdomain
-    // (different host) the callback would never find them.
-    const rootOrigin = process.env.AUTH_URL ?? `https://${ROOT_HOST}`;
-    const signInUrl = new URL(
-      slug ? `/auth/signin?tenant=${encodeURIComponent(slug)}` : '/auth/signin',
-      rootOrigin,
-    );
+    // Redirect to the sign-in page on whatever origin the user is already on.
+    // OAuth flow cookies (state, PKCE, callbackUrl) are now configured with
+    // domain: .techhanker.com, so they're readable when the Keycloak callback
+    // lands on saas.techhanker.com even though auth was initiated on a subdomain.
+    // The tenant is implicit in the subdomain host; the signin page reads it from
+    // the x-tenant-slug header set above. No ?tenant= param needed.
+    const signInUrl = new URL('/auth/signin', req.url);
     return NextResponse.redirect(signInUrl);
   }
 
