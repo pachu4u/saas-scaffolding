@@ -54,6 +54,39 @@ function extractSlug(host: string): string | null {
   return label;
 }
 
+// Both possible session cookie names (secure and non-secure variants). Stale
+// chunked leftovers (e.g. "__Secure-authjs.session-token.0" from the era when
+// the JWT was oversized and got chunked) poison Auth.js's cookie reassembly:
+// it concatenates every cookie starting with the base name, producing an
+// invalid JWE that fails to decrypt on every request — a permanent signin loop.
+const SESSION_COOKIE_BASES = ['__Secure-authjs.session-token', 'authjs.session-token'];
+
+function isSessionCookie(name: string): boolean {
+  return SESSION_COOKIE_BASES.some((base) => name === base || name.startsWith(base + '.'));
+}
+
+// Expire a session cookie in both scopes it may have been set with over time:
+// host-only (pre cookie-domain change) and Domain=.rootdomain (current). The
+// browser treats these as distinct cookies, so both variants must be cleared.
+function clearSessionCookies(req: NextRequest, res: NextResponse) {
+  const bareRoot = ROOT_HOST.split(':')[0] ?? '';
+  const rootDomain = bareRoot.includes('.') ? '.' + bareRoot.split('.').slice(-2).join('.') : '';
+  for (const cookie of req.cookies.getAll()) {
+    if (!isSessionCookie(cookie.name)) continue;
+    const secure = cookie.name.startsWith('__Secure-') ? '; Secure' : '';
+    res.headers.append(
+      'set-cookie',
+      `${cookie.name}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure}`,
+    );
+    if (rootDomain) {
+      res.headers.append(
+        'set-cookie',
+        `${cookie.name}=; Path=/; Domain=${rootDomain}; Max-Age=0; HttpOnly; SameSite=Lax${secure}`,
+      );
+    }
+  }
+}
+
 // Old tenant paths that redirect to their new /admin/* equivalents
 const LEGACY_TENANT_REDIRECTS: Record<string, string> = {
   '/dashboard': '/admin',
@@ -80,6 +113,17 @@ export default auth(function middleware(req: NextRequest) {
 
   const session = (req as unknown as { auth: { user?: unknown } | null }).auth;
 
+  // No decodable session but session cookies present → the cookies are stale or
+  // corrupt (expired token, rotated secret, or poisoned chunk leftovers). Expire
+  // them on this response so the next login starts from a clean cookie jar,
+  // instead of looping on an undecryptable session forever. Never do this on
+  // /api/auth/* — the OAuth callback sets the fresh session cookie there and a
+  // deletion header on the same response would kill it.
+  const staleSessionCookies =
+    !session?.user &&
+    !pathname.startsWith('/api/auth/') &&
+    req.cookies.getAll().some((c) => isSessionCookie(c.name));
+
   if (!isPublic && !session?.user) {
     // Redirect to the sign-in page on whatever origin the user is already on.
     // OAuth flow cookies (state, PKCE, callbackUrl) are now configured with
@@ -88,7 +132,9 @@ export default auth(function middleware(req: NextRequest) {
     // The tenant is implicit in the subdomain host; the signin page reads it from
     // the x-tenant-slug header set above. No ?tenant= param needed.
     const signInUrl = new URL('/auth/signin', req.url);
-    return NextResponse.redirect(signInUrl);
+    const res = NextResponse.redirect(signInUrl);
+    if (staleSessionCookies) clearSessionCookies(req, res);
+    return res;
   }
 
   // Root domain: redirect authenticated users from / to marketing landing (already there)
@@ -124,7 +170,11 @@ export default auth(function middleware(req: NextRequest) {
     }
   }
 
-  return NextResponse.next({ request: { headers } });
+  const res = NextResponse.next({ request: { headers } });
+  // Also purge stale session cookies on public pages (e.g. /auth/signin itself)
+  // so a browser stuck with poisoned cookies is healed before the next login.
+  if (staleSessionCookies) clearSessionCookies(req, res);
+  return res;
 });
 
 export const config = {

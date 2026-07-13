@@ -20,6 +20,14 @@ export default async function AuthRedirectPage({
   const session = await auth();
   if (!session?.user) redirect('/auth/signin');
 
+  // Platform admins have no tenant memberships — send them to the admin console
+  // on the root domain instead of falling through to /no-workspace. Mirrors the
+  // group check in (admin)/layout.tsx, which guards the destination server-side.
+  const isPlatformAdmin =
+    Array.isArray(session.groups) &&
+    session.groups.some((g: string) => ['platform_super_admin', 'platform_support'].includes(g));
+  if (isPlatformAdmin) redirect('/admin');
+
   const { tenant: tenantParam } = await searchParams;
 
   const dbUser = await adminDb.user.findUnique({
