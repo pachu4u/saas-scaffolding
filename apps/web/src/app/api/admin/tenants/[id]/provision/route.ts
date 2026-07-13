@@ -1,6 +1,9 @@
 import { auth } from '@platform/auth';
+import { env } from '@platform/config';
 import { adminDb } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
+
+import { provisionRiogentixTenant } from '@/lib/riogentix-provision';
 
 export const runtime = 'nodejs';
 
@@ -84,35 +87,44 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     ),
   );
 
-  // Simulate async provisioning (in production this would enqueue a job)
-  // For now, mark as completed after a short delay via a background task
-  void simulateProvisioning(id, envTypes as ('DEV' | 'TEST' | 'PROD')[]);
+  // Real provisioning: upsert the tenant in Riogentix (idempotent, so this
+  // doubles as the retry path for tenants whose signup-time provision failed),
+  // then activate the environment records. Runs after the response is sent;
+  // the admin console polls provisioningStatus for the outcome.
+  void runProvisioning(
+    { id: tenant.id, slug: tenant.slug, plan: tenant.plan },
+    envTypes as ('DEV' | 'TEST' | 'PROD')[],
+  );
 
   return NextResponse.json({ ok: true, provisioningStatus: 'IN_PROGRESS', environments: envTypes });
 }
 
-async function simulateProvisioning(tenantId: string, envTypes: ('DEV' | 'TEST' | 'PROD')[]) {
-  // In production: enqueue a BullMQ job instead
-  await new Promise((r) => setTimeout(r, 5_000));
+async function runProvisioning(
+  tenant: { id: string; slug: string; plan: string },
+  envTypes: ('DEV' | 'TEST' | 'PROD')[],
+) {
   try {
+    await provisionRiogentixTenant(tenant.id, tenant.plan, tenant.slug);
+
+    const workspaceUrl = env.AUTH_URL.replace('saas.', `${tenant.slug}.`);
     await Promise.all(
       envTypes.map((type) =>
         adminDb.tenantEnvironment.update({
-          where: { tenantId_type: { tenantId, type } },
+          where: { tenantId_type: { tenantId: tenant.id, type } },
           data: {
             status: 'ACTIVE',
-            endpoint: `https://${type.toLowerCase()}.tenant-${tenantId.slice(0, 8)}.platform.example.com`,
+            endpoint: type === 'PROD' ? workspaceUrl : `${workspaceUrl}?env=${type.toLowerCase()}`,
           },
         }),
       ),
     );
     await adminDb.tenant.update({
-      where: { id: tenantId },
-      data: { provisioningStatus: 'COMPLETED' },
+      where: { id: tenant.id },
+      data: { provisioningStatus: 'COMPLETED', provisioningError: null },
     });
   } catch (err) {
     await adminDb.tenant.update({
-      where: { id: tenantId },
+      where: { id: tenant.id },
       data: {
         provisioningStatus: 'FAILED',
         provisioningError: String(err),

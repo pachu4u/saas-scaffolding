@@ -29,6 +29,9 @@ async function callSaas(method: string, path: string, body?: unknown): Promise<v
       'X-Saas-Internal-Secret': sec,
     },
     ...(body !== undefined && { body: JSON.stringify(body) }),
+    // Fail fast if Riogentix is down/hung — BullMQ retries the job; an unbounded
+    // fetch would instead pin the worker on a dead connection.
+    signal: AbortSignal.timeout(15_000),
   });
 
   if (!res.ok) {
@@ -53,6 +56,7 @@ async function callInternal(method: string, path: string, body?: unknown): Promi
       'X-Internal-Secret': sec,
     },
     ...(body !== undefined && { body: JSON.stringify(body) }),
+    signal: AbortSignal.timeout(15_000),
   });
 
   if (!res.ok) {

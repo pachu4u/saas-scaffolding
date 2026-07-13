@@ -4,6 +4,8 @@ import { env } from '@platform/config';
 import { adminDb, withPlatformAdmin } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
+import { provisionRiogentixTenant } from '@/lib/riogentix-provision';
+
 export const runtime = 'nodejs';
 
 interface SignupBody {
@@ -93,27 +95,6 @@ async function deleteKeycloakUser(token: string, kcUserId: string): Promise<void
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   }).catch(() => undefined);
-}
-
-async function provisionRiogentixTenant(tenantId: string, plan: string): Promise<void> {
-  const url = env.RIOGENTIX_INTERNAL_URL;
-  const sec = env.RIOGENTIX_INTERNAL_SECRET;
-
-  if (!url || !sec) return; // non-fatal — Riogentix integration optional
-
-  const res = await fetch(`${url}/internal/tenant/${tenantId}/provision`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Internal-Secret': sec,
-    },
-    body: JSON.stringify({ plan }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Riogentix provision failed (${String(res.status)}): ${text}`);
-  }
 }
 
 /**
@@ -250,7 +231,7 @@ export async function POST(req: NextRequest) {
 
     // Provision Riogentix (non-fatal if not configured)
     try {
-      await provisionRiogentixTenant(result.tenant.id, plan);
+      await provisionRiogentixTenant(result.tenant.id, plan, slugNorm);
       await adminDb.tenant.update({
         where: { id: result.tenant.id },
         data: { provisioningStatus: 'COMPLETED' },
