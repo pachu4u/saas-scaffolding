@@ -1,6 +1,7 @@
 import { Permission, withAuthz } from '@platform/authz';
 import type { Prisma } from '@platform/db';
 import { adminDb } from '@platform/db';
+import { invalidateTenantCache } from '@platform/tenant';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -73,8 +74,11 @@ export const PATCH = withAuthz(
     const tenant = await adminDb.tenant.update({
       where: { id: tenantCtx.tenantId },
       data: { branding: merged as Prisma.InputJsonValue },
-      select: { id: true, branding: true },
+      select: { id: true, slug: true, branding: true },
     });
+
+    // Bust Redis cache so the new branding CSS is injected on the next page load
+    await invalidateTenantCache(tenant.slug);
 
     await adminDb.auditLog.create({
       data: {

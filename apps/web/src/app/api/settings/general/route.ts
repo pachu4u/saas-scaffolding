@@ -2,6 +2,7 @@ import { auth } from '@platform/auth';
 import { Permission, withAuthz } from '@platform/authz';
 import type { Prisma } from '@platform/db';
 import { adminDb } from '@platform/db';
+import { invalidateTenantCache } from '@platform/tenant';
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { getTenantFromRequest } from '../../../../lib/server-tenant';
@@ -93,11 +94,19 @@ export const PATCH = withAuthz(
     if (name !== undefined) updateData.name = name.trim();
     if (slug !== undefined) updateData.slug = slug;
 
+    const currentSlug = await adminDb.tenant
+      .findUnique({ where: { id: tenantCtx.tenantId }, select: { slug: true } })
+      .then((t) => t?.slug);
+
     const tenant = await adminDb.tenant.update({
       where: { id: tenantCtx.tenantId },
       data: updateData,
       select: { id: true, name: true, slug: true, branding: true },
     });
+
+    // Bust Redis cache so the new name/slug is reflected immediately
+    if (currentSlug) await invalidateTenantCache(currentSlug);
+    if (slug && slug !== currentSlug) await invalidateTenantCache(slug);
 
     await adminDb.auditLog.create({
       data: {

@@ -47,7 +47,7 @@ const PUBLIC_EXACT_ROOT = new Set(['/']);
 function extractSlug(host: string): string | null {
   // Strip port, then check if this IS the root domain before treating the first label as a slug.
   const bareHost = host.split(':')[0] ?? '';
-  if (ROOT_HOST && bareHost === ROOT_HOST.split(':')[0]) return null;
+  if (ROOT_HOST !== '' && bareHost === ROOT_HOST.split(':')[0]) return null;
   const label = bareHost.split('.')[0]?.toLowerCase() ?? '';
   if (!label || label === 'localhost' || RESERVED.has(label)) return null;
   if (!/^[a-z0-9-]+$/.test(label)) return null;

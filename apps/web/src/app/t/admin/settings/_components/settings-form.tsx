@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 interface SettingsFormProps {
@@ -17,6 +18,7 @@ export default function SettingsForm({
   initialTimezone,
   customDomains,
 }: SettingsFormProps) {
+  const router = useRouter();
   const [name, setName] = useState(initialName);
   const [slug, setSlug] = useState(initialSlug);
   const [description, setDescription] = useState(initialDescription);
@@ -44,7 +46,8 @@ export default function SettingsForm({
         });
         const json = (await res.json()) as { ok?: boolean; error?: string };
         if (json.ok) {
-          setSaveMsg({ ok: true, text: 'Workspace settings saved.' });
+          setSaveMsg({ ok: true, text: 'Company settings saved.' });
+          router.refresh();
         } else {
           setSaveMsg({ ok: false, text: json.error ?? 'Failed to save' });
         }
@@ -106,7 +109,7 @@ export default function SettingsForm({
           className="mb-3 text-xs font-bold uppercase tracking-wide"
           style={{ color: 'var(--text-muted)' }}
         >
-          Workspace
+          Company
         </h2>
         <div
           className="rounded-xl border"
@@ -123,7 +126,7 @@ export default function SettingsForm({
                   className="mb-1.5 block text-xs font-semibold"
                   style={{ color: 'var(--text-secondary)' }}
                 >
-                  Workspace name
+                  Company name
                 </label>
                 <input
                   type="text"

@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 // Preset color palettes — static UI constants, not DB data
@@ -60,6 +61,7 @@ export function BrandingForm({
   const [activePreset, setActivePreset] = useState<string | null>(
     matchPreset(initialPrimaryColor, initialAccentColor, initialBgColor),
   );
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'colors' | 'logo' | 'email' | 'login'>('colors');
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -112,6 +114,7 @@ export function BrandingForm({
         const json = (await res.json()) as { ok?: boolean; error?: string };
         if (json.ok) {
           setSaveMsg({ ok: true, text: 'Branding settings saved.' });
+          router.refresh();
         } else {
           setSaveMsg({ ok: false, text: json.error ?? 'Failed to save' });
         }

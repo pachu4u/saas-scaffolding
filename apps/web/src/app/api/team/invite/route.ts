@@ -1,10 +1,11 @@
 import crypto from 'crypto';
 
 import { PLATFORM_ROLE_NAMES, Permission, withAuthz } from '@platform/authz';
-import { decodeInviteToken } from '@/lib/invite-token';
 import { adminDb, withPlatformAdmin, checkRateLimit, rateLimitHeaders } from '@platform/db';
 import { sendEmail } from '@platform/notifications';
 import { NextResponse, type NextRequest } from 'next/server';
+
+import { decodeInviteToken } from '@/lib/invite-token';
 
 /**
  * POST /api/team/invite
