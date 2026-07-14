@@ -64,6 +64,10 @@ export function renderDeployment(spec: TenantStackSpec): V1Deployment {
       template: {
         metadata: { labels: { ...labels(spec) } },
         spec: {
+          // Service links inject RIOGENTIX_PORT=tcp://... (from the
+          // `riogentix` Service), which Riogentix's settings parse as its
+          // listen port and crash on. Env must come only from the secret.
+          enableServiceLinks: false,
           containers: [
             {
               name: 'riogentix',

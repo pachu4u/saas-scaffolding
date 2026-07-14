@@ -82,6 +82,11 @@ describe('renderDeployment', () => {
     expect(container?.envFrom?.[0]?.secretRef?.name).toBe(SECRET_NAME);
     expect(container?.resources?.limits).toEqual({ cpu: '1', memory: '1Gi' });
   });
+
+  it('disables service links so RIOGENTIX_PORT is not injected by the Service', () => {
+    const podSpec = renderDeployment(spec()).spec?.template.spec;
+    expect(podSpec?.enableServiceLinks).toBe(false);
+  });
 });
 
 describe('renderService', () => {
