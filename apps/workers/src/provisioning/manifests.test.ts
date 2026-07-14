@@ -26,7 +26,7 @@ function spec(overrides?: Partial<TenantStackSpec>): TenantStackSpec {
     cpuLimit: '1',
     memoryLimit: '1Gi',
     secretEnv: {
-      DATABASE_URL: 'postgresql://rg_acme_co:pw@db:5432/riogentix_acme_co',
+      RIOGENTIX_DATABASE_URL: 'postgresql://rg_acme_co:pw@db:5432/riogentix_acme_co',
       RIOGENTIX_INTERNAL_SECRET: 'internal-secret-value',
     },
     ...overrides,

@@ -106,8 +106,10 @@ async function buildSpec(tenant: TenantRef): Promise<TenantStackSpec> {
     cpuLimit: env.TENANT_POD_CPU_LIMIT,
     memoryLimit: env.TENANT_POD_MEMORY_LIMIT,
     // Contract with the Riogentix image — injected via envFrom on the pod.
+    // The image reads RIOGENTIX_DATABASE_URL (see lfx settings/groups/database.py),
+    // not DATABASE_URL — a bare DATABASE_URL silently falls back to sqlite.
     secretEnv: {
-      DATABASE_URL: tenantDatabaseUrl(
+      RIOGENTIX_DATABASE_URL: tenantDatabaseUrl(
         pgAdminUrl,
         tenant.slug,
         dbPassword,

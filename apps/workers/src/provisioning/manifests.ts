@@ -74,14 +74,21 @@ export function renderDeployment(spec: TenantStackSpec): V1Deployment {
                 requests: { cpu: '100m', memory: '256Mi' },
                 limits: { cpu: spec.cpuLimit, memory: spec.memoryLimit },
               },
+              // Riogentix can take minutes on first boot (migrations, and the
+              // dev image installs dependencies at startup) — the startup
+              // probe holds liveness off until /health first responds, so a
+              // slow boot doesn't become a restart loop.
+              startupProbe: {
+                httpGet: { path: '/health', port: 'http' },
+                periodSeconds: 10,
+                failureThreshold: 90,
+              },
               readinessProbe: {
                 httpGet: { path: '/health', port: 'http' },
-                initialDelaySeconds: 5,
                 periodSeconds: 10,
               },
               livenessProbe: {
                 httpGet: { path: '/health', port: 'http' },
-                initialDelaySeconds: 30,
                 periodSeconds: 30,
               },
             },
