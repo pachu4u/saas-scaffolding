@@ -50,6 +50,31 @@ const envSchema = z.object({
   RIOGENTIX_INTERNAL_SECRET: z.string().min(16).optional(),
   RIOGENTIX_PUBLIC_URL: z.string().url().optional(),
 
+  // Per-tenant stack provisioning (Kubernetes driver)
+  // 'shared'    — legacy behavior: one shared Riogentix instance, provisioning is
+  //               an HTTP upsert against RIOGENTIX_INTERNAL_URL (local dev default)
+  // 'kubernetes'— stamp a dedicated Riogentix stack per tenant into the cluster
+  TENANT_STACK_DRIVER: z.enum(['shared', 'kubernetes']).default('shared'),
+  // Public wildcard domain tenants live under, e.g. 'techhanker.com'
+  // → tenant ingress host becomes '<slug>.techhanker.com'
+  TENANT_BASE_DOMAIN: z.string().optional(),
+  TENANT_NAMESPACE_PREFIX: z.string().default('t-'),
+  TENANT_INGRESS_CLASS: z.string().default('nginx'),
+  // cert-manager ClusterIssuer for per-tenant TLS; when unset the ingress
+  // relies on a wildcard cert terminated at the ingress controller
+  TENANT_CERT_MANAGER_ISSUER: z.string().optional(),
+  // Pinned Riogentix image stamped out per tenant, e.g. registry/riogentix:1.4.2
+  RIOGENTIX_IMAGE: z.string().optional(),
+  RIOGENTIX_CONTAINER_PORT: z.coerce.number().default(8000),
+  TENANT_POD_CPU_LIMIT: z.string().default('1'),
+  TENANT_POD_MEMORY_LIMIT: z.string().default('1Gi'),
+  // Superuser connection to the shared Postgres server used to create the
+  // per-tenant database + role (e.g. STACKIT PostgreSQL Flex admin URL)
+  TENANT_PG_ADMIN_URL: z.string().optional(),
+  // Hostname pods use to reach that Postgres server, when it differs from the
+  // host in TENANT_PG_ADMIN_URL (defaults to the admin URL's host:port)
+  TENANT_PG_HOST_FOR_PODS: z.string().optional(),
+
   // Keycloak admin (for user creation during signup)
   KEYCLOAK_INTERNAL_URL: z.string().url().optional(),
   KEYCLOAK_REALM: z.string().default('saas-platform'),

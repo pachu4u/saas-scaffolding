@@ -65,7 +65,7 @@ export async function handleUsageRollup(job: Job<UsageRollupJob>): Promise<void>
     where: { tenantId },
     include: { plan: true },
   });
-  const planCode = subscription?.plan?.code ?? 'free';
+  const planCode = subscription?.plan.code ?? 'free';
   const limit = RIOGENTIX_MONTHLY_LIMITS[planCode] ?? null;
   const shouldLock = limit !== null && totalEvents >= limit;
 

@@ -20,7 +20,8 @@ export default async function SignInPage({
   const tenant = tenantSlug
     ? await adminDb.tenant.findUnique({ where: { slug: tenantSlug }, select: { name: true } })
     : null;
-  const displayName = tenant?.name ?? tenantSlug ?? 'Platform';
+  // tenantSlug is '' (never null) on the root domain — || so the fallback fires
+  const displayName = tenant?.name ?? (tenantSlug || 'Platform');
   const displayInitial = displayName[0]?.toUpperCase() ?? 'P';
 
   return (

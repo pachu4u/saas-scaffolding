@@ -5,12 +5,15 @@ import type {
   WebhookOutboundJob,
   UsageRollupJob,
   PlanChangedJob,
+  TenantProvisionJob,
+  TenantDeprovisionJob,
 } from '@platform/jobs';
 import { logger } from '@platform/logger';
 import { Worker, type Job } from 'bullmq';
 
 import { handleEmail } from './handlers/email.js';
 import { handlePlanChanged } from './handlers/plan-changed.js';
+import { handleTenantDeprovision, handleTenantProvision } from './handlers/tenant-provision.js';
 import { handleUsageRollup } from './handlers/usage-rollup.js';
 import { handleWebhookInbound } from './handlers/webhook-inbound.js';
 import { handleWebhookOutbound } from './handlers/webhook-outbound.js';
@@ -19,10 +22,10 @@ const connection = { url: env.REDIS_URL };
 
 type AnyJobHandler = (job: Job) => Promise<void>;
 
-function makeWorker(name: string, handler: AnyJobHandler) {
+function makeWorker(name: string, handler: AnyJobHandler, concurrency = 5) {
   const worker = new Worker(name, handler, {
     connection,
-    concurrency: 5,
+    concurrency,
   });
 
   worker.on('completed', (job) => {
@@ -43,6 +46,14 @@ const workers = [
   makeWorker('webhook-outbound', (job) => handleWebhookOutbound(job as Job<WebhookOutboundJob>)),
   makeWorker('usage-rollup', (job) => handleUsageRollup(job as Job<UsageRollupJob>)),
   makeWorker('plan-changed', (job) => handlePlanChanged(job as Job<PlanChangedJob>)),
+  // Provisioning waits on pod readiness (minutes, not ms) — keep concurrency
+  // low so a burst of signups can't pin every worker slot on rollout waits.
+  makeWorker('tenant-provision', (job) => handleTenantProvision(job as Job<TenantProvisionJob>), 2),
+  makeWorker(
+    'tenant-deprovision',
+    (job) => handleTenantDeprovision(job as Job<TenantDeprovisionJob>),
+    2,
+  ),
 ];
 
 logger.info('All workers registered. Listening for jobs...');

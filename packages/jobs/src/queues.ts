@@ -42,6 +42,17 @@ export const webhookInboundQueue = lazyQueue<WebhookInboundJob>('webhook-inbound
 export const webhookOutboundQueue = lazyQueue<WebhookOutboundJob>('webhook-outbound');
 export const usageRollupQueue = lazyQueue<UsageRollupJob>('usage-rollup');
 export const planChangedQueue = lazyQueue<PlanChangedJob>('plan-changed');
+// Stack provisioning talks to the Kubernetes API and waits for pods to become
+// ready — slower retry cadence than the default so a transient cluster hiccup
+// doesn't burn all attempts in seconds.
+export const tenantProvisionQueue = lazyQueue<TenantProvisionJob>('tenant-provision', {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 10_000 },
+});
+export const tenantDeprovisionQueue = lazyQueue<TenantDeprovisionJob>('tenant-deprovision', {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 10_000 },
+});
 
 export interface EmailJob {
   to: string;
@@ -72,6 +83,17 @@ export interface PlanChangedJob {
   tenantId: string;
   oldPlan: string;
   newPlan: string;
+}
+
+export type TenantEnvironmentType = 'DEV' | 'TEST' | 'PROD';
+
+export interface TenantProvisionJob {
+  tenantId: string;
+  environments: TenantEnvironmentType[];
+}
+
+export interface TenantDeprovisionJob {
+  tenantId: string;
 }
 
 /**

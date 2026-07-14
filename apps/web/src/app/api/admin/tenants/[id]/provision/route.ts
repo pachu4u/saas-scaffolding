@@ -1,9 +1,7 @@
 import { auth } from '@platform/auth';
-import { env } from '@platform/config';
 import { adminDb } from '@platform/db';
+import { enqueue, tenantProvisionQueue, type TenantEnvironmentType } from '@platform/jobs';
 import { type NextRequest, NextResponse } from 'next/server';
-
-import { provisionRiogentixTenant } from '@/lib/riogentix-provision';
 
 export const runtime = 'nodejs';
 
@@ -87,48 +85,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     ),
   );
 
-  // Real provisioning: upsert the tenant in Riogentix (idempotent, so this
-  // doubles as the retry path for tenants whose signup-time provision failed),
-  // then activate the environment records. Runs after the response is sent;
-  // the admin console polls provisioningStatus for the outcome.
-  void runProvisioning(
-    { id: tenant.id, slug: tenant.slug, plan: tenant.plan },
-    envTypes as ('DEV' | 'TEST' | 'PROD')[],
-  );
+  // The worker owns provisioning (drives the stack driver + state machine);
+  // the admin console polls provisioningStatus for the outcome. No idempotency
+  // key: this endpoint is also the retry path, so each call must enqueue.
+  await enqueue(tenantProvisionQueue, {
+    tenantId: tenant.id,
+    environments: envTypes as TenantEnvironmentType[],
+  });
 
   return NextResponse.json({ ok: true, provisioningStatus: 'IN_PROGRESS', environments: envTypes });
-}
-
-async function runProvisioning(
-  tenant: { id: string; slug: string; plan: string },
-  envTypes: ('DEV' | 'TEST' | 'PROD')[],
-) {
-  try {
-    await provisionRiogentixTenant(tenant.id, tenant.plan, tenant.slug);
-
-    const workspaceUrl = env.AUTH_URL.replace('saas.', `${tenant.slug}.`);
-    await Promise.all(
-      envTypes.map((type) =>
-        adminDb.tenantEnvironment.update({
-          where: { tenantId_type: { tenantId: tenant.id, type } },
-          data: {
-            status: 'ACTIVE',
-            endpoint: type === 'PROD' ? workspaceUrl : `${workspaceUrl}?env=${type.toLowerCase()}`,
-          },
-        }),
-      ),
-    );
-    await adminDb.tenant.update({
-      where: { id: tenant.id },
-      data: { provisioningStatus: 'COMPLETED', provisioningError: null },
-    });
-  } catch (err) {
-    await adminDb.tenant.update({
-      where: { id: tenant.id },
-      data: {
-        provisioningStatus: 'FAILED',
-        provisioningError: String(err),
-      },
-    });
-  }
 }

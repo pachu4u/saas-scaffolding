@@ -2,9 +2,8 @@ import crypto from 'crypto';
 
 import { env } from '@platform/config';
 import { adminDb, withPlatformAdmin } from '@platform/db';
+import { enqueue, tenantProvisionQueue, type TenantProvisionJob } from '@platform/jobs';
 import { type NextRequest, NextResponse } from 'next/server';
-
-import { provisionRiogentixTenant } from '@/lib/riogentix-provision';
 
 export const runtime = 'nodejs';
 
@@ -229,20 +228,24 @@ export async function POST(req: NextRequest) {
       return { tenant, userId: dbUser.id };
     });
 
-    // Provision Riogentix (non-fatal if not configured)
+    // Hand provisioning to the worker (stack stamping can take minutes on the
+    // kubernetes driver — far too long for a signup request). Enqueue failure
+    // is non-fatal: the tenant exists and the admin console can retry.
     try {
-      await provisionRiogentixTenant(result.tenant.id, plan, slugNorm);
-      await adminDb.tenant.update({
-        where: { id: result.tenant.id },
-        data: { provisioningStatus: 'COMPLETED' },
+      const provisionJob: TenantProvisionJob = {
+        tenantId: result.tenant.id,
+        environments: ['PROD'],
+      };
+      await enqueue(tenantProvisionQueue, provisionJob, {
+        idempotencyKey: `tenant-provision:signup:${result.tenant.id}`,
       });
     } catch (err) {
-      console.warn('[POST /api/signup] Riogentix provision warning (non-fatal):', err);
+      console.warn('[POST /api/signup] Failed to enqueue provisioning (non-fatal):', err);
       await adminDb.tenant.update({
         where: { id: result.tenant.id },
         data: {
           provisioningStatus: 'FAILED',
-          provisioningError: String(err),
+          provisioningError: `Failed to enqueue provisioning: ${String(err)}`,
         },
       });
     }
