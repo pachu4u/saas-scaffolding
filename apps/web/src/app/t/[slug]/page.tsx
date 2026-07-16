@@ -14,6 +14,7 @@ export default async function TenantHomePage() {
 
   const { tenant } = await getCurrentTenant(session.user.id);
   const tenantName = tenant?.name ?? 'Workspace';
+  const base = tenant ? `/t/${tenant.slug}` : '';
 
   const isPlatformAdmin =
     Array.isArray(session.groups) &&
@@ -42,7 +43,7 @@ export default async function TenantHomePage() {
     ...(isTenantAdmin || isPlatformAdmin
       ? [
           {
-            href: '/admin',
+            href: `${base}/admin`,
             icon: (
               <svg
                 viewBox="0 0 24 24"
@@ -62,7 +63,7 @@ export default async function TenantHomePage() {
         ]
       : []),
     {
-      href: '/app',
+      href: `${base}/app`,
       icon: (
         <svg
           viewBox="0 0 24 24"

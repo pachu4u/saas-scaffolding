@@ -5,6 +5,8 @@ import { usePathname } from 'next/navigation';
 
 import { useSidebar } from './sidebar-context';
 
+import { useTenantBase } from '@/lib/use-tenant-base';
+
 // ─── Inline SVG icons ────────────────────────────────────────────────────────
 
 const Icon = {
@@ -237,43 +239,43 @@ const Icon = {
 
 // ─── Navigation definitions ───────────────────────────────────────────────────
 
-function buildTenantSections(riogentixUrl?: string) {
+function buildTenantSections(base: string, riogentixUrl?: string) {
   return [
     {
       label: 'OVERVIEW',
-      items: [{ label: 'Dashboard', href: '/admin', icon: Icon.layout }],
+      items: [{ label: 'Dashboard', href: `${base}/admin`, icon: Icon.layout }],
     },
     {
       label: 'WORKSPACE',
       items: [
-        { label: 'Notes', href: '/admin/notes', icon: Icon.penSquare },
+        { label: 'Notes', href: `${base}/admin/notes`, icon: Icon.penSquare },
         ...(riogentixUrl
           ? [{ label: 'Riogentix AI', href: riogentixUrl, icon: Icon.layers }]
-          : [{ label: 'Riogentix App', href: '/app', icon: Icon.layers }]),
+          : [{ label: 'Riogentix App', href: `${base}/app`, icon: Icon.layers }]),
       ],
     },
     {
       label: 'GOVERNANCE',
       items: [
-        { label: 'Members', href: '/admin/team', icon: Icon.users },
-        { label: 'Roles & Permissions', href: '/admin/team/roles', icon: Icon.shield },
-        { label: 'Audit Log', href: '/admin/audit', icon: Icon.fileText },
+        { label: 'Members', href: `${base}/admin/team`, icon: Icon.users },
+        { label: 'Roles & Permissions', href: `${base}/admin/team/roles`, icon: Icon.shield },
+        { label: 'Audit Log', href: `${base}/admin/audit`, icon: Icon.fileText },
       ],
     },
     {
       label: 'ANALYTICS',
       items: [
-        { label: 'Billing', href: '/admin/billing', icon: Icon.creditCard },
-        { label: 'Webhooks', href: '/admin/webhooks', icon: Icon.webhook },
+        { label: 'Billing', href: `${base}/admin/billing`, icon: Icon.creditCard },
+        { label: 'Webhooks', href: `${base}/admin/webhooks`, icon: Icon.webhook },
       ],
     },
     {
       label: 'SYSTEM',
       items: [
-        { label: 'General', href: '/admin/settings', icon: Icon.settings },
-        { label: 'Branding', href: '/admin/settings/branding', icon: Icon.palette },
-        { label: 'Security & SSO', href: '/admin/settings/security', icon: Icon.lock },
-        { label: 'API Keys', href: '/admin/settings/api-keys', icon: Icon.key },
+        { label: 'General', href: `${base}/admin/settings`, icon: Icon.settings },
+        { label: 'Branding', href: `${base}/admin/settings/branding`, icon: Icon.palette },
+        { label: 'Security & SSO', href: `${base}/admin/settings/security`, icon: Icon.lock },
+        { label: 'API Keys', href: `${base}/admin/settings/api-keys`, icon: Icon.key },
       ],
     },
   ]; // end buildTenantSections
@@ -415,15 +417,18 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const { isOpen, close } = useSidebar();
+  // Tenant dashboards are served at /t/{slug}/...; the platform admin console
+  // stays at /admin on the root path (base '').
+  const base = useTenantBase();
 
   const isActive = (href: string) => {
-    if (href === '/admin') return pathname === '/admin';
-    if (href === '/admin/team') return pathname === '/admin/team';
-    if (href === '/admin/settings') return pathname === '/admin/settings';
+    if (href === `${base}/admin`) return pathname === href;
+    if (href === `${base}/admin/team`) return pathname === href;
+    if (href === `${base}/admin/settings`) return pathname === href;
     return pathname === href || pathname.startsWith(href + '/');
   };
 
-  const sections: NavSection[] = isAdmin ? adminSections : buildTenantSections(riogentixUrl);
+  const sections: NavSection[] = isAdmin ? adminSections : buildTenantSections(base, riogentixUrl);
 
   return (
     <>

@@ -61,6 +61,61 @@ services:
       - 'traefik.http.routers.dashboard.middlewares=dashboard-auth'
       - 'traefik.http.middlewares.dashboard-auth.basicauth.users=admin:$$apr1$$H6uskkkW$$IgXLP6ewTrSuBkTrqE8wj/'
 
+  # ─── oauth2-proxy (auth gate for {slug}.techhanker.com tenant apps) ────────
+  # Traefik forwardAuth target for the riogentix-tenants routers (see
+  # traefik/dynamic/riogentix-tenants.yml). Unauthenticated visitors to any
+  # tenant subdomain are redirected to Keycloak; the session cookie is scoped
+  # to .techhanker.com so one login covers all tenant subdomains. The OAuth
+  # callback lands on the fixed host oauthproxy.techhanker.com because
+  # Keycloak only allows wildcards at the *end* of a redirect URI, not in the
+  # host — cross-subdomain return redirects are allowed via whitelist-domain.
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    container_name: oauth2-proxy
+    restart: unless-stopped
+    networks:
+      - platform
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    command:
+      - --http-address=0.0.0.0:4180
+      - --provider=oidc
+      - --provider-display-name=Keycloak
+      - --client-id=oauth2-proxy
+      - --client-secret=517ff84882c2ab974e5828605b800d209836634eec6afde5
+      - --code-challenge-method=S256
+      # Issuer must match the iss claim Keycloak puts in tokens (public URL,
+      # forced by KC_HOSTNAME_URL). Discovery is skipped so token redemption
+      # and JWKS fetches go straight to keycloak:8080 over the Docker network
+      # (avoids trusting the self-signed Traefik cert), while the browser-facing
+      # login URL stays public. Same split the web container uses.
+      - --oidc-issuer-url=https://auth.techhanker.com/realms/saas-platform
+      - --skip-oidc-discovery
+      - --login-url=https://auth.techhanker.com/realms/saas-platform/protocol/openid-connect/auth
+      - --redeem-url=http://keycloak:8080/realms/saas-platform/protocol/openid-connect/token
+      - --oidc-jwks-url=http://keycloak:8080/realms/saas-platform/protocol/openid-connect/certs
+      - --email-domain=*
+      - --redirect-url=https://oauthproxy.techhanker.com/oauth2/callback
+      - --whitelist-domain=.techhanker.com
+      - --cookie-secret=6cT9YjvOYyXGnYJDQEeeKKwAC--DT5VlbLfmQNcwpEA=
+      - --cookie-domain=.techhanker.com
+      - --cookie-secure=true
+      - --cookie-expire=12h
+      - --skip-provider-button=true
+      # forwardAuth mode: authenticated requests are "proxied" to a static 202,
+      # which Traefik treats as auth success.
+      - --upstream=static://202
+      - --reverse-proxy=true
+      - --set-xauthrequest=true
+      # Keep tenant /health probes reachable for uptime monitoring.
+      - --skip-auth-route=GET=^/health$
+    healthcheck:
+      test: ['CMD', '/bin/oauth2-proxy', '--version']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   # ─── Test service (Phase 0 smoke-test, removed in Phase 2) ────────────────
   whoami:
     image: traefik/whoami:latest

@@ -1,0 +1,112 @@
+# Per-tenant Riogentix (k8s) — {slug}.techhanker.com
+# Forwards to the k3s ingress-nginx NodePort (80:32365); the docker-compose
+# Traefik owns host ports 80/443, so k8s traffic must hop through it.
+# 172.18.0.1 is the "platform" docker network gateway (the host).
+# ingress-nginx routes by Host header, which Traefik passes through by default.
+#
+# All tenant routers sit behind the tenant-auth forwardAuth middleware
+# (oauth2-proxy + Keycloak). Unauthenticated requests get a 302 to Keycloak;
+# the callback lands on oauthproxy.techhanker.com (fixed host — Keycloak
+# forbids host wildcards in redirect URIs) and the session cookie is scoped
+# to .techhanker.com so one login covers every tenant subdomain.
+http:
+  routers:
+    # Priority 10: below the named platform hosts (saas=20, keycloak=100) so
+    # only unclaimed {slug} subdomains reach the k8s tenants.
+    riogentix-tenants:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.techhanker\\.com$`)"
+      service: k8s-ingress
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 10
+      middlewares:
+        - tenant-auth
+        - add-authz-secret
+        - tenant-authz
+
+    # Legacy two-level names ({slug}.riogentix.techhanker.com) kept for the
+    # existing *.riogentix DNS record; same backend.
+    riogentix-tenants-legacy:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.riogentix\\.techhanker\\.com$`)"
+      service: k8s-ingress
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 60
+      middlewares:
+        - tenant-auth
+        - add-authz-secret
+        - tenant-authz
+
+    # /health on any tenant subdomain — passes directly to k8s-ingress with no
+    # auth middlewares. Priority 11 beats the main tenant router (10) so these
+    # probes are never sent through tenant-auth or tenant-authz.
+    riogentix-health:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.techhanker\\.com$`) && Path(`/health`)"
+      service: k8s-ingress
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 11
+
+    # /oauth2/* (start, callback, sign_out, ...) on any tenant subdomain —
+    # including the fixed callback host oauthproxy.techhanker.com — goes to
+    # oauth2-proxy itself, without the auth middleware. Priority 15 beats the
+    # tenant routers but stays below saas (20) and auth (100), so the
+    # platform app and Keycloak are unaffected.
+    tenant-oauth2:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.techhanker\\.com$`) && PathPrefix(`/oauth2/`)"
+      service: oauth2-proxy
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 15
+
+    tenant-oauth2-legacy:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.riogentix\\.techhanker\\.com$`) && PathPrefix(`/oauth2/`)"
+      service: oauth2-proxy
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 65
+
+  middlewares:
+    tenant-auth:
+      forwardAuth:
+        # Root path (not /oauth2/auth): with --upstream=static://202 an
+        # authenticated request returns 202 (allowed through) and an
+        # unauthenticated one returns the full 302-to-Keycloak response,
+        # which Traefik passes back to the browser as-is.
+        address: 'http://oauth2-proxy:4180'
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-Auth-Request-User
+          - X-Auth-Request-Email
+          - X-Auth-Request-Groups
+
+    # Injects the shared secret that tenant-authz validates, so direct calls
+    # to /api/tenant-authz from outside the Traefik chain are rejected.
+    add-authz-secret:
+      headers:
+        customRequestHeaders:
+          X-Authz-Secret: 'internal-secret-16-chars'
+
+    # Per-tenant authorization: verifies the authenticated user is an active
+    # member of the tenant named in the subdomain. Runs after tenant-auth so
+    # X-Auth-Request-Email is already set by oauth2-proxy.
+    tenant-authz:
+      forwardAuth:
+        address: 'http://web:3000/api/tenant-authz'
+        trustForwardHeader: true
+
+  services:
+    k8s-ingress:
+      loadBalancer:
+        servers:
+          - url: 'http://172.18.0.1:32365'
+
+    oauth2-proxy:
+      loadBalancer:
+        servers:
+          - url: 'http://oauth2-proxy:4180'

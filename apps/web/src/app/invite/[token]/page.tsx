@@ -15,7 +15,7 @@ async function acceptInvite(token: string) {
   );
   const data = (await res.json()) as { success?: boolean; tenantSlug?: string | null };
   if (data.success) {
-    redirect(data.tenantSlug ? `/dashboard` : '/dashboard');
+    redirect(data.tenantSlug ? `/t/${data.tenantSlug}` : '/dashboard');
   }
 }
 

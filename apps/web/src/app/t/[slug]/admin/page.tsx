@@ -66,6 +66,7 @@ export default async function DashboardPage() {
   if (!tenantCtx) redirect('/');
 
   const { tenantId } = tenantCtx;
+  const base = `/t/${tenantCtx.slug}`;
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   const [
@@ -352,7 +353,7 @@ export default async function DashboardPage() {
               Recent Activity
             </h2>
             <a
-              href="/admin/audit"
+              href={`${base}/admin/audit`}
               className="text-xs font-semibold hover:underline"
               style={{ color: 'var(--brand-primary)' }}
             >
@@ -430,7 +431,7 @@ export default async function DashboardPage() {
             </div>
           </div>
           <a
-            href="/admin/billing"
+            href={`${base}/admin/billing`}
             className="rounded-lg px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: 'var(--brand-gradient)' }}
           >

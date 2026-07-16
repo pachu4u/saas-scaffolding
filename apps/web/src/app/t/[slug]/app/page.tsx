@@ -1,6 +1,9 @@
 import { auth } from '@platform/auth';
 import { redirect } from 'next/navigation';
 
+import { getCurrentTenant } from '@/lib/server-tenant';
+import { tenantAppUrl } from '@/lib/tenant-urls';
+
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Riogentix App' };
 
@@ -8,7 +11,8 @@ export default async function TenantAppPage() {
   const session = await auth();
   if (!session) redirect('/auth/signin');
 
-  const riogentixUrl = process.env.RIOGENTIX_PUBLIC_URL;
+  const { tenant } = await getCurrentTenant(session.user.id);
+  const riogentixUrl = tenant ? tenantAppUrl(tenant.slug) : process.env.RIOGENTIX_PUBLIC_URL;
 
   if (riogentixUrl) {
     redirect(riogentixUrl);

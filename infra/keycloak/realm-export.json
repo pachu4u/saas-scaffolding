@@ -22,15 +22,35 @@
   "ssoSessionMaxLifespan": 36000,
   "roles": {
     "realm": [
-      { "name": "platform_super_admin", "description": "Full platform access" },
-      { "name": "platform_support", "description": "Read-only platform support access" }
+      {
+        "name": "platform_super_admin",
+        "description": "Full platform access"
+      },
+      {
+        "name": "platform_support",
+        "description": "Read-only platform support access"
+      }
     ]
   },
   "groups": [
-    { "name": "acme", "attributes": { "tenant_slug": ["acme"] } },
-    { "name": "globex", "attributes": { "tenant_slug": ["globex"] } },
-    { "name": "platform_super_admin" },
-    { "name": "platform_support" }
+    {
+      "name": "acme",
+      "attributes": {
+        "tenant_slug": ["acme"]
+      }
+    },
+    {
+      "name": "globex",
+      "attributes": {
+        "tenant_slug": ["globex"]
+      }
+    },
+    {
+      "name": "platform_super_admin"
+    },
+    {
+      "name": "platform_support"
+    }
   ],
   "clients": [
     {
@@ -149,6 +169,40 @@
       ]
     },
     {
+      "clientId": "oauth2-proxy",
+      "name": "Tenant Subdomain Auth Gate (oauth2-proxy)",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "517ff84882c2ab974e5828605b800d209836634eec6afde5",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "redirectUris": ["https://oauthproxy.techhanker.com/oauth2/callback"],
+      "webOrigins": ["https://oauthproxy.techhanker.com"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://oauthproxy.techhanker.com/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups",
+            "jsonType.label": "String",
+            "multivalued": "true"
+          }
+        }
+      ]
+    },
+    {
       "clientId": "platform-admin-cli",
       "name": "Platform Admin CLI",
       "enabled": true,
@@ -168,7 +222,13 @@
       "lastName": "Acme",
       "enabled": true,
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "alice123", "temporary": false }],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "alice123",
+          "temporary": false
+        }
+      ],
       "groups": ["acme"],
       "realmRoles": [],
       "attributes": {
@@ -185,7 +245,13 @@
       "lastName": "Globex",
       "enabled": true,
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "bob123", "temporary": false }],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "bob123",
+          "temporary": false
+        }
+      ],
       "groups": ["globex"],
       "realmRoles": [],
       "attributes": {
@@ -202,7 +268,13 @@
       "lastName": "Admin",
       "enabled": true,
       "emailVerified": true,
-      "credentials": [{ "type": "password", "value": "platform123", "temporary": false }],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "platform123",
+          "temporary": false
+        }
+      ],
       "groups": ["platform_super_admin"],
       "realmRoles": ["platform_super_admin"]
     }

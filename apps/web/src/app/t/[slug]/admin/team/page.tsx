@@ -18,6 +18,7 @@ export default async function TeamMembersPage() {
   if (!tenantCtx) redirect('/');
 
   const { tenantId } = tenantCtx;
+  const base = `/t/${tenantCtx.slug}`;
 
   const [tenantUsers, roleBindings, scimToken] = await Promise.all([
     adminDb.tenantUser.findMany({
@@ -161,7 +162,7 @@ export default async function TeamMembersPage() {
             </Badge>
           )}
           <a
-            href="/admin/settings/security"
+            href={`${base}/admin/settings/security`}
             className="rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-gray-50"
             style={{ borderColor: 'var(--border-light)', color: 'var(--text-secondary)' }}
           >

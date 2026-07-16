@@ -22,14 +22,9 @@ const PLAN_BADGE: Record<string, { text: string; color: string }> = {
 };
 
 function switchToWorkspace(slug: string) {
-  const host = window.location.host;
-  const parts = host.split('.');
-  if (parts.length >= 3) {
-    parts[0] = slug;
-    window.location.href = `${window.location.protocol}//${parts.join('.')}/dashboard`;
-  } else {
-    window.location.href = `/dashboard?ws=${slug}`;
-  }
+  // Tenant dashboards are path-based on this domain; the subdomains belong to
+  // the tenants' Riogentix app instances.
+  window.location.href = `/t/${slug}`;
 }
 
 export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitcherProps) {

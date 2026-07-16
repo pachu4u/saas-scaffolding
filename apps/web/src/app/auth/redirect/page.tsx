@@ -47,26 +47,14 @@ export default async function AuthRedirectPage({
     redirect('/no-workspace');
   }
 
-  // Derive the base domain from AUTH_URL (e.g. "saas.techhanker.com" → "techhanker.com").
-  const authHost = process.env.AUTH_URL
-    ? (() => {
-        try {
-          return new URL(process.env.AUTH_URL).hostname;
-        } catch {
-          return '';
-        }
-      })()
-    : '';
-  const baseDomain = authHost.split('.').slice(1).join('.');
-  const proto = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-
-  // If the user started on a specific tenant subdomain, go back there — but only
-  // if they're actually a member of that tenant (security check).
+  // If the user started sign-in for a specific tenant, land there — but only
+  // if they're actually a member of that tenant (security check). Tenant
+  // dashboards live at /t/{slug} on this domain; the {slug}.techhanker.com
+  // subdomains are the tenants' Riogentix app instances.
   const slugs = tenants.map((t) => t.tenant.slug);
   const targetSlug = tenantParam && slugs.includes(tenantParam) ? tenantParam : (slugs[0] ?? null);
 
   if (!targetSlug) redirect('/no-workspace');
 
-  const tenantUrl = baseDomain ? `${proto}://${targetSlug}.${baseDomain}/` : `/${targetSlug}`;
-  redirect(tenantUrl);
+  redirect(`/t/${targetSlug}`);
 }

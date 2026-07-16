@@ -3,6 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
 
+import { useTenantBase } from '@/lib/use-tenant-base';
+
 export function CreateRoleButton() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
@@ -10,6 +12,7 @@ export function CreateRoleButton() {
   const [isPending, startTransition] = useTransition();
   const overlayRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const base = useTenantBase();
 
   function handleOverlayClick(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target === overlayRef.current) setOpen(false);
@@ -34,7 +37,7 @@ export function CreateRoleButton() {
         }
         setOpen(false);
         setName('');
-        router.push(`/team/roles/${data.id}`);
+        router.push(`${base}/admin/team/roles/${data.id}`);
       } catch {
         setError('Something went wrong. Please try again.');
       }

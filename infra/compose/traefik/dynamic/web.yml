@@ -22,33 +22,12 @@ http:
       tls: {}
       priority: 20
 
-    # Riogentix AI builder — served at riogentix.techhanker.com
-    # Higher priority than the wildcard below so it routes to the right container.
-    riogentix:
-      rule: 'Host(`riogentix.techhanker.com`)'
-      service: riogentix-service
-      entryPoints:
-        - websecure
-      tls: {}
-      priority: 50
-
-    # Wildcard routing for tenant subdomains: {slug}.techhanker.com → Next.js app
-    # DNS: *.techhanker.com must point to this server (wildcard A record).
-    web-tenant-wildcard:
-      rule: "HostRegexp(`^[a-z0-9-]+\\.techhanker\\.com$`)"
-      service: web-service
-      entryPoints:
-        - websecure
-      tls: {}
-      priority: 5
+    # {slug}.techhanker.com now routes to the per-tenant k8s instances — see
+    # riogentix-tenants.yml. The Next.js app no longer claims tenant
+    # subdomains, and the legacy shared riogentix container is stopped.
 
   services:
     web-service:
       loadBalancer:
         servers:
           - url: 'http://web:3000'
-
-    riogentix-service:
-      loadBalancer:
-        servers:
-          - url: 'http://riogentix:7860'

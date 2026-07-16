@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
+import { useTenantBase } from '@/lib/use-tenant-base';
+
 export interface PermissionGroup {
   resource: string;
   icon: string;
@@ -24,6 +26,7 @@ export function RolePermissionEditor({
   permissionGroups,
 }: RolePermissionEditorProps) {
   const router = useRouter();
+  const base = useTenantBase();
   const [grants, setGrants] = useState<Set<string>>(new Set(initialGrants));
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +72,7 @@ export function RolePermissionEditor({
           setError(json.error ?? 'Failed to delete role');
           return;
         }
-        router.push('/team/roles');
+        router.push(`${base}/admin/team/roles`);
         router.refresh();
       } catch {
         setError('Request failed');
@@ -177,7 +180,7 @@ export function RolePermissionEditor({
       {/* Save */}
       <div className="flex items-center justify-between pt-4">
         <Link
-          href="/admin/team/roles"
+          href={`${base}/admin/team/roles`}
           className="text-sm font-semibold hover:underline"
           style={{ color: 'var(--text-muted)' }}
         >

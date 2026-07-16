@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+import { useTenantBase } from '@/lib/use-tenant-base';
+
 interface InnerNavItem {
   label: string;
   href: string;
@@ -15,6 +17,9 @@ interface InnerNavProps {
 
 export function InnerNav({ items }: InnerNavProps) {
   const pathname = usePathname();
+  // Item hrefs are written tenant-relative (e.g. /admin/settings); prefix them
+  // with the /t/{slug} base when rendered inside a tenant dashboard.
+  const base = useTenantBase();
 
   return (
     <div
@@ -22,11 +27,12 @@ export function InnerNav({ items }: InnerNavProps) {
       style={{ background: 'var(--bg-white)', borderBottom: '1px solid var(--border-light)' }}
     >
       {items.map((item) => {
-        const active = pathname === item.href;
+        const href = `${base}${item.href}`;
+        const active = pathname === href;
         return (
           <Link
-            key={item.href}
-            href={item.href}
+            key={href}
+            href={href}
             className="relative -mb-px flex items-center gap-1.5 whitespace-nowrap px-3 py-3 text-xs font-semibold transition-colors"
             style={{
               color: active ? 'var(--brand-primary)' : 'var(--text-secondary)',

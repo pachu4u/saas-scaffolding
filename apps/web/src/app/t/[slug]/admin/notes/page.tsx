@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
 import { Topbar } from '@/components/layout/topbar';
+import { useTenantBase } from '@/lib/use-tenant-base';
 
 interface Note {
   id: string;
@@ -27,6 +28,7 @@ function timeAgo(iso: string): string {
 }
 
 export default function NotesPage() {
+  const base = useTenantBase();
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState('');
@@ -253,7 +255,7 @@ export default function NotesPage() {
             Free plan: up to <strong>10 notes</strong>, no deletion. Pro: up to{' '}
             <strong>1,000 notes</strong> with deletion. Enterprise: unlimited.{' '}
             <a
-              href="/admin/billing"
+              href={`${base}/admin/billing`}
               className="underline"
               style={{ color: 'var(--brand-primary)' }}
             >

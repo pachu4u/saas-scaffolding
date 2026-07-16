@@ -5,6 +5,8 @@ tls:
       keyFile: /etc/traefik/certs/_wildcard.lvh.me-key.pem
     - certFile: /etc/traefik/certs/techhanker.com.pem
       keyFile: /etc/traefik/certs/techhanker.com-key.pem
+    - certFile: /etc/traefik/certs/riogentix-tenants.techhanker.com.pem
+      keyFile: /etc/traefik/certs/riogentix-tenants.techhanker.com-key.pem
 
   stores:
     default:

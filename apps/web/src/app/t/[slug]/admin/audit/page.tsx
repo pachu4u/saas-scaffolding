@@ -40,6 +40,7 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
   if (!tenantCtx) redirect('/');
 
   const { tenantId } = tenantCtx;
+  const base = `/t/${tenantCtx.slug}`;
   const filters = await searchParams;
 
   // Actor email filter: resolve to user IDs first
@@ -145,7 +146,7 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
           </p>
           {hasFilters && (
             <a
-              href="/admin/audit"
+              href={`${base}/admin/audit`}
               className="text-xs font-semibold hover:underline"
               style={{ color: 'var(--brand-primary)' }}
             >
