@@ -3,10 +3,6 @@ import { type NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-// Keycloak groups whose members may open any tenant's app (mirrors the
-// isPlatformAdmin check used by the platform /admin pages).
-const PLATFORM_ADMIN_GROUPS = new Set(['platform_super_admin', 'platform_support']);
-
 // Fixed oauth2-proxy callback host (see docker-compose.yml); also the only
 // host registered in the oauth2-proxy client's post-logout redirect URIs.
 const OAUTH_PROXY_HOST = process.env.OAUTH_PROXY_HOST ?? 'oauthproxy.techhanker.com';
@@ -69,7 +65,7 @@ function denyPage(email: string, host: string) {
 
 // Called by Traefik forwardAuth (after tenant-auth/oauth2-proxy has authenticated
 // the user). Verifies that the authenticated user is an active member of the
-// specific tenant subdomain they're accessing, or a platform admin.
+// specific tenant subdomain they're accessing.
 //
 // Headers set by Traefik / prior middlewares:
 //   X-Authz-Secret     — injected by the add-authz-secret Traefik headers middleware;
@@ -89,13 +85,9 @@ async function handler(req: NextRequest) {
     return deny();
   }
 
-  const groups = (req.headers.get('x-auth-request-groups') ?? '')
-    .split(',')
-    .map((g) => g.trim().replace(/^\//, ''))
-    .filter(Boolean);
-  if (groups.some((g) => PLATFORM_ADMIN_GROUPS.has(g))) {
-    return new NextResponse(null, { status: 200 });
-  }
+  // Note: Platform admins are intentionally NOT allowed here. They should
+  // access admin functionality via the /admin routes on the platform domain,
+  // not tenant subdomains.
 
   const forwardedHost = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? '';
   const host = forwardedHost.split(':')[0]?.toLowerCase() ?? '';
