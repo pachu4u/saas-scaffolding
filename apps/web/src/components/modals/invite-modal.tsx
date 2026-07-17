@@ -56,7 +56,7 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
           background: 'var(--bg-white)',
           borderColor: 'var(--border-light)',
           boxShadow: 'var(--shadow-card)',
-          maxHeight: '90vh',
+          maxHeight: 'calc(90vh - 2rem)',
         }}
       >
         {/* Header */}
@@ -121,7 +121,10 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-            <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+            <div
+              className="flex-1 space-y-4 overflow-y-auto px-6 py-5"
+              style={{ maxHeight: '60vh' }}
+            >
               {/* Email */}
               <div>
                 <label

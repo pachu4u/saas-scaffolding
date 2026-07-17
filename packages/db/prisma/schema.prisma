@@ -36,6 +36,7 @@ model Tenant {
   notes             Note[]
   idempotencyKeys   IdempotencyKey[]
   environments      TenantEnvironment[]
+  riogentixUsers    RiogentixUser[]
 
   @@map("tenants")
 }
@@ -55,6 +56,7 @@ model User {
   roleBindings       RoleBinding[]
   externalIdentities ExternalIdentity[]
   auditLogs          AuditLog[]
+  riogentixUsers     RiogentixUser[]
 
   @@map("users")
 }
@@ -192,6 +194,23 @@ model ExternalIdentity {
 
   @@unique([tenantId, idp, idpUserId])
   @@map("external_identities")
+}
+
+// ─── Riogentix User Mapping ──────────────────────────────────────────────────
+
+model RiogentixUser {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  saasUserId  String   @map("saas_user_id") @db.Uuid
+  riogentixUserId String @map("riogentix_user_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [saasUserId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, saasUserId])
+  @@unique([tenantId, riogentixUserId])
+  @@map("riogentix_users")
 }
 
 // ─── Audit ───────────────────────────────────────────────────────────────────

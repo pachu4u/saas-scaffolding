@@ -3,6 +3,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import * as k8s from '@kubernetes/client-node';
 import { env } from '@platform/config';
+import { adminDb } from '@platform/db';
 import { logger } from '@platform/logger';
 
 import { ensureTenantDatabase, tenantDatabaseUrl } from './database.js';
@@ -177,6 +178,118 @@ async function provisionInstanceTenant(spec: TenantStackSpec): Promise<void> {
     const text = await res.text().catch(() => '');
     throw new Error(`Riogentix instance provision → ${String(res.status)}: ${text}`);
   }
+
+  // Sync role assignments from SaaS to Riogentix
+  await syncRoleAssignments(spec);
+}
+
+/** Sync all role assignments for a tenant from SaaS DB to Riogentix. */
+async function syncRoleAssignments(spec: TenantStackSpec): Promise<void> {
+  const saasSecret = spec.secretEnv.RIOGENTIX_SAAS_INTERNAL_SECRET ?? '';
+  const saasBaseUrl = `${tenantInternalBaseUrl(spec.slug)}/api/v1/internal/saas/tenant/${spec.tenantId}`;
+
+  // One query covers every binding for the tenant — bindings to system roles
+  // (Role.tenantId null) are still tenant-scoped rows in role_bindings.
+  const bindings = await adminDb.roleBinding.findMany({
+    where: { tenantId: spec.tenantId },
+    include: {
+      role: { include: { permissions: { include: { permission: true } } } },
+      user: true,
+    },
+  });
+
+  if (bindings.length === 0) {
+    logger.info({ tenantId: spec.tenantId }, 'No role bindings to sync for tenant');
+    return;
+  }
+
+  // Riogentix issues its own user ids; resolve (JIT-provisioning) each SaaS
+  // user by email, then persist the id mapping for later syncs.
+  const usersById = new Map(bindings.map((b) => [b.user.id, b.user]));
+  const users = [...usersById.values()];
+
+  const resolveRes = await fetch(`${saasBaseUrl}/users/resolve`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Saas-Internal-Secret': saasSecret,
+    },
+    body: JSON.stringify({ users: users.map((u) => ({ email: u.email })) }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!resolveRes.ok) {
+    const text = await resolveRes.text().catch(() => '');
+    throw new Error(`Riogentix user resolve → ${String(resolveRes.status)}: ${text}`);
+  }
+  const { mappings } = (await resolveRes.json()) as {
+    mappings: { email: string; user_id: string }[];
+  };
+  const riogentixIdByEmail = new Map(mappings.map((m) => [m.email.toLowerCase(), m.user_id]));
+
+  const riogentixIdBySaasId = new Map<string, string>();
+  for (const user of users) {
+    const riogentixUserId = riogentixIdByEmail.get(user.email.toLowerCase());
+    if (!riogentixUserId) {
+      logger.warn(
+        { tenantId: spec.tenantId, userId: user.id },
+        'Riogentix did not resolve user — skipping their role bindings',
+      );
+      continue;
+    }
+    riogentixIdBySaasId.set(user.id, riogentixUserId);
+    await adminDb.riogentixUser.upsert({
+      where: { tenantId_saasUserId: { tenantId: spec.tenantId, saasUserId: user.id } },
+      create: { tenantId: spec.tenantId, saasUserId: user.id, riogentixUserId },
+      update: { riogentixUserId },
+    });
+  }
+
+  // Build role assignments payload with Riogentix user ids + full role details
+  // so Riogentix can create/refresh the role definitions alongside assignments.
+  const roleAssignments = bindings.flatMap((binding) => {
+    const userId = riogentixIdBySaasId.get(binding.user.id);
+    if (!userId) return [];
+    return [
+      {
+        user_id: userId,
+        role_id: binding.role.id,
+        role_name: binding.role.name,
+        permissions: binding.role.permissions.map((rp) => rp.permission.code),
+        is_system: binding.role.isSystem,
+        domain_type: 'global',
+        domain_id: null,
+      },
+    ];
+  });
+
+  if (roleAssignments.length === 0) {
+    logger.warn({ tenantId: spec.tenantId }, 'No resolvable role bindings to sync for tenant');
+    return;
+  }
+
+  const res = await fetch(`${saasBaseUrl}/role-assignments`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Saas-Internal-Secret': saasSecret,
+    },
+    body: JSON.stringify({ assignments: roleAssignments }),
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Role assignments sync → ${String(res.status)}: ${text}`);
+  }
+
+  logger.info(
+    {
+      tenantId: spec.tenantId,
+      bindingCount: roleAssignments.length,
+      userCount: riogentixIdBySaasId.size,
+    },
+    'Role assignments synced to Riogentix',
+  );
 }
 
 export const kubernetesDriver: TenantStackDriver = {
