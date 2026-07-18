@@ -1,5 +1,10 @@
 // SCIM 2.0 core types (RFC 7643)
 
+// Custom extension carrying the platform's role semantics on Group resources
+// (permission codes + system-role flag). Documented in the connected-app
+// contract; apps that only care about membership can ignore it.
+export const SCIM_ROLE_EXTENSION = 'urn:saas-platform:params:scim:schemas:extension:role:2.0';
+
 export const SCIM_SCHEMAS = {
   USER: 'urn:ietf:params:scim:schemas:core:2.0:User',
   GROUP: 'urn:ietf:params:scim:schemas:core:2.0:Group',

@@ -1,6 +1,8 @@
 export { authenticateScim, hashToken, generateToken, type ScimTokenContext } from './auth';
+export { ScimClient, ScimRequestError, type ScimUserWrite, type ScimGroupWrite } from './client';
 export {
   SCIM_SCHEMAS,
+  SCIM_ROLE_EXTENSION,
   type ScimUser,
   type ScimGroup,
   type ScimListResponse,
