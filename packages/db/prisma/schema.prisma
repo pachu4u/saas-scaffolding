@@ -37,6 +37,8 @@ model Tenant {
   idempotencyKeys   IdempotencyKey[]
   environments      TenantEnvironment[]
   riogentixUsers    RiogentixUser[]
+  connectedAppInstances ConnectedAppInstance[]
+  syncOutboxEvents      SyncOutboxEvent[]
 
   @@map("tenants")
 }
@@ -211,6 +213,72 @@ model RiogentixUser {
   @@unique([tenantId, saasUserId])
   @@unique([tenantId, riogentixUserId])
   @@map("riogentix_users")
+}
+
+// ─── Connected Apps & Identity Sync Outbox ───────────────────────────────────
+//
+// Generic registry for downstream applications that receive identity data
+// (users + role assignments) from the platform via SCIM 2.0. Adding a new app
+// is a registry row + a SCIM endpoint on the app side — no per-app sync code.
+
+model ConnectedApp {
+  id        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug      String             @unique @db.Citext
+  name      String
+  status    ConnectedAppStatus @default(ACTIVE)
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  instances ConnectedAppInstance[]
+
+  @@map("connected_apps")
+}
+
+// Per-tenant deployment of a connected app (each tenant runs its own instance
+// in this topology). Carries the SCIM endpoint + bearer token for that
+// instance; the token lives here rather than in the app's k8s Secret so the
+// dispatcher never needs cluster access.
+model ConnectedAppInstance {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  appId         String             @map("app_id") @db.Uuid
+  tenantId      String             @map("tenant_id") @db.Uuid
+  scimBaseUrl   String             @map("scim_base_url")
+  scimToken     String             @map("scim_token")
+  status        ConnectedAppStatus @default(ACTIVE)
+  lastSyncedAt  DateTime?          @map("last_synced_at")
+  lastSyncError String?            @map("last_sync_error")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  app    ConnectedApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([appId, tenantId])
+  @@map("connected_app_instances")
+}
+
+// Transactional outbox: identity mutations append a row in the same DB
+// transaction, so no change can be committed without a sync record. Events
+// are dirty-markers — the dispatcher re-reads current state and converges
+// each app instance, so replaying or coalescing events is always safe.
+model SyncOutboxEvent {
+  id           BigInt           @id @default(autoincrement())
+  tenantId     String           @map("tenant_id") @db.Uuid
+  resourceType SyncResourceType @map("resource_type")
+  resourceId   String?          @map("resource_id")
+  op           SyncOp           @default(UPSERT)
+  payload      Json             @default("{}") @db.JsonB
+  status       SyncOutboxStatus @default(PENDING)
+  attempts     Int              @default(0)
+  lastError    String?          @map("last_error")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  processedAt  DateTime?        @map("processed_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([status, id])
+  @@index([tenantId, status])
+  @@map("sync_outbox_events")
 }
 
 // ─── Audit ───────────────────────────────────────────────────────────────────
@@ -390,6 +458,30 @@ enum EnvironmentType {
   DEV
   TEST
   PROD
+}
+
+enum ConnectedAppStatus {
+  ACTIVE
+  PAUSED
+  DISABLED
+}
+
+enum SyncResourceType {
+  USER
+  GROUP
+  TENANT
+}
+
+enum SyncOp {
+  UPSERT
+  DELETE
+}
+
+enum SyncOutboxStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
 }
 
 enum EnvironmentStatus {
