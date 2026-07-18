@@ -331,7 +331,14 @@ export const kubernetesDriver: TenantStackDriver = {
     await waitForDeploymentReady(spec.namespace);
     await provisionInstanceTenant(spec);
     logger.info({ tenantId: tenant.id, host: spec.host }, 'Tenant stack ready');
-    return { publicUrl: `https://${spec.host}` };
+    const scimToken = spec.secretEnv.RIOGENTIX_SAAS_INTERNAL_SECRET ?? '';
+    return {
+      publicUrl: `https://${spec.host}`,
+      scimEndpoint: {
+        baseUrl: `${tenantInternalBaseUrl(spec.slug)}/api/v1/scim/v2/tenants/${spec.tenantId}`,
+        token: scimToken,
+      },
+    };
   },
 
   async deprovision(tenant): Promise<void> {

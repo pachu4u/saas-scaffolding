@@ -18,6 +18,11 @@ export interface TenantRef {
   plan: string;
 }
 
+export interface ScimEndpoint {
+  baseUrl: string;
+  token: string;
+}
+
 export interface ProvisionOutcome {
   /**
    * Public base URL for the tenant's instance (e.g. https://acme.example.com),
@@ -25,6 +30,12 @@ export interface ProvisionOutcome {
    * served by the platform's own wildcard domain).
    */
   publicUrl: string | null;
+  /**
+   * SCIM 2.0 endpoint for this tenant's app instance. Present when the driver
+   * wired a Riogentix SCIM endpoint. The tenant-provision handler uses this to
+   * register a ConnectedAppInstance so the app-sync worker can converge state.
+   */
+  scimEndpoint: ScimEndpoint | null;
 }
 
 export interface TenantStackDriver {

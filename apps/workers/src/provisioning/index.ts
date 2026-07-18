@@ -9,4 +9,10 @@ export function getTenantStackDriver(): TenantStackDriver {
 }
 
 export { tenantInternalBaseUrl };
-export type { TenantStackDriver, TenantRef, ProvisionOutcome, TenantStackSpec } from './types.js';
+export type {
+  TenantStackDriver,
+  TenantRef,
+  ProvisionOutcome,
+  ScimEndpoint,
+  TenantStackSpec,
+} from './types.js';

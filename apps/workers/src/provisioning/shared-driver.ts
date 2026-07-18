@@ -17,7 +17,7 @@ export const sharedDriver: TenantStackDriver = {
     const secret = env.RIOGENTIX_INTERNAL_SECRET;
     if (!url || !secret) {
       logger.debug({ tenantId: tenant.id }, 'Riogentix integration not configured — skipping');
-      return { publicUrl: null };
+      return { publicUrl: null, scimEndpoint: null };
     }
 
     const res = await fetch(`${url}/internal/tenant/${tenant.id}/provision`, {
@@ -33,7 +33,14 @@ export const sharedDriver: TenantStackDriver = {
       const text = await res.text().catch(() => '');
       throw new Error(`Riogentix provision failed (${String(res.status)}): ${text}`);
     }
-    return { publicUrl: null };
+
+    const scimToken = env.RIOGENTIX_SAAS_INTERNAL_SECRET;
+    return {
+      publicUrl: null,
+      scimEndpoint: scimToken
+        ? { baseUrl: `${url}/api/v1/scim/v2/tenants/${tenant.id}`, token: scimToken }
+        : null,
+    };
   },
 
   deprovision(tenant): Promise<void> {

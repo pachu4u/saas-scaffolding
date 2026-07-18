@@ -7,6 +7,9 @@ const {
   mockEnvUpsert,
   mockEnvUpdate,
   mockEnvUpdateMany,
+  mockConnectedAppUpsert,
+  mockConnectedAppInstanceUpsert,
+  mockConnectedAppInstanceUpdateMany,
   mockProvision,
   mockDeprovision,
 } = vi.hoisted(() => ({
@@ -15,6 +18,9 @@ const {
   mockEnvUpsert: vi.fn(),
   mockEnvUpdate: vi.fn(),
   mockEnvUpdateMany: vi.fn(),
+  mockConnectedAppUpsert: vi.fn(),
+  mockConnectedAppInstanceUpsert: vi.fn(),
+  mockConnectedAppInstanceUpdateMany: vi.fn(),
   mockProvision: vi.fn(),
   mockDeprovision: vi.fn(),
 }));
@@ -30,6 +36,11 @@ vi.mock('@platform/db', () => ({
       upsert: mockEnvUpsert,
       update: mockEnvUpdate,
       updateMany: mockEnvUpdateMany,
+    },
+    connectedApp: { upsert: mockConnectedAppUpsert },
+    connectedAppInstance: {
+      upsert: mockConnectedAppInstanceUpsert,
+      updateMany: mockConnectedAppInstanceUpdateMany,
     },
   },
 }));
@@ -61,11 +72,17 @@ beforeEach(() => {
   mockEnvUpsert.mockResolvedValue({});
   mockEnvUpdate.mockResolvedValue({});
   mockEnvUpdateMany.mockResolvedValue({ count: 1 });
+  mockConnectedAppUpsert.mockResolvedValue({ id: 'app-uuid-riogentix' });
+  mockConnectedAppInstanceUpsert.mockResolvedValue({});
+  mockConnectedAppInstanceUpdateMany.mockResolvedValue({ count: 1 });
 });
 
 describe('handleTenantProvision', () => {
   it('walks IN_PROGRESS → COMPLETED and activates environments with the driver URL', async () => {
-    mockProvision.mockResolvedValue({ publicUrl: 'https://acme.tenants.example.com' });
+    mockProvision.mockResolvedValue({
+      publicUrl: 'https://acme.tenants.example.com',
+      scimEndpoint: null,
+    });
 
     await handleTenantProvision(
       job({ tenantId: 'tenant-1', environments: ['PROD', 'DEV'] }) as never,
@@ -98,7 +115,7 @@ describe('handleTenantProvision', () => {
   });
 
   it('falls back to the platform wildcard URL when the driver returns none (shared topology)', async () => {
-    mockProvision.mockResolvedValue({ publicUrl: null });
+    mockProvision.mockResolvedValue({ publicUrl: null, scimEndpoint: null });
 
     await handleTenantProvision(job({ tenantId: 'tenant-1', environments: ['PROD'] }) as never);
 
@@ -107,6 +124,46 @@ describe('handleTenantProvision', () => {
         data: { status: 'ACTIVE', endpoint: 'https://acme.example.com' },
       }),
     );
+  });
+
+  it('upserts a ConnectedAppInstance when the driver returns a scimEndpoint', async () => {
+    const scimEndpoint = {
+      baseUrl: 'http://riogentix.internal/api/v1/scim/v2/tenants/tenant-1',
+      token: 'secret-token',
+    };
+    mockProvision.mockResolvedValue({ publicUrl: null, scimEndpoint });
+
+    await handleTenantProvision(job({ tenantId: 'tenant-1', environments: ['PROD'] }) as never);
+
+    expect(mockConnectedAppUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { slug: 'riogentix' },
+        create: { slug: 'riogentix', name: 'Riogentix' },
+      }),
+    );
+    expect(mockConnectedAppInstanceUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { appId_tenantId: { appId: 'app-uuid-riogentix', tenantId: 'tenant-1' } },
+        create: expect.objectContaining({
+          scimBaseUrl: scimEndpoint.baseUrl,
+          scimToken: scimEndpoint.token,
+        }) as unknown,
+        update: expect.objectContaining({
+          scimBaseUrl: scimEndpoint.baseUrl,
+          scimToken: scimEndpoint.token,
+          status: 'ACTIVE',
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('skips ConnectedAppInstance upsert when scimEndpoint is null', async () => {
+    mockProvision.mockResolvedValue({ publicUrl: null, scimEndpoint: null });
+
+    await handleTenantProvision(job({ tenantId: 'tenant-1', environments: ['PROD'] }) as never);
+
+    expect(mockConnectedAppUpsert).not.toHaveBeenCalled();
+    expect(mockConnectedAppInstanceUpsert).not.toHaveBeenCalled();
   });
 
   it('marks tenant + environments FAILED and rethrows so BullMQ retries', async () => {
@@ -139,7 +196,7 @@ describe('handleTenantProvision', () => {
 });
 
 describe('handleTenantDeprovision', () => {
-  it('tears down the stack and resets tenant + environments to PENDING', async () => {
+  it('tears down the stack, resets tenant + environments to PENDING, and pauses app instances', async () => {
     await handleTenantDeprovision(job({ tenantId: 'tenant-1' }) as never);
 
     expect(mockDeprovision).toHaveBeenCalledWith({ id: 'tenant-1', slug: 'acme' });
@@ -150,6 +207,10 @@ describe('handleTenantDeprovision', () => {
     expect(mockTenantUpdate).toHaveBeenCalledWith({
       where: { id: 'tenant-1' },
       data: { provisioningStatus: 'PENDING', provisioningError: null },
+    });
+    expect(mockConnectedAppInstanceUpdateMany).toHaveBeenCalledWith({
+      where: { tenantId: 'tenant-1' },
+      data: { status: 'PAUSED' },
     });
   });
 

@@ -40,7 +40,7 @@ export async function handleTenantProvision(job: Job<TenantProvisionJob>): Promi
 
   try {
     const driver = getTenantStackDriver();
-    const { publicUrl } = await driver.provision({
+    const { publicUrl, scimEndpoint } = await driver.provision({
       id: tenant.id,
       slug: tenant.slug,
       plan: tenant.plan,
@@ -64,6 +64,30 @@ export async function handleTenantProvision(job: Job<TenantProvisionJob>): Promi
       where: { id: tenantId },
       data: { provisioningStatus: 'COMPLETED', provisioningError: null },
     });
+
+    if (scimEndpoint) {
+      const riogentixApp = await adminDb.connectedApp.upsert({
+        where: { slug: 'riogentix' },
+        create: { slug: 'riogentix', name: 'Riogentix' },
+        update: {},
+      });
+      await adminDb.connectedAppInstance.upsert({
+        where: { appId_tenantId: { appId: riogentixApp.id, tenantId } },
+        create: {
+          appId: riogentixApp.id,
+          tenantId,
+          scimBaseUrl: scimEndpoint.baseUrl,
+          scimToken: scimEndpoint.token,
+        },
+        update: {
+          scimBaseUrl: scimEndpoint.baseUrl,
+          scimToken: scimEndpoint.token,
+          status: 'ACTIVE',
+        },
+      });
+      logger.info({ tenantId }, 'ConnectedAppInstance registered for Riogentix');
+    }
+
     logger.info({ tenantId, driver: driver.name }, 'Tenant provisioned');
   } catch (err) {
     await adminDb.tenant.update({
@@ -102,6 +126,11 @@ export async function handleTenantDeprovision(job: Job<TenantDeprovisionJob>): P
   await adminDb.tenant.update({
     where: { id: tenantId },
     data: { provisioningStatus: 'PENDING', provisioningError: null },
+  });
+  // Pause all connected app instances so the sync worker skips them until re-provisioned.
+  await adminDb.connectedAppInstance.updateMany({
+    where: { tenantId },
+    data: { status: 'PAUSED' },
   });
   logger.info({ tenantId }, 'Tenant deprovisioned');
 }
