@@ -6,6 +6,7 @@ export {
   planChangedQueue,
   tenantProvisionQueue,
   tenantDeprovisionQueue,
+  roleSyncQueue,
   enqueue,
   type EmailJob,
   type WebhookInboundJob,
@@ -15,4 +16,5 @@ export {
   type TenantEnvironmentType,
   type TenantProvisionJob,
   type TenantDeprovisionJob,
+  type RoleSyncJob,
 } from './queues.js';

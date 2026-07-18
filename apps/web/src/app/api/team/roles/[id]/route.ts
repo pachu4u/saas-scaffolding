@@ -2,6 +2,8 @@ import { Permission, withAuthz } from '@platform/authz';
 import { adminDb, withPlatformAdmin } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
+import { enqueueRoleSync } from '@/lib/role-sync';
+
 export const runtime = 'nodejs';
 
 /**
@@ -68,6 +70,10 @@ export const PATCH = withAuthz<{ params: Promise<{ id: string }> }>(
 
     if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
+    // Members holding this role keep their binding but its permission set
+    // changed — push the refreshed definitions to the Riogentix instance.
+    await enqueueRoleSync(authz.tenantId);
+
     return NextResponse.json({
       id: updated.id,
       name: updated.name,
@@ -112,6 +118,10 @@ export const DELETE = withAuthz<{ params: Promise<{ id: string }> }>(
         },
       });
     });
+
+    // Deleting the role removed its bindings — sync so the Riogentix instance
+    // drops the corresponding assignments too.
+    await enqueueRoleSync(authz.tenantId);
 
     return new NextResponse(null, { status: 204 });
   },

@@ -2,6 +2,8 @@ import { PLATFORM_ROLE_NAMES, Permission, invalidateAuthzCache, withAuthz } from
 import { adminDb, withPlatformAdmin } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
+import { enqueueRoleSync } from '@/lib/role-sync';
+
 export const runtime = 'nodejs';
 
 /**
@@ -61,6 +63,9 @@ export const PATCH = withAuthz<{ params: Promise<{ userId: string }> }>(
     // The old role's permissions are cached for up to 120s — invalidate so a
     // role change (especially a downgrade) takes effect immediately.
     await invalidateAuthzCache(authz.tenantId, userId);
+
+    // Propagate the change to the tenant's Riogentix instance.
+    await enqueueRoleSync(authz.tenantId);
 
     return NextResponse.json({ ok: true });
   },

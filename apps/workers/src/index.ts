@@ -7,12 +7,14 @@ import type {
   PlanChangedJob,
   TenantProvisionJob,
   TenantDeprovisionJob,
+  RoleSyncJob,
 } from '@platform/jobs';
 import { logger } from '@platform/logger';
 import { Worker, type Job } from 'bullmq';
 
 import { handleEmail } from './handlers/email.js';
 import { handlePlanChanged } from './handlers/plan-changed.js';
+import { handleRoleSync } from './handlers/role-sync.js';
 import { handleTenantDeprovision, handleTenantProvision } from './handlers/tenant-provision.js';
 import { handleUsageRollup } from './handlers/usage-rollup.js';
 import { handleWebhookInbound } from './handlers/webhook-inbound.js';
@@ -54,6 +56,7 @@ const workers = [
     (job) => handleTenantDeprovision(job as Job<TenantDeprovisionJob>),
     2,
   ),
+  makeWorker('role-sync', (job) => handleRoleSync(job as Job<RoleSyncJob>)),
 ];
 
 logger.info('All workers registered. Listening for jobs...');

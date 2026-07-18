@@ -53,6 +53,10 @@ export const tenantDeprovisionQueue = lazyQueue<TenantDeprovisionJob>('tenant-de
   attempts: 3,
   backoff: { type: 'exponential', delay: 10_000 },
 });
+// Role changes in the console are pushed to the tenant's Riogentix instance.
+// Each job re-reads the full binding set at run time, so retries and
+// back-to-back enqueues converge on the latest state.
+export const roleSyncQueue = lazyQueue<RoleSyncJob>('role-sync');
 
 export interface EmailJob {
   to: string;
@@ -93,6 +97,10 @@ export interface TenantProvisionJob {
 }
 
 export interface TenantDeprovisionJob {
+  tenantId: string;
+}
+
+export interface RoleSyncJob {
   tenantId: string;
 }
 

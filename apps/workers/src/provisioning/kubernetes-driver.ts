@@ -122,6 +122,9 @@ async function buildSpec(tenant: TenantRef): Promise<TenantStackSpec> {
       SAAS_TENANT_ID: tenant.id,
       SAAS_TENANT_SLUG: tenant.slug,
       SAAS_PLAN: tenant.plan,
+      // Role assignments synced from the console are only enforced when the
+      // instance's authorization layer is on.
+      RIOGENTIX_AUTHZ_ENABLED: 'true',
       PORT: String(env.RIOGENTIX_CONTAINER_PORT),
     },
   };
@@ -180,68 +183,99 @@ async function provisionInstanceTenant(spec: TenantStackSpec): Promise<void> {
   }
 
   // Sync role assignments from SaaS to Riogentix
-  await syncRoleAssignments(spec);
+  await syncRoleAssignments({
+    tenantId: spec.tenantId,
+    slug: spec.slug,
+    saasSecret: spec.secretEnv.RIOGENTIX_SAAS_INTERNAL_SECRET ?? '',
+  });
 }
 
-/** Sync all role assignments for a tenant from SaaS DB to Riogentix. */
-async function syncRoleAssignments(spec: TenantStackSpec): Promise<void> {
-  const saasSecret = spec.secretEnv.RIOGENTIX_SAAS_INTERNAL_SECRET ?? '';
-  const saasBaseUrl = `${tenantInternalBaseUrl(spec.slug)}/api/v1/internal/saas/tenant/${spec.tenantId}`;
+/**
+ * Standalone entry point for the role-sync job: resolves the tenant's
+ * internal-API secret from its Secret and pushes the current binding set.
+ * Throws when the tenant stack has not been provisioned yet (no Secret) —
+ * provisioning does its own sync, so there is nothing to converge here.
+ */
+export async function syncTenantRoleAssignments(tenant: {
+  id: string;
+  slug: string;
+}): Promise<void> {
+  const secretEnv = await readTenantSecretEnv(tenant.slug);
+  const saasSecret = secretEnv?.RIOGENTIX_SAAS_INTERNAL_SECRET;
+  if (!saasSecret) {
+    throw new Error(
+      `Tenant ${tenant.slug} has no provisioned stack Secret — role sync requires a provisioned tenant`,
+    );
+  }
+  await syncRoleAssignments({ tenantId: tenant.id, slug: tenant.slug, saasSecret });
+}
+
+/**
+ * Sync all role assignments for a tenant from SaaS DB to Riogentix.
+ *
+ * Pushes the *full* current binding set (including an empty one) so the
+ * Riogentix side can apply replace semantics — bindings removed in the
+ * console disappear from the instance on the next sync.
+ */
+async function syncRoleAssignments(args: {
+  tenantId: string;
+  slug: string;
+  saasSecret: string;
+}): Promise<void> {
+  const { tenantId, slug, saasSecret } = args;
+  const saasBaseUrl = `${tenantInternalBaseUrl(slug)}/api/v1/internal/saas/tenant/${tenantId}`;
 
   // One query covers every binding for the tenant — bindings to system roles
   // (Role.tenantId null) are still tenant-scoped rows in role_bindings.
   const bindings = await adminDb.roleBinding.findMany({
-    where: { tenantId: spec.tenantId },
+    where: { tenantId },
     include: {
       role: { include: { permissions: { include: { permission: true } } } },
       user: true,
     },
   });
 
-  if (bindings.length === 0) {
-    logger.info({ tenantId: spec.tenantId }, 'No role bindings to sync for tenant');
-    return;
-  }
-
   // Riogentix issues its own user ids; resolve (JIT-provisioning) each SaaS
   // user by email, then persist the id mapping for later syncs.
   const usersById = new Map(bindings.map((b) => [b.user.id, b.user]));
   const users = [...usersById.values()];
 
-  const resolveRes = await fetch(`${saasBaseUrl}/users/resolve`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Saas-Internal-Secret': saasSecret,
-    },
-    body: JSON.stringify({ users: users.map((u) => ({ email: u.email })) }),
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!resolveRes.ok) {
-    const text = await resolveRes.text().catch(() => '');
-    throw new Error(`Riogentix user resolve → ${String(resolveRes.status)}: ${text}`);
-  }
-  const { mappings } = (await resolveRes.json()) as {
-    mappings: { email: string; user_id: string }[];
-  };
-  const riogentixIdByEmail = new Map(mappings.map((m) => [m.email.toLowerCase(), m.user_id]));
-
   const riogentixIdBySaasId = new Map<string, string>();
-  for (const user of users) {
-    const riogentixUserId = riogentixIdByEmail.get(user.email.toLowerCase());
-    if (!riogentixUserId) {
-      logger.warn(
-        { tenantId: spec.tenantId, userId: user.id },
-        'Riogentix did not resolve user — skipping their role bindings',
-      );
-      continue;
-    }
-    riogentixIdBySaasId.set(user.id, riogentixUserId);
-    await adminDb.riogentixUser.upsert({
-      where: { tenantId_saasUserId: { tenantId: spec.tenantId, saasUserId: user.id } },
-      create: { tenantId: spec.tenantId, saasUserId: user.id, riogentixUserId },
-      update: { riogentixUserId },
+  if (users.length > 0) {
+    const resolveRes = await fetch(`${saasBaseUrl}/users/resolve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Saas-Internal-Secret': saasSecret,
+      },
+      body: JSON.stringify({ users: users.map((u) => ({ email: u.email })) }),
+      signal: AbortSignal.timeout(15_000),
     });
+    if (!resolveRes.ok) {
+      const text = await resolveRes.text().catch(() => '');
+      throw new Error(`Riogentix user resolve → ${String(resolveRes.status)}: ${text}`);
+    }
+    const { mappings } = (await resolveRes.json()) as {
+      mappings: { email: string; user_id: string }[];
+    };
+    const riogentixIdByEmail = new Map(mappings.map((m) => [m.email.toLowerCase(), m.user_id]));
+
+    for (const user of users) {
+      const riogentixUserId = riogentixIdByEmail.get(user.email.toLowerCase());
+      if (!riogentixUserId) {
+        logger.warn(
+          { tenantId, userId: user.id },
+          'Riogentix did not resolve user — skipping their role bindings',
+        );
+        continue;
+      }
+      riogentixIdBySaasId.set(user.id, riogentixUserId);
+      await adminDb.riogentixUser.upsert({
+        where: { tenantId_saasUserId: { tenantId, saasUserId: user.id } },
+        create: { tenantId, saasUserId: user.id, riogentixUserId },
+        update: { riogentixUserId },
+      });
+    }
   }
 
   // Build role assignments payload with Riogentix user ids + full role details
@@ -262,11 +296,6 @@ async function syncRoleAssignments(spec: TenantStackSpec): Promise<void> {
     ];
   });
 
-  if (roleAssignments.length === 0) {
-    logger.warn({ tenantId: spec.tenantId }, 'No resolvable role bindings to sync for tenant');
-    return;
-  }
-
   const res = await fetch(`${saasBaseUrl}/role-assignments`, {
     method: 'PUT',
     headers: {
@@ -284,7 +313,7 @@ async function syncRoleAssignments(spec: TenantStackSpec): Promise<void> {
 
   logger.info(
     {
-      tenantId: spec.tenantId,
+      tenantId,
       bindingCount: roleAssignments.length,
       userCount: riogentixIdBySaasId.size,
     },

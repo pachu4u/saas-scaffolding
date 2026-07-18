@@ -6,6 +6,7 @@ import { sendEmail } from '@platform/notifications';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { decodeInviteToken } from '@/lib/invite-token';
+import { enqueueRoleSync } from '@/lib/role-sync';
 
 /**
  * POST /api/team/invite
@@ -127,6 +128,9 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
       },
     });
   });
+
+  // Propagate the new member's role binding to the tenant's Riogentix instance.
+  await enqueueRoleSync(tenantCtx.tenantId);
 
   // Send invite email
   await sendEmail({
