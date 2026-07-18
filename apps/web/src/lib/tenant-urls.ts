@@ -1,23 +1,13 @@
 /**
- * Public URL of a tenant's Riogentix application instance. Since the
- * {slug}.techhanker.com hosts were repointed at the per-tenant k8s
- * deployments, each tenant's app lives on its own subdomain of the platform
- * base domain (derived from AUTH_URL, e.g. "saas.techhanker.com" →
- * "techhanker.com"). Falls back to the legacy shared RIOGENTIX_PUBLIC_URL
- * when no base domain can be derived.
+ * Link that opens the current tenant's Riogentix application, authenticated.
+ * Riogentix now lives at the /app path on the tenant subdomain (routed
+ * straight to the per-tenant k8s instance at the edge, bypassing this app),
+ * so this just points at the same-origin SSO bridge
+ * (/api/riogentix-launch) which exchanges the caller's SaaS session for a
+ * Riogentix session cookie before redirecting to /app. `slug` is accepted
+ * for backwards compatibility with existing call sites but unused — the
+ * launch endpoint resolves the tenant from the session itself.
  */
-export function tenantAppUrl(slug: string): string | undefined {
-  const authHost = process.env.AUTH_URL
-    ? (() => {
-        try {
-          return new URL(process.env.AUTH_URL).hostname;
-        } catch {
-          return '';
-        }
-      })()
-    : '';
-  const baseDomain = authHost.split('.').slice(1).join('.');
-  if (!baseDomain) return process.env.RIOGENTIX_PUBLIC_URL ?? undefined;
-  const proto = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-  return `${proto}://${slug}.${baseDomain}`;
+export function tenantAppUrl(_slug: string): string | undefined {
+  return '/api/riogentix-launch';
 }

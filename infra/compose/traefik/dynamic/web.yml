@@ -22,9 +22,16 @@ http:
       tls: {}
       priority: 20
 
-    # {slug}.techhanker.com now routes to the per-tenant k8s instances — see
-    # riogentix-tenants.yml. The Next.js app no longer claims tenant
-    # subdomains, and the legacy shared riogentix container is stopped.
+    # Tenant subdomains: root path serves the SaaS web tile page. /app and
+    # /api/v1 are routed to the per-tenant Riogentix k8s instances (see
+    # riogentix-tenants.yml). Priority 5 keeps it below the /app route there.
+    tenant-subdomain-root:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.techhanker\\.com$`) && PathPrefix(`/`)"
+      service: web-service
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 5
 
   services:
     web-service:
