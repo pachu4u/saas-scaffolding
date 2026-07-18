@@ -1,6 +1,11 @@
 import { env } from '@platform/config';
 import { adminDb } from '@platform/db';
-import type { TenantDeprovisionJob, TenantProvisionJob } from '@platform/jobs';
+import {
+  appSyncQueue,
+  enqueue,
+  type TenantDeprovisionJob,
+  type TenantProvisionJob,
+} from '@platform/jobs';
 import { logger } from '@platform/logger';
 import type { Job } from 'bullmq';
 
@@ -86,6 +91,11 @@ export async function handleTenantProvision(job: Job<TenantProvisionJob>): Promi
         },
       });
       logger.info({ tenantId }, 'ConnectedAppInstance registered for Riogentix');
+      // Trigger initial SCIM convergence so roles present at provision time are pushed.
+      await adminDb.syncOutboxEvent.create({
+        data: { tenantId, resourceType: 'TENANT', op: 'UPSERT', payload: {} },
+      });
+      await enqueue(appSyncQueue, { tenantId });
     }
 
     logger.info({ tenantId, driver: driver.name }, 'Tenant provisioned');

@@ -10,6 +10,8 @@ const {
   mockConnectedAppUpsert,
   mockConnectedAppInstanceUpsert,
   mockConnectedAppInstanceUpdateMany,
+  mockSyncOutboxEventCreate,
+  mockEnqueue,
   mockProvision,
   mockDeprovision,
 } = vi.hoisted(() => ({
@@ -21,6 +23,8 @@ const {
   mockConnectedAppUpsert: vi.fn(),
   mockConnectedAppInstanceUpsert: vi.fn(),
   mockConnectedAppInstanceUpdateMany: vi.fn(),
+  mockSyncOutboxEventCreate: vi.fn(),
+  mockEnqueue: vi.fn(),
   mockProvision: vi.fn(),
   mockDeprovision: vi.fn(),
 }));
@@ -42,7 +46,13 @@ vi.mock('@platform/db', () => ({
       upsert: mockConnectedAppInstanceUpsert,
       updateMany: mockConnectedAppInstanceUpdateMany,
     },
+    syncOutboxEvent: { create: mockSyncOutboxEventCreate },
   },
+}));
+
+vi.mock('@platform/jobs', () => ({
+  appSyncQueue: {},
+  enqueue: mockEnqueue,
 }));
 
 vi.mock('@platform/logger', () => ({
@@ -155,6 +165,12 @@ describe('handleTenantProvision', () => {
         }) as unknown,
       }),
     );
+    expect(mockSyncOutboxEventCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ tenantId: 'tenant-1', resourceType: 'TENANT' }) as unknown,
+      }),
+    );
+    expect(mockEnqueue).toHaveBeenCalledWith({}, { tenantId: 'tenant-1' });
   });
 
   it('skips ConnectedAppInstance upsert when scimEndpoint is null', async () => {
