@@ -6,7 +6,7 @@ import {
   scimPatchGroup,
   toScimGroup,
   type ScimPatchOp,
-} from '@platform/scim';
+} from '@platform/scim/server';
 import { type NextRequest, NextResponse } from 'next/server';
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.lvh.me';
