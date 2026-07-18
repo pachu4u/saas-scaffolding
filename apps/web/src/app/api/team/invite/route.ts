@@ -1,7 +1,13 @@
 import crypto from 'crypto';
 
 import { PLATFORM_ROLE_NAMES, Permission, withAuthz } from '@platform/authz';
-import { adminDb, withPlatformAdmin, checkRateLimit, rateLimitHeaders } from '@platform/db';
+import {
+  adminDb,
+  appendSyncOutbox,
+  withPlatformAdmin,
+  checkRateLimit,
+  rateLimitHeaders,
+} from '@platform/db';
 import { sendEmail } from '@platform/notifications';
 import { NextResponse, type NextRequest } from 'next/server';
 
@@ -98,6 +104,11 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
         update: {},
       });
     }
+
+    await appendSyncOutbox(tx, tenantCtx.tenantId, [
+      { resourceType: 'USER', resourceId: foundUser.id },
+      ...(role ? [{ resourceType: 'GROUP' as const, resourceId: role.id }] : []),
+    ]);
 
     return foundUser;
   });

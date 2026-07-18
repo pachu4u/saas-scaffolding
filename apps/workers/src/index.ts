@@ -8,10 +8,12 @@ import type {
   TenantProvisionJob,
   TenantDeprovisionJob,
   RoleSyncJob,
+  AppSyncJob,
 } from '@platform/jobs';
 import { logger } from '@platform/logger';
 import { Worker, type Job } from 'bullmq';
 
+import { handleAppSync } from './handlers/app-sync.js';
 import { handleEmail } from './handlers/email.js';
 import { handlePlanChanged } from './handlers/plan-changed.js';
 import { handleRoleSync } from './handlers/role-sync.js';
@@ -57,6 +59,9 @@ const workers = [
     2,
   ),
   makeWorker('role-sync', (job) => handleRoleSync(job as Job<RoleSyncJob>)),
+  // Outbox drains are per-tenant converges — serialize them so two drains for
+  // the same tenant can't interleave SCIM writes.
+  makeWorker('app-sync', (job) => handleAppSync(job as Job<AppSyncJob>), 1),
 ];
 
 logger.info('All workers registered. Listening for jobs...');

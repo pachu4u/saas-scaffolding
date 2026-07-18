@@ -1,4 +1,5 @@
 export { db, adminDb, withTenant, withPlatformAdmin } from './client.js';
+export { appendSyncOutbox, type SyncOutboxAppend } from './outbox.js';
 export { redis } from './redis.js';
 export {
   checkRateLimit,
@@ -23,4 +24,7 @@ export type {
   IdempotencyKey,
   WebhookEndpoint,
   WebhookDelivery,
+  ConnectedApp,
+  ConnectedAppInstance,
+  SyncOutboxEvent,
 } from '@prisma/client';

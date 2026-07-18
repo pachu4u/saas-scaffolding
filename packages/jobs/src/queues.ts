@@ -57,6 +57,10 @@ export const tenantDeprovisionQueue = lazyQueue<TenantDeprovisionJob>('tenant-de
 // Each job re-reads the full binding set at run time, so retries and
 // back-to-back enqueues converge on the latest state.
 export const roleSyncQueue = lazyQueue<RoleSyncJob>('role-sync');
+// Drains the identity-sync outbox for a tenant and converges every connected
+// app instance via SCIM. Coalesces naturally: each run processes all pending
+// events for the tenant, so back-to-back enqueues collapse into one converge.
+export const appSyncQueue = lazyQueue<AppSyncJob>('app-sync');
 
 export interface EmailJob {
   to: string;
@@ -101,6 +105,10 @@ export interface TenantDeprovisionJob {
 }
 
 export interface RoleSyncJob {
+  tenantId: string;
+}
+
+export interface AppSyncJob {
   tenantId: string;
 }
 

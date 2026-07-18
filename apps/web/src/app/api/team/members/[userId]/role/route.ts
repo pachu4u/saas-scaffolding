@@ -1,5 +1,5 @@
 import { PLATFORM_ROLE_NAMES, Permission, invalidateAuthzCache, withAuthz } from '@platform/authz';
-import { adminDb, withPlatformAdmin } from '@platform/db';
+import { adminDb, appendSyncOutbox, withPlatformAdmin } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { enqueueRoleSync } from '@/lib/role-sync';
@@ -58,6 +58,11 @@ export const PATCH = withAuthz<{ params: Promise<{ userId: string }> }>(
           after: { role: roleName },
         },
       });
+
+      await appendSyncOutbox(tx, authz.tenantId, [
+        { resourceType: 'USER', resourceId: userId },
+        { resourceType: 'GROUP', resourceId: role.id },
+      ]);
     });
 
     // The old role's permissions are cached for up to 120s — invalidate so a

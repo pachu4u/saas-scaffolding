@@ -1,5 +1,5 @@
 import { Permission, withAuthz } from '@platform/authz';
-import { adminDb, withPlatformAdmin } from '@platform/db';
+import { adminDb, appendSyncOutbox, withPlatformAdmin } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { enqueueRoleSync } from '@/lib/role-sync';
@@ -62,6 +62,8 @@ export const PATCH = withAuthz<{ params: Promise<{ id: string }> }>(
         },
       });
 
+      await appendSyncOutbox(tx, authz.tenantId, [{ resourceType: 'GROUP', resourceId: roleId }]);
+
       return tx.role.findUnique({
         where: { id: roleId },
         include: { permissions: { include: { permission: { select: { code: true } } } } },
@@ -117,6 +119,10 @@ export const DELETE = withAuthz<{ params: Promise<{ id: string }> }>(
           before: { name: role.name },
         },
       });
+
+      await appendSyncOutbox(tx, authz.tenantId, [
+        { resourceType: 'GROUP', resourceId: roleId, op: 'DELETE' },
+      ]);
     });
 
     // Deleting the role removed its bindings — sync so the Riogentix instance

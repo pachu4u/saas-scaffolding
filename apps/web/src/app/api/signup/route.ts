@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
 import { env } from '@platform/config';
-import { adminDb, withPlatformAdmin } from '@platform/db';
+import { adminDb, appendSyncOutbox, withPlatformAdmin } from '@platform/db';
 import { enqueue, tenantProvisionQueue, type TenantProvisionJob } from '@platform/jobs';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -224,6 +224,12 @@ export async function POST(req: NextRequest) {
           update: {},
         });
       }
+
+      await appendSyncOutbox(tx, tenant.id, [
+        { resourceType: 'TENANT', resourceId: tenant.id },
+        { resourceType: 'USER', resourceId: dbUser.id },
+        ...(adminRole ? [{ resourceType: 'GROUP' as const, resourceId: adminRole.id }] : []),
+      ]);
 
       return { tenant, userId: dbUser.id };
     });
