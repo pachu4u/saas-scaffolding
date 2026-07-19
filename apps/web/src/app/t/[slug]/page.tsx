@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { getCurrentTenant } from '@/lib/server-tenant';
+import { tenantAppUrl } from '@/lib/tenant-urls';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Home' };
@@ -63,7 +64,13 @@ export default async function TenantHomePage() {
         ]
       : []),
     {
-      href: `${base}/app`,
+      // Must go through the SSO bridge (tenantAppUrl → token exchange →
+      // Riogentix session cookies), not straight to `${base}/app` — a direct
+      // hit lands unauthenticated at the Riogentix layer and, since
+      // RIOGENTIX_AUTO_LOGIN isn't disabled per-tenant, silently signs the
+      // browser in as Riogentix's own default superuser instead of the real
+      // SaaS user.
+      href: tenant ? (tenantAppUrl(tenant.slug) ?? `${base}/app`) : `${base}/app`,
       icon: (
         <svg
           viewBox="0 0 24 24"

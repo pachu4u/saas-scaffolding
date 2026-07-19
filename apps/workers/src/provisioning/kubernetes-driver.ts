@@ -118,6 +118,10 @@ async function buildSpec(tenant: TenantRef): Promise<TenantStackSpec> {
       TENANT_DB_PASSWORD: dbPassword,
       RIOGENTIX_INTERNAL_SECRET: internalSecret,
       RIOGENTIX_SAAS_INTERNAL_SECRET: saasSecret,
+      // Defaults to true upstream, which auto-signs any unauthenticated /app
+      // hit in as Riogentix's built-in default superuser (username/password
+      // "riogentix"). SSO is the only supported login path for tenant pods.
+      RIOGENTIX_AUTO_LOGIN: 'false',
       SAAS_TENANT_ID: tenant.id,
       SAAS_TENANT_SLUG: tenant.slug,
       SAAS_PLAN: tenant.plan,
