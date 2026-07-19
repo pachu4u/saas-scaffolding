@@ -1,0 +1,21 @@
+# Second-level tenant subdomains for the acme tenant, e.g.
+# app.acme.techhanker.com. Cloudflare's free Universal SSL only covers the
+# apex + one level of wildcard, so *.acme.techhanker.com is DNS-only
+# (grey-cloud) in Cloudflare and needs a real cert from Traefik's own ACME
+# DNS-01 resolver (see certificatesResolvers.cloudflare in traefik.yml).
+#
+# app.acme.techhanker.com forwards straight to the same k8s-ingress NodePort
+# used by the {slug}.techhanker.com/app routers (riogentix-tenants.yml), but
+# unprefixed — Riogentix already serves unprefixed at "/". The k8s Ingress
+# for t-acme (namespace t-acme) has a matching host rule so ingress-nginx
+# routes app.acme.techhanker.com to the Riogentix pod.
+http:
+  routers:
+    app-acme-tenant:
+      rule: 'Host(`app.acme.techhanker.com`)'
+      service: k8s-ingress
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      priority: 10

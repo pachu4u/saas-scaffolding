@@ -19,6 +19,22 @@ api:
   dashboard: true
   insecure: false
 
+# DNS-01 resolver for hosts that aren't covered by Cloudflare's free
+# Universal SSL (which only covers the apex + one level of wildcard, i.e.
+# *.techhanker.com — not two-level hosts like app.acme.techhanker.com).
+# Those hosts are DNS-only (grey-cloud) in Cloudflare, so Traefik itself
+# must present a publicly-trusted cert. CF_DNS_API_TOKEN comes from ../../.env.
+certificatesResolvers:
+  cloudflare:
+    acme:
+      email: platform@techhanker.com
+      storage: /etc/traefik/acme/acme.json
+      dnsChallenge:
+        provider: cloudflare
+        resolvers:
+          - '1.1.1.1:53'
+          - '8.8.8.8:53'
+
 entryPoints:
   web:
     address: ':80'

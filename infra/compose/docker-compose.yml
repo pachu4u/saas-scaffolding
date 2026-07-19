@@ -37,6 +37,9 @@ services:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
       - ./traefik/certs:/etc/traefik/certs:ro
+      - ./traefik/acme:/etc/traefik/acme
+    env_file:
+      - ../../.env
     environment:
       - DOCKER_API_VERSION=1.44
     # Use a custom Docker socket proxy to handle API version mismatch
