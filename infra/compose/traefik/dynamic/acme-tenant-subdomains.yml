@@ -9,11 +9,26 @@
 # unprefixed — Riogentix already serves unprefixed at "/". The k8s Ingress
 # for t-acme (namespace t-acme) has a matching host rule so ingress-nginx
 # routes app.acme.techhanker.com to the Riogentix pod.
+#
+# admin.acme.techhanker.com forwards to the SaaS `web` container itself
+# (web-service, defined in web.yml) — not to Riogentix/k8s. The web app's
+# middleware recognizes the `admin.{slug}` host shape and rewrites the
+# request straight into that tenant's /t/{slug}/admin tree, so this host is
+# equivalent to acme.techhanker.com/admin but on its own subdomain.
 http:
   routers:
     app-acme-tenant:
       rule: 'Host(`app.acme.techhanker.com`)'
       service: k8s-ingress
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      priority: 10
+
+    admin-acme-tenant:
+      rule: 'Host(`admin.acme.techhanker.com`)'
+      service: web-service
       entryPoints:
         - websecure
       tls:

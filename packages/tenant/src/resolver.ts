@@ -21,7 +21,10 @@ const RESERVED_SUBDOMAINS = new Set([
  * Returns null for reserved subdomains.
  */
 export function extractSlug(host: string): string | null {
-  const label = host.split('.')[0]?.toLowerCase();
+  const labels = host.split('.');
+  // admin.{slug}.techhanker.com: the tenant is the second label, not "admin".
+  const isAdminHost = labels[0]?.toLowerCase() === 'admin' && labels.length > 3;
+  const label = (isAdminHost ? labels[1] : labels[0])?.toLowerCase();
   if (!label || RESERVED_SUBDOMAINS.has(label)) return null;
   // Slugs: alphanumeric + hyphens only
   if (!/^[a-z0-9-]+$/.test(label)) return null;

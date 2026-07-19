@@ -91,7 +91,9 @@ async function handler(req: NextRequest) {
 
   const forwardedHost = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? '';
   const host = forwardedHost.split(':')[0]?.toLowerCase() ?? '';
-  const slug = host.split('.')[0] ?? '';
+  const labels = host.split('.');
+  // admin.{slug}.techhanker.com: the tenant is the second label, not "admin".
+  const slug = (labels[0] === 'admin' && labels.length > 3 ? labels[1] : labels[0]) ?? '';
   if (!slug) {
     return deny();
   }

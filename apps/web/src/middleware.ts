@@ -64,14 +64,20 @@ function extractPathSlug(pathname: string): { slug: string; rest: string } | nul
   return { slug: m[1], rest: m[2] ?? '' };
 }
 
-function extractSlug(host: string): string | null {
+function extractSlug(host: string): { slug: string; isAdminHost: boolean } | null {
   // Strip port, then check if this IS the root domain before treating the first label as a slug.
   const bareHost = host.split(':')[0] ?? '';
   if (ROOT_HOST !== '' && bareHost === ROOT_HOST.split(':')[0]) return null;
-  const label = bareHost.split('.')[0]?.toLowerCase() ?? '';
+  const labels = bareHost.split('.');
+  // admin.{slug}.techhanker.com — a dedicated subdomain for that tenant's
+  // /admin tree (see infra/compose/traefik/dynamic/acme-tenant-subdomains.yml).
+  // Four+ labels distinguish it from the plain {slug}.techhanker.com host,
+  // where "admin" alone would just be the reserved marketing-site label.
+  const isAdminHost = labels[0] === 'admin' && labels.length > 3;
+  const label = (isAdminHost ? labels[1] : labels[0])?.toLowerCase() ?? '';
   if (!label || label === 'localhost' || RESERVED.has(label)) return null;
   if (!/^[a-z0-9-]+$/.test(label)) return null;
-  return label;
+  return { slug: label, isAdminHost };
 }
 
 // Both possible session cookie names (secure and non-secure variants). Stale
@@ -121,7 +127,9 @@ const LEGACY_TENANT_REDIRECTS: Record<string, string> = {
 export default auth(function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const host = req.headers.get('host') ?? '';
-  const slug = extractSlug(host);
+  const hostSlug = extractSlug(host);
+  const slug = hostSlug?.slug ?? null;
+  const isAdminHost = hostSlug?.isAdminHost ?? false;
   const pathTenant = slug ? null : extractPathSlug(pathname);
 
   // Tenant precedence: subdomain host (legacy) > /t/{slug} path > cookie. The
@@ -172,6 +180,22 @@ export default auth(function middleware(req: NextRequest) {
   // get stuck looking at the marketing page.
   if (!slug && pathname === '/' && session?.user) {
     return NextResponse.redirect(new URL('/auth/redirect', req.url));
+  }
+
+  if (slug && isAdminHost) {
+    // admin.{slug}.techhanker.com: every request is implicitly for this
+    // tenant's /admin tree — same content as {slug}.techhanker.com/admin,
+    // just rooted at "/" instead of under a path segment.
+    if (pathname === '/team' || pathname.startsWith('/team/')) {
+      return NextResponse.redirect(new URL('/admin' + pathname, req.url));
+    }
+    const adminPath =
+      pathname === '/admin' || pathname.startsWith('/admin/')
+        ? pathname
+        : '/admin' + (pathname === '/' ? '' : pathname);
+    return NextResponse.rewrite(new URL(`/t/${slug}${adminPath}`, req.url), {
+      request: { headers },
+    });
   }
 
   if (slug) {
