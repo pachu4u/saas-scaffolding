@@ -1,7 +1,7 @@
 import { adminDb } from '@platform/db';
 import { auditLog } from '@platform/logger/audit';
 
-import { SCIM_SCHEMAS, type ScimGroup, type ScimPatchOp } from './types';
+import { SCIM_SCHEMAS, type ScimGroup, type ScimPatchOp } from './types.js';
 
 export function toScimGroup(
   role: {

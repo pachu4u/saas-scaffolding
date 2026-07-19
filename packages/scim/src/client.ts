@@ -6,8 +6,8 @@
 // Groups. All calls are idempotent-by-construction so the outbox dispatcher
 // can replay them freely.
 
-import { SCIM_ROLE_EXTENSION, SCIM_SCHEMAS } from './types';
-import type { ScimGroup, ScimListResponse, ScimUser } from './types';
+import { SCIM_ROLE_EXTENSION, SCIM_SCHEMAS } from './types.js';
+import type { ScimGroup, ScimListResponse, ScimUser } from './types.js';
 
 /** User payload the platform manages on the app side (no server-owned fields). */
 export interface ScimUserWrite {

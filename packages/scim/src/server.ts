@@ -1,4 +1,4 @@
-export { authenticateScim, hashToken, generateToken, type ScimTokenContext } from './auth';
+export { authenticateScim, hashToken, generateToken, type ScimTokenContext } from './auth.js';
 export {
   SCIM_SCHEMAS,
   SCIM_ROLE_EXTENSION,
@@ -7,8 +7,8 @@ export {
   type ScimListResponse,
   type ScimError,
   type ScimPatchOp,
-} from './types';
-export { toScimUser, scimGetUsers, scimCreateUser, scimDeleteUser } from './users';
+} from './types.js';
+export { toScimUser, scimGetUsers, scimCreateUser, scimDeleteUser } from './users.js';
 export {
   toScimGroup,
   scimGetGroups,
@@ -16,4 +16,4 @@ export {
   scimCreateGroup,
   scimDeleteGroup,
   scimPatchGroup,
-} from './groups';
+} from './groups.js';
