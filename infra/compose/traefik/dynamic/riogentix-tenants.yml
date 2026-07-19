@@ -39,6 +39,22 @@ http:
       tls: {}
       priority: 12
 
+    # Riogentix's index.html has `<base href="/">` and references its static
+    # files with relative paths (./assets/..., ./favicon.ico, ./manifest.json),
+    # which the browser resolves against the base href, not the current
+    # /app path — so these requests land at the domain root regardless of
+    # what path the page was loaded from. Forward them straight through
+    # (no stripPrefix needed, Riogentix already serves them unprefixed).
+    # The SaaS tile page ships no favicon/manifest/assets of its own, so
+    # this can't collide with it.
+    riogentix-tenants-assets:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.techhanker\\.com$`) && (PathPrefix(`/assets`) || PathPrefix(`/icons`) || Path(`/favicon.ico`) || Path(`/manifest.json`))"
+      service: k8s-ingress
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 12
+
     # Legacy two-level names ({slug}.riogentix.techhanker.com) kept for the
     # existing *.riogentix DNS record; same backend. Left on the old
     # whole-subdomain + forwardAuth shape since nothing links to it anymore
