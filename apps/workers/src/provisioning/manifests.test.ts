@@ -87,6 +87,23 @@ describe('renderDeployment', () => {
     const podSpec = renderDeployment(spec()).spec?.template.spec;
     expect(podSpec?.enableServiceLinks).toBe(false);
   });
+
+  it('boots via the uvicorn factory that serves the prebuilt frontend, not the image default CMD', () => {
+    const container = renderDeployment(spec()).spec?.template.spec?.containers[0];
+    expect(container?.command).toEqual([
+      'uv',
+      'run',
+      'uvicorn',
+      '--factory',
+      'riogentix.main:setup_app',
+      '--host',
+      '0.0.0.0',
+      '--port',
+      '8000',
+      '--loop',
+      'asyncio',
+    ]);
+  });
 });
 
 describe('renderService', () => {

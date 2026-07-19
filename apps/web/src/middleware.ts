@@ -167,12 +167,11 @@ export default auth(function middleware(req: NextRequest) {
     return res;
   }
 
-  // Root domain: redirect authenticated users from / to marketing landing (already there)
-  // or let them through to sign in / sign up.
+  // Root domain: an already-authenticated user hitting / directly (e.g. a
+  // bookmark, or revisiting after login) should land in their workspace, not
+  // get stuck looking at the marketing page.
   if (!slug && pathname === '/' && session?.user) {
-    // On root domain, authenticated users stay on the marketing page.
-    // They can navigate to their tenant subdomain from there.
-    return NextResponse.next({ request: { headers } });
+    return NextResponse.redirect(new URL('/auth/redirect', req.url));
   }
 
   if (slug) {

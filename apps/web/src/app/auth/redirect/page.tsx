@@ -1,4 +1,5 @@
 import { auth } from '@platform/auth';
+import { env } from '@platform/config';
 import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
 
@@ -48,13 +49,14 @@ export default async function AuthRedirectPage({
   }
 
   // If the user started sign-in for a specific tenant, land there — but only
-  // if they're actually a member of that tenant (security check). Tenant
-  // dashboards live at /t/{slug} on this domain; the {slug}.techhanker.com
-  // subdomains are the tenants' Riogentix app instances.
+  // if they're actually a member of that tenant (security check). The tenant
+  // subdomain root now serves the tile page directly (middleware rewrites
+  // {slug}.techhanker.com/ to the /t/{slug} tree at the edge of this app), so
+  // send the browser there instead of to the root-domain /t/{slug} path.
   const slugs = tenants.map((t) => t.tenant.slug);
   const targetSlug = tenantParam && slugs.includes(tenantParam) ? tenantParam : (slugs[0] ?? null);
 
   if (!targetSlug) redirect('/no-workspace');
 
-  redirect(`/t/${targetSlug}`);
+  redirect(env.AUTH_URL.replace('saas.', `${targetSlug}.`));
 }

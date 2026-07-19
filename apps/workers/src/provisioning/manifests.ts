@@ -72,6 +72,25 @@ export function renderDeployment(spec: TenantStackSpec): V1Deployment {
             {
               name: 'riogentix',
               image: spec.image,
+              // The image's default CMD (docker/dev.start.sh) starts a Vite
+              // dev server on :3000 and leaves the backend (:7860, this
+              // container's port) with no frontend route, so / 404s. The
+              // image already has the frontend prebuilt into the backend's
+              // static dir — boot straight into the factory that serves it,
+              // matching docker/k8s.start.sh's production entrypoint.
+              command: [
+                'uv',
+                'run',
+                'uvicorn',
+                '--factory',
+                'riogentix.main:setup_app',
+                '--host',
+                '0.0.0.0',
+                '--port',
+                String(spec.containerPort),
+                '--loop',
+                'asyncio',
+              ],
               ports: [{ containerPort: spec.containerPort, name: 'http' }],
               envFrom: [{ secretRef: { name: SECRET_NAME } }],
               resources: {
