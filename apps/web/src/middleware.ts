@@ -132,6 +132,15 @@ export default auth(function middleware(req: NextRequest) {
   const isAdminHost = hostSlug?.isAdminHost ?? false;
   const pathTenant = slug ? null : extractPathSlug(pathname);
 
+  // NextAuth's auth() wrapper silently rewrites req.url/req.nextUrl's origin to
+  // AUTH_URL (see next-auth's reqWithEnvURL) before this function ever runs, so
+  // every `new URL(path, realOrigin)` below would otherwise resolve to the root
+  // domain instead of whatever host the request actually came in on. Headers
+  // (and therefore `host` above) are untouched by that rewrite, so rebuild the
+  // real origin from the Host header instead of trusting req.url.
+  const protocol = req.headers.get('x-forwarded-proto') ?? req.nextUrl.protocol.replace(':', '');
+  const realOrigin = `${protocol}://${host}`;
+
   // Tenant precedence: subdomain host (legacy) > /t/{slug} path > cookie. The
   // cookie keeps API calls and internal navigations bound to the tenant whose
   // dashboard the user last opened.
@@ -142,6 +151,7 @@ export default auth(function middleware(req: NextRequest) {
   const headers = new Headers(req.headers);
   headers.set('x-request-id', crypto.randomUUID());
   if (activeSlug) headers.set('x-tenant-slug', activeSlug);
+  if (isAdminHost) headers.set('x-tenant-admin-host', '1');
 
   const isPublic =
     PUBLIC_PREFIXES.some((p) => pathname.startsWith(p)) ||
@@ -168,7 +178,7 @@ export default auth(function middleware(req: NextRequest) {
     // The tenant is implicit in the subdomain host; the signin page reads it from
     // the x-tenant-slug header set above. For /t/{slug} paths, pass ?tenant= so
     // the signin page brands correctly and the post-login redirect returns here.
-    const signInUrl = new URL('/auth/signin', req.url);
+    const signInUrl = new URL('/auth/signin', realOrigin);
     if (pathTenant) signInUrl.searchParams.set('tenant', pathTenant.slug);
     const res = NextResponse.redirect(signInUrl);
     if (staleSessionCookies) clearSessionCookies(req, res);
@@ -179,21 +189,24 @@ export default auth(function middleware(req: NextRequest) {
   // bookmark, or revisiting after login) should land in their workspace, not
   // get stuck looking at the marketing page.
   if (!slug && pathname === '/' && session?.user) {
-    return NextResponse.redirect(new URL('/auth/redirect', req.url));
+    return NextResponse.redirect(new URL('/auth/redirect', realOrigin));
   }
 
-  if (slug && isAdminHost) {
+  if (slug && isAdminHost && !isPublic) {
     // admin.{slug}.techhanker.com: every request is implicitly for this
     // tenant's /admin tree — same content as {slug}.techhanker.com/admin,
-    // just rooted at "/" instead of under a path segment.
+    // just rooted at "/" instead of under a path segment. Public paths
+    // (/auth/*, /api/auth/*, /_health, ...) are excluded — those are
+    // app-level routes, not part of the tenant's admin tree, and must be
+    // served as-is or the signin page and OAuth callback never resolve.
     if (pathname === '/team' || pathname.startsWith('/team/')) {
-      return NextResponse.redirect(new URL('/admin' + pathname, req.url));
+      return NextResponse.redirect(new URL('/admin' + pathname, realOrigin));
     }
     const adminPath =
       pathname === '/admin' || pathname.startsWith('/admin/')
         ? pathname
         : '/admin' + (pathname === '/' ? '' : pathname);
-    return NextResponse.rewrite(new URL(`/t/${slug}${adminPath}`, req.url), {
+    return NextResponse.rewrite(new URL(`/t/${slug}${adminPath}`, realOrigin), {
       request: { headers },
     });
   }
@@ -202,28 +215,28 @@ export default auth(function middleware(req: NextRequest) {
     // Legacy path redirects on tenant subdomains
     const legacyTarget = LEGACY_TENANT_REDIRECTS[pathname];
     if (legacyTarget) {
-      return NextResponse.redirect(new URL(legacyTarget, req.url));
+      return NextResponse.redirect(new URL(legacyTarget, realOrigin));
     }
 
     // Handle /team/* legacy paths
     if (pathname === '/team' || pathname.startsWith('/team/')) {
       const newPath = '/admin' + pathname;
-      return NextResponse.redirect(new URL(newPath, req.url));
+      return NextResponse.redirect(new URL(newPath, realOrigin));
     }
 
     // Rewrite tenant subdomain requests into the /t/[slug] tree. (Legacy: these
     // hosts are normally routed to the tenants' Riogentix instances at the edge
     // and never reach this app.)
     if (pathname === '/') {
-      return NextResponse.rewrite(new URL(`/t/${slug}`, req.url), { request: { headers } });
+      return NextResponse.rewrite(new URL(`/t/${slug}`, realOrigin), { request: { headers } });
     }
     if (pathname === '/admin' || pathname.startsWith('/admin/')) {
-      return NextResponse.rewrite(new URL(`/t/${slug}` + pathname, req.url), {
+      return NextResponse.rewrite(new URL(`/t/${slug}` + pathname, realOrigin), {
         request: { headers },
       });
     }
     if (pathname === '/app' || pathname.startsWith('/app/')) {
-      return NextResponse.rewrite(new URL(`/t/${slug}` + pathname, req.url), {
+      return NextResponse.rewrite(new URL(`/t/${slug}` + pathname, realOrigin), {
         request: { headers },
       });
     }
@@ -235,10 +248,10 @@ export default auth(function middleware(req: NextRequest) {
     // Legacy tenant paths, e.g. /t/acme/dashboard → /t/acme/admin
     const legacyTarget = LEGACY_TENANT_REDIRECTS[rest === '/' ? '' : rest];
     if (legacyTarget) {
-      return NextResponse.redirect(new URL(`/t/${pathTenant.slug}${legacyTarget}`, req.url));
+      return NextResponse.redirect(new URL(`/t/${pathTenant.slug}${legacyTarget}`, realOrigin));
     }
     if (rest === '/team' || rest.startsWith('/team/')) {
-      return NextResponse.redirect(new URL(`/t/${pathTenant.slug}/admin${rest}`, req.url));
+      return NextResponse.redirect(new URL(`/t/${pathTenant.slug}/admin${rest}`, realOrigin));
     }
 
     // /t/{slug} is a real route segment; no rewrite needed. Remember the active
@@ -257,7 +270,7 @@ export default auth(function middleware(req: NextRequest) {
   // Root-domain /dashboard (used by legacy links and the invite-accept flow)
   // → the post-login redirect page, which routes to the user's tenant.
   if (!slug && (pathname === '/dashboard' || pathname.startsWith('/dashboard/'))) {
-    return NextResponse.redirect(new URL('/auth/redirect', req.url));
+    return NextResponse.redirect(new URL('/auth/redirect', realOrigin));
   }
 
   const res = NextResponse.next({ request: { headers } });

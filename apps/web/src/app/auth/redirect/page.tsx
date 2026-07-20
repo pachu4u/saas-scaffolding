@@ -12,11 +12,14 @@ export const dynamic = 'force-dynamic';
  * optional `tenant` query param (set by the signin page when the user started on a
  * subdomain) and redirects them to the right workspace. Falls back to their first
  * active tenant if the param is absent or the user isn't a member of that tenant.
+ * The optional `host` param (currently only `admin`) records which dedicated
+ * subdomain the user started sign-in from, so login round-trips back there
+ * instead of always landing on the bare tenant root.
  */
 export default async function AuthRedirectPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tenant?: string }>;
+  searchParams: Promise<{ tenant?: string; host?: string }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect('/auth/signin');
@@ -29,7 +32,7 @@ export default async function AuthRedirectPage({
     session.groups.some((g: string) => ['platform_super_admin', 'platform_support'].includes(g));
   if (isPlatformAdmin) redirect('/admin');
 
-  const { tenant: tenantParam } = await searchParams;
+  const { tenant: tenantParam, host: hostParam } = await searchParams;
 
   const dbUser = await adminDb.user.findUnique({
     where: { externalId: session.user.id },
@@ -58,5 +61,8 @@ export default async function AuthRedirectPage({
 
   if (!targetSlug) redirect('/no-workspace');
 
-  redirect(env.AUTH_URL.replace('saas.', `${targetSlug}.`));
+  // Only 'admin' is a recognized value — anything else falls back to the bare
+  // tenant subdomain rather than trusting an arbitrary host label from the URL.
+  const subdomain = hostParam === 'admin' ? `admin.${targetSlug}` : targetSlug;
+  redirect(env.AUTH_URL.replace('saas.', `${subdomain}.`));
 }

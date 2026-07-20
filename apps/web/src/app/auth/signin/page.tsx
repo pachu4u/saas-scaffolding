@@ -14,6 +14,12 @@ export default async function SignInPage({
   // then fall back to the optional ?tenant= query param for legacy links.
   const h = await headers();
   const tenantSlug = h.get('x-tenant-slug') ?? (await searchParams).tenant ?? '';
+  // Whether this request came in on admin.{slug}.techhanker.com — set by
+  // middleware from the actual Host header. Threaded through to /auth/redirect
+  // so post-login lands back on the same subdomain instead of the bare tenant
+  // root (the server action below always runs on the AUTH_URL origin, so it
+  // can't re-derive this from its own request headers).
+  const isAdminHost = h.get('x-tenant-admin-host') === '1';
 
   // Load the tenant's display name for branding. Fails gracefully (null) if the
   // slug doesn't exist or we're on the root domain (no slug).
@@ -88,13 +94,16 @@ export default async function SignInPage({
           <form
             action={async () => {
               'use server';
-              // tenantSlug is captured from the page component scope (server-action closure).
-              // This is more reliable than re-reading headers/searchParams inside the action
-              // because the action always runs on saas.techhanker.com (AUTH_URL origin),
-              // so x-tenant-slug would be empty here — we need the value from the page render.
-              const redirectTo = tenantSlug
-                ? `/auth/redirect?tenant=${encodeURIComponent(tenantSlug)}`
-                : '/auth/redirect';
+              // tenantSlug/isAdminHost are captured from the page component scope
+              // (server-action closure). This is more reliable than re-reading
+              // headers/searchParams inside the action because the action always
+              // runs on saas.techhanker.com (AUTH_URL origin), so x-tenant-slug
+              // would be empty here — we need the values from the page render.
+              const params = new URLSearchParams();
+              if (tenantSlug) params.set('tenant', tenantSlug);
+              if (isAdminHost) params.set('host', 'admin');
+              const query = params.toString();
+              const redirectTo = query ? `/auth/redirect?${query}` : '/auth/redirect';
               await signIn('keycloak', { redirectTo });
             }}
             className="space-y-4"
