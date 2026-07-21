@@ -33,8 +33,12 @@ export async function convergeAppInstance(instance: AppInstanceWithApp): Promise
 
   const [memberships, bindings] = await Promise.all([
     adminDb.tenantUser.findMany({ where: { tenantId }, include: { user: true } }),
+    // A role only syncs to this instance if it's app-agnostic (appId null,
+    // e.g. platform-wide tenant_admin/tenant_user) or scoped to this specific
+    // connected app. Roles scoped to a different app never leak into this
+    // instance's SCIM groups.
     adminDb.roleBinding.findMany({
-      where: { tenantId },
+      where: { tenantId, role: { OR: [{ appId: null }, { appId: instance.appId }] } },
       include: { role: { include: { permissions: { include: { permission: true } } } } },
     }),
   ]);

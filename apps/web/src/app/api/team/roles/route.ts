@@ -20,11 +20,22 @@ export async function GET(req: NextRequest) {
   const tenantCtx = await getTenantFromRequest(req);
   if (!tenantCtx) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
+  // App-scoped system roles only apply to tenants that actually connect that
+  // app — otherwise every tenant would see roles meaningful only to apps they
+  // don't have.
+  const connectedAppIds = (
+    await adminDb.connectedAppInstance.findMany({
+      where: { tenantId: tenantCtx.tenantId, status: 'ACTIVE' },
+      select: { appId: true },
+    })
+  ).map((instance) => instance.appId);
+
   const roles = await adminDb.role.findMany({
     where: {
       OR: [
         { tenantId: tenantCtx.tenantId },
-        { isSystem: true, name: { notIn: [...PLATFORM_ROLE_NAMES] } },
+        { isSystem: true, appId: null, name: { notIn: [...PLATFORM_ROLE_NAMES] } },
+        { isSystem: true, appId: { in: connectedAppIds } },
       ],
     },
     include: {

@@ -81,13 +81,15 @@ model TenantUser {
 model Role {
   id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId   String? @map("tenant_id") @db.Uuid
+  appId      String? @map("app_id") @db.Uuid
   name       String
   isSystem   Boolean @default(false) @map("is_system")
 
+  app         ConnectedApp?    @relation(fields: [appId], references: [id], onDelete: Cascade)
   permissions RolePermission[]
   bindings    RoleBinding[]
 
-  @@unique([tenantId, name])
+  @@unique([tenantId, appId, name])
   @@map("roles")
 }
 
@@ -222,14 +224,22 @@ model RiogentixUser {
 // is a registry row + a SCIM endpoint on the app side — no per-app sync code.
 
 model ConnectedApp {
-  id        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  slug      String             @unique @db.Citext
-  name      String
-  status    ConnectedAppStatus @default(ACTIVE)
-  createdAt DateTime           @default(now()) @map("created_at")
-  updatedAt DateTime           @updatedAt @map("updated_at")
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug        String             @unique @db.Citext
+  name        String
+  description String?
+  iconUrl     String?            @map("icon_url")
+  docsUrl     String?            @map("docs_url")
+  // Free-form app-specific settings (e.g. ssoLaunchPath, scimBaseUrlTemplate)
+  // read by provisioning/launch code that needs a per-app knob without a
+  // dedicated column. Not interpreted by the core registry itself.
+  config      Json               @default("{}") @db.JsonB
+  status      ConnectedAppStatus @default(ACTIVE)
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
 
   instances ConnectedAppInstance[]
+  roles     Role[]
 
   @@map("connected_apps")
 }

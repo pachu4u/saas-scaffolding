@@ -288,6 +288,7 @@ const adminSections = [
       { label: 'Overview', href: '/admin', icon: Icon.layout },
       { label: 'Tenants', href: '/admin/tenants', icon: Icon.building },
       { label: 'Users', href: '/admin/users', icon: Icon.users },
+      { label: 'Connected Apps', href: '/admin/connected-apps', icon: Icon.webhook },
     ],
   },
   {

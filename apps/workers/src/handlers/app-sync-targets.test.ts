@@ -40,6 +40,7 @@ import { convergeAppInstance, type AppInstanceWithApp } from './app-sync-targets
 const INSTANCE = {
   id: 'inst-1',
   tenantId: 'tenant-1',
+  appId: 'app-riogentix',
   scimBaseUrl: 'http://riogentix.t-acme.svc/scim/v2',
   scimToken: 'token',
   app: { slug: 'riogentix' },
@@ -146,6 +147,19 @@ describe('convergeAppInstance', () => {
 
     expect(scimMocks.deleteGroup).toHaveBeenCalledWith('app-group-1');
     expect(scimMocks.deleteGroup).toHaveBeenCalledTimes(1);
+  });
+
+  it('only fetches bindings for app-agnostic roles or roles scoped to this instance app', async () => {
+    await convergeAppInstance(INSTANCE);
+
+    expect(mockRoleBindingFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tenantId: 'tenant-1',
+          role: { OR: [{ appId: null }, { appId: 'app-riogentix' }] },
+        },
+      }),
+    );
   });
 
   it('skips deleted users entirely', async () => {
