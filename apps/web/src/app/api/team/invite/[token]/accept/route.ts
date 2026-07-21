@@ -1,9 +1,8 @@
+import { adminDb, appendSyncOutbox, withPlatformAdmin } from '@platform/db';
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { adminDb } from '@platform/db';
-import { resolveTenant } from '@platform/tenant';
-
-import { decodeInviteToken } from '../../route';
+import { decodeInviteToken } from '@/lib/invite-token';
+import { enqueueRoleSync } from '@/lib/role-sync';
 
 /**
  * POST /api/team/invite/[token]/accept
@@ -33,9 +32,12 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ to
   }
 
   // Activate the membership
-  await adminDb.tenantUser.update({
-    where: { tenantId_userId: { tenantId, userId } },
-    data: { status: 'ACTIVE' },
+  await withPlatformAdmin(async (tx) => {
+    await tx.tenantUser.update({
+      where: { tenantId_userId: { tenantId, userId } },
+      data: { status: 'ACTIVE' },
+    });
+    await appendSyncOutbox(tx, tenantId, [{ resourceType: 'USER', resourceId: userId }]);
   });
 
   // Fetch tenant slug for redirect
@@ -60,6 +62,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ to
   if (tenantCtx) {
     await invalidateTenantCache(tenantCtx.slug);
   }
+
+  // Membership went INVITED → ACTIVE — propagate to downstream app instances.
+  await enqueueRoleSync(tenantId);
 
   return NextResponse.json({ success: true, tenantSlug: tenantCtx?.slug ?? null });
 }

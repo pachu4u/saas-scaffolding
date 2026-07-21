@@ -1,0 +1,40 @@
+http:
+  routers:
+    web-app:
+      rule: 'Host(`app.lvh.me`)'
+      service: web-service
+      entryPoints:
+        - websecure
+      tls: {}
+
+    web-wildcard:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.lvh\\.me$`)"
+      service: web-service
+      entryPoints:
+        - websecure
+      tls: {}
+
+    web-saas:
+      rule: 'Host(`saas.techhanker.com`)'
+      service: web-service
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 20
+
+    # Tenant subdomains: root path serves the SaaS web tile page. /app and
+    # /api/v1 are routed to the per-tenant Riogentix k8s instances (see
+    # riogentix-tenants.yml). Priority 5 keeps it below the /app route there.
+    tenant-subdomain-root:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.techhanker\\.com$`) && PathPrefix(`/`)"
+      service: web-service
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 5
+
+  services:
+    web-service:
+      loadBalancer:
+        servers:
+          - url: 'http://web:3000'

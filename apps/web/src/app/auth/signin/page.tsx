@@ -1,8 +1,35 @@
 import { signIn } from '@platform/auth';
+import { adminDb } from '@platform/db';
+import { headers } from 'next/headers';
+import Link from 'next/link';
 
 export const metadata = { title: 'Sign in' };
 
-export default function SignInPage() {
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tenant?: string }>;
+}) {
+  // Tenant slug: prefer x-tenant-slug header (set by middleware when on a subdomain)
+  // then fall back to the optional ?tenant= query param for legacy links.
+  const h = await headers();
+  const tenantSlug = h.get('x-tenant-slug') ?? (await searchParams).tenant ?? '';
+  // Whether this request came in on admin.{slug}.techhanker.com — set by
+  // middleware from the actual Host header. Threaded through to /auth/redirect
+  // so post-login lands back on the same subdomain instead of the bare tenant
+  // root (the server action below always runs on the AUTH_URL origin, so it
+  // can't re-derive this from its own request headers).
+  const isAdminHost = h.get('x-tenant-admin-host') === '1';
+
+  // Load the tenant's display name for branding. Fails gracefully (null) if the
+  // slug doesn't exist or we're on the root domain (no slug).
+  const tenant = tenantSlug
+    ? await adminDb.tenant.findUnique({ where: { slug: tenantSlug }, select: { name: true } })
+    : null;
+  // tenantSlug is '' (never null) on the root domain — || so the fallback fires
+  const displayName = tenant?.name ?? (tenantSlug || 'Platform');
+  const displayInitial = displayName[0]?.toUpperCase() ?? 'P';
+
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--bg-main)' }}>
       {/* Left panel */}
@@ -17,14 +44,14 @@ export default function SignInPage() {
         <div className="relative flex flex-1 flex-col">
           <div className="mb-auto flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-sm font-bold text-white">
-              R
+              {displayInitial}
             </div>
-            <span className="text-lg font-bold text-white">riogentix</span>
+            <span className="text-lg font-bold text-white">{displayName}</span>
           </div>
           <div className="mb-auto">
             <blockquote className="mb-4 text-xl font-medium leading-relaxed text-white/90">
-              &ldquo;riogentix cut our time-to-market by 3 months. The multi-tenant architecture and
-              built-in SSO are exactly what enterprise clients expect.&rdquo;
+              &ldquo;{displayName} cut our time-to-market by 3 months. The multi-tenant architecture
+              and built-in SSO are exactly what enterprise clients expect.&rdquo;
             </blockquote>
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-white/20" />
@@ -50,10 +77,10 @@ export default function SignInPage() {
           {/* Mobile logo */}
           <div className="mb-10 flex items-center gap-2 lg:hidden">
             <div className="brand-gradient flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white">
-              R
+              {displayInitial}
             </div>
             <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
-              riogentix
+              {displayName}
             </span>
           </div>
 
@@ -67,7 +94,17 @@ export default function SignInPage() {
           <form
             action={async () => {
               'use server';
-              await signIn('keycloak', { redirectTo: '/dashboard' });
+              // tenantSlug/isAdminHost are captured from the page component scope
+              // (server-action closure). This is more reliable than re-reading
+              // headers/searchParams inside the action because the action always
+              // runs on saas.techhanker.com (AUTH_URL origin), so x-tenant-slug
+              // would be empty here — we need the values from the page render.
+              const params = new URLSearchParams();
+              if (tenantSlug) params.set('tenant', tenantSlug);
+              if (isAdminHost) params.set('host', 'admin');
+              const query = params.toString();
+              const redirectTo = query ? `/auth/redirect?${query}` : '/auth/redirect';
+              await signIn('keycloak', { redirectTo });
             }}
             className="space-y-4"
           >
@@ -91,7 +128,18 @@ export default function SignInPage() {
             automatically redirected to the admin area after login.
           </p>
 
-          <p className="mt-8 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
+          <p className="mt-5 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
+            Don&apos;t have an account?{' '}
+            <Link
+              href="/signup"
+              className="font-semibold underline"
+              style={{ color: 'var(--brand-primary)' }}
+            >
+              Create one free →
+            </Link>
+          </p>
+
+          <p className="mt-6 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
             By signing in, you agree to our{' '}
             <a href="#" className="hover:text-brand-primary underline">
               Terms

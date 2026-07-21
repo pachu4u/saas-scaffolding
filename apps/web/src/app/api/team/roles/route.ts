@@ -1,27 +1,43 @@
+import { auth } from '@platform/auth';
+import { PLATFORM_ROLE_NAMES, Permission, withAuthz } from '@platform/authz';
+import { adminDb, withPlatformAdmin } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
-import { auth } from '@platform/auth';
-import { adminDb, withPlatformAdmin } from '@platform/db';
-import { resolveTenant } from '@platform/tenant';
+import { getTenantFromRequest } from '../../../../lib/server-tenant';
 
 export const runtime = 'nodejs';
 
 /**
  * GET /api/team/roles
  * Returns all roles applicable to the current tenant (system + custom).
+ * Platform-level system roles (platform_super_admin, platform_support) are
+ * excluded — they're not relevant to a single tenant's role management.
  */
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const tenantSlug = req.headers.get('x-tenant-slug');
-  if (!tenantSlug) return NextResponse.json({ error: 'No tenant context' }, { status: 400 });
-
-  const tenantCtx = await resolveTenant(tenantSlug);
+  const tenantCtx = await getTenantFromRequest(req);
   if (!tenantCtx) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
+  // App-scoped system roles only apply to tenants that actually connect that
+  // app — otherwise every tenant would see roles meaningful only to apps they
+  // don't have.
+  const connectedAppIds = (
+    await adminDb.connectedAppInstance.findMany({
+      where: { tenantId: tenantCtx.tenantId, status: 'ACTIVE' },
+      select: { appId: true },
+    })
+  ).map((instance) => instance.appId);
+
   const roles = await adminDb.role.findMany({
-    where: { OR: [{ tenantId: tenantCtx.tenantId }, { isSystem: true }] },
+    where: {
+      OR: [
+        { tenantId: tenantCtx.tenantId },
+        { isSystem: true, appId: null, name: { notIn: [...PLATFORM_ROLE_NAMES] } },
+        { isSystem: true, appId: { in: connectedAppIds } },
+      ],
+    },
     include: {
       permissions: { include: { permission: { select: { id: true, code: true } } } },
       _count: { select: { bindings: { where: { tenantId: tenantCtx.tenantId } } } },
@@ -43,17 +59,12 @@ export async function GET(req: NextRequest) {
 /**
  * POST /api/team/roles
  * Body: { name: string; permissions: string[] }
- * Creates a custom (tenant-scoped) role.
+ * Creates a custom (tenant-scoped) role. Requires USERS_UPDATE — creating a
+ * role that can be granted to members is equivalent to changing what members
+ * can do, so it needs the same permission as changing a member's role.
  */
-export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const tenantSlug = req.headers.get('x-tenant-slug');
-  if (!tenantSlug) return NextResponse.json({ error: 'No tenant context' }, { status: 400 });
-
-  const tenantCtx = await resolveTenant(tenantSlug);
-  if (!tenantCtx) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+export const POST = withAuthz({ permission: Permission.USERS_UPDATE }, async (req, { authz }) => {
+  const tenantCtx = { tenantId: authz.tenantId };
 
   const body = (await req.json()) as { name?: string; permissions?: string[] };
   const { name, permissions = [] } = body;
@@ -61,6 +72,10 @@ export async function POST(req: NextRequest) {
   if (!name?.trim()) {
     return NextResponse.json({ error: 'name is required' }, { status: 422 });
   }
+
+  // A tenant can never grant PLATFORM_ADMIN through a custom role — that
+  // permission is only meaningful at the platform level.
+  const requestedPermissions = permissions.filter((p) => p !== Permission.PLATFORM_ADMIN);
 
   // Check name uniqueness within tenant
   const existing = await adminDb.role.findFirst({
@@ -72,8 +87,8 @@ export async function POST(req: NextRequest) {
 
   const role = await withPlatformAdmin(async (tx) => {
     // Resolve permission IDs from codes
-    const permRecords = permissions.length
-      ? await tx.permission.findMany({ where: { code: { in: permissions } } })
+    const permRecords = requestedPermissions.length
+      ? await tx.permission.findMany({ where: { code: { in: requestedPermissions } } })
       : [];
 
     const created = await tx.role.create({
@@ -93,11 +108,11 @@ export async function POST(req: NextRequest) {
     await tx.auditLog.create({
       data: {
         tenantId: tenantCtx.tenantId,
-        actorUserId: session.user.id,
+        actorUserId: authz.user.id,
         action: 'role.created',
         resourceType: 'Role',
         resourceId: created.id,
-        after: { name: created.name, permissions },
+        after: { name: created.name, permissions: requestedPermissions },
       },
     });
 
@@ -113,4 +128,4 @@ export async function POST(req: NextRequest) {
     },
     { status: 201 },
   );
-}
+});

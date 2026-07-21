@@ -75,3 +75,10 @@ export const ROLE_PERMISSIONS: Record<string, PermissionCode[]> = {
   ],
   tenant_viewer: [Permission.NOTES_READ, Permission.USERS_READ],
 };
+
+/**
+ * System roles that operate at the platform level, not the tenant level.
+ * These are seeded with tenantId: null and must never be listed as
+ * assignable/visible from within a tenant's own role management UI or APIs.
+ */
+export const PLATFORM_ROLE_NAMES = ['platform_super_admin', 'platform_support'] as const;

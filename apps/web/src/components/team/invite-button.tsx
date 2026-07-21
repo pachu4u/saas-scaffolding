@@ -14,12 +14,21 @@ export function InviteButton({ tenantSlug }: InviteButtonProps) {
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true);
+        }}
         className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
       >
         + Invite member
       </button>
-      {open && <InviteModal tenantSlug={tenantSlug} onClose={() => setOpen(false)} />}
+      {open && (
+        <InviteModal
+          tenantSlug={tenantSlug}
+          onClose={() => {
+            setOpen(false);
+          }}
+        />
+      )}
     </>
   );
 }

@@ -1,0 +1,150 @@
+# Per-tenant Riogentix (k8s) — {slug}.techhanker.com/app
+# Forwards to the k3s ingress-nginx NodePort (80:32365); the docker-compose
+# Traefik owns host ports 80/443, so k8s traffic must hop through it.
+# 172.18.0.1 is the "platform" docker network gateway (the host).
+# ingress-nginx routes by Host header, which Traefik passes through by default.
+#
+# The tenant subdomain root now serves the SaaS tile page (web.yml,
+# tenant-subdomain-root, priority 5); only /app and /api/v1 reach Riogentix.
+# Auth is no longer forwardAuth (oauth2-proxy + Keycloak) here — the SaaS app
+# performs a trusted server-to-server token exchange
+# (/api/v1/saas-sso, see apps/web/src/app/api/riogentix-launch/route.ts) and
+# sets Riogentix's own access_token_lf cookie before redirecting to /app, so
+# by the time the browser hits this router the request is already
+# authenticated at the Riogentix layer. Direct/unauthenticated /app access
+# just gets Riogentix's own login page.
+http:
+  routers:
+    # Priority 12: above tenant-subdomain-root (5) and the legacy catch-all's
+    # old spot, below the named platform hosts (saas=20, keycloak=100).
+    # stripPrefix so Riogentix (base href "/") sees an unprefixed request.
+    riogentix-tenants-app:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.techhanker\\.com$`) && PathPrefix(`/app`)"
+      service: k8s-ingress
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 12
+      middlewares:
+        - strip-app-prefix
+
+    # Riogentix's own API, called directly by its frontend (absolute
+    # /api/v1/... paths survive the /app prefix strip unchanged). The SaaS
+    # Next.js app has no /api/v1 routes of its own, so this can't collide.
+    riogentix-tenants-api:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.techhanker\\.com$`) && PathPrefix(`/api/v1`)"
+      service: k8s-ingress
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 12
+
+    # Riogentix's index.html has `<base href="/">` and references its static
+    # files with relative paths (./assets/..., ./favicon.ico, ./manifest.json),
+    # which the browser resolves against the base href, not the current
+    # /app path — so these requests land at the domain root regardless of
+    # what path the page was loaded from. Forward them straight through
+    # (no stripPrefix needed, Riogentix already serves them unprefixed).
+    # The SaaS tile page ships no favicon/manifest/assets of its own, so
+    # this can't collide with it.
+    riogentix-tenants-assets:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.techhanker\\.com$`) && (PathPrefix(`/assets`) || PathPrefix(`/icons`) || Path(`/favicon.ico`) || Path(`/manifest.json`))"
+      service: k8s-ingress
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 12
+
+    # Legacy two-level names ({slug}.riogentix.techhanker.com) kept for the
+    # existing *.riogentix DNS record; same backend. Left on the old
+    # whole-subdomain + forwardAuth shape since nothing links to it anymore
+    # other than direct/bookmarked access.
+    riogentix-tenants-legacy:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.riogentix\\.techhanker\\.com$`)"
+      service: k8s-ingress
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 60
+      middlewares:
+        - tenant-auth
+        - add-authz-secret
+        - tenant-authz
+
+    # /health on any tenant subdomain — passes directly to k8s-ingress with no
+    # auth middlewares. Priority 11 sits between tenant-subdomain-root (5, in
+    # web.yml) and the /app and /api/v1 routers (12) so a bare /health check
+    # never falls through to the SaaS app or picks up the /app prefix strip.
+    riogentix-health:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.techhanker\\.com$`) && Path(`/health`)"
+      service: k8s-ingress
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 11
+
+    # /oauth2/* (start, callback, sign_out, ...) on any tenant subdomain —
+    # including the fixed callback host oauthproxy.techhanker.com — goes to
+    # oauth2-proxy itself, without the auth middleware. Priority 15 beats the
+    # tenant routers but stays below saas (20) and auth (100), so the
+    # platform app and Keycloak are unaffected.
+    tenant-oauth2:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.techhanker\\.com$`) && PathPrefix(`/oauth2/`)"
+      service: oauth2-proxy
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 15
+
+    tenant-oauth2-legacy:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.riogentix\\.techhanker\\.com$`) && PathPrefix(`/oauth2/`)"
+      service: oauth2-proxy
+      entryPoints:
+        - websecure
+      tls: {}
+      priority: 65
+
+  middlewares:
+    strip-app-prefix:
+      stripPrefix:
+        prefixes:
+          - /app
+
+    tenant-auth:
+      forwardAuth:
+        # Root path (not /oauth2/auth): with --upstream=static://202 an
+        # authenticated request returns 202 (allowed through) and an
+        # unauthenticated one returns the full 302-to-Keycloak response,
+        # which Traefik passes back to the browser as-is.
+        address: 'http://oauth2-proxy:4180'
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-Auth-Request-User
+          - X-Auth-Request-Email
+          - X-Auth-Request-Groups
+
+    # Injects the shared secret that tenant-authz validates, so direct calls
+    # to /api/tenant-authz from outside the Traefik chain are rejected.
+    add-authz-secret:
+      headers:
+        customRequestHeaders:
+          X-Authz-Secret: 'internal-secret-16-chars'
+
+    # Per-tenant authorization: verifies the authenticated user is an active
+    # member of the tenant named in the subdomain. Runs after tenant-auth so
+    # X-Auth-Request-Email is already set by oauth2-proxy.
+    tenant-authz:
+      forwardAuth:
+        address: 'http://web:3000/api/tenant-authz'
+        trustForwardHeader: true
+
+  services:
+    k8s-ingress:
+      loadBalancer:
+        servers:
+          - url: 'http://172.18.0.1:32365'
+
+    oauth2-proxy:
+      loadBalancer:
+        servers:
+          - url: 'http://oauth2-proxy:4180'

@@ -1,5 +1,3 @@
-import { type NextRequest, NextResponse } from 'next/server';
-
 import {
   authenticateScim,
   SCIM_SCHEMAS,
@@ -8,9 +6,10 @@ import {
   scimPatchGroup,
   toScimGroup,
   type ScimPatchOp,
-} from '@platform/scim';
+} from '@platform/scim/server';
+import { type NextRequest, NextResponse } from 'next/server';
 
-const BASE_URL = process.env['NEXT_PUBLIC_APP_URL'] ?? 'https://app.lvh.me';
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.lvh.me';
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -53,8 +52,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const scimBase = BASE_URL.replace('app.', `${tenantSlug}.`);
 
   const body = (await req.json()) as Record<string, unknown>;
-  const displayName = body['displayName'] as string | undefined;
-  const members = (body['members'] as Array<{ value: string }> | undefined) ?? [];
+  const displayName = body.displayName as string | undefined;
+  const members = (body.members as { value: string }[] | undefined) ?? [];
 
   const existing = await scimGetGroup(ctx.tenantId, id);
   if (!existing) return scimError(404, `Group ${id} not found`);
@@ -89,13 +88,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const existing = await scimGetGroup(ctx.tenantId, id);
   if (!existing) return scimError(404, `Group ${id} not found`);
 
-  const body = (await req.json()) as ScimPatchOp;
+  const body = (await req.json()) as Partial<ScimPatchOp>;
 
   if (!body.schemas?.includes(SCIM_SCHEMAS.PATCH) || !Array.isArray(body.Operations)) {
     return scimError(400, 'Invalid PatchOp', 'invalidSyntax');
   }
 
-  const updated = await scimPatchGroup(ctx.tenantId, id, body, ctx.tokenId);
+  // Validated above: schemas includes PATCH and Operations is an array.
+  const updated = await scimPatchGroup(ctx.tenantId, id, body as ScimPatchOp, ctx.tokenId);
   if (!updated) return scimError(500, 'Failed to patch group');
 
   return NextResponse.json(toScimGroup(updated, scimBase));

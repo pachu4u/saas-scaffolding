@@ -1,6 +1,5 @@
-import { Queue, type JobsOptions } from 'bullmq';
-
 import { env } from '@platform/config';
+import { Queue, type JobsOptions } from 'bullmq';
 
 const connection = { url: env.REDIS_URL };
 
@@ -24,14 +23,14 @@ function createQueue<T>(name: string, opts?: JobsOptions) {
 function lazyQueue<T>(name: string, opts?: JobsOptions): Queue<T> {
   let instance: Queue<T> | undefined;
   return new Proxy({} as Queue<T>, {
-    get(_target, prop, receiver) {
-      if (!instance) instance = createQueue<T>(name, opts);
-      const value = Reflect.get(instance, prop, instance);
+    get(_target, prop, _receiver) {
+      instance ??= createQueue<T>(name, opts);
+      const value: unknown = Reflect.get(instance, prop, instance);
       // Bind methods so `this` stays correct
-      return typeof value === 'function' ? (value as Function).bind(instance) : value;
+      return typeof value === 'function' ? (value.bind(instance) as unknown) : value;
     },
     set(_target, prop, value) {
-      if (!instance) instance = createQueue<T>(name, opts);
+      instance ??= createQueue<T>(name, opts);
       return Reflect.set(instance, prop, value);
     },
   });
@@ -43,37 +42,75 @@ export const webhookInboundQueue = lazyQueue<WebhookInboundJob>('webhook-inbound
 export const webhookOutboundQueue = lazyQueue<WebhookOutboundJob>('webhook-outbound');
 export const usageRollupQueue = lazyQueue<UsageRollupJob>('usage-rollup');
 export const planChangedQueue = lazyQueue<PlanChangedJob>('plan-changed');
+// Stack provisioning talks to the Kubernetes API and waits for pods to become
+// ready — slower retry cadence than the default so a transient cluster hiccup
+// doesn't burn all attempts in seconds.
+export const tenantProvisionQueue = lazyQueue<TenantProvisionJob>('tenant-provision', {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 10_000 },
+});
+export const tenantDeprovisionQueue = lazyQueue<TenantDeprovisionJob>('tenant-deprovision', {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 10_000 },
+});
+// Role changes in the console are pushed to the tenant's Riogentix instance.
+// Each job re-reads the full binding set at run time, so retries and
+// back-to-back enqueues converge on the latest state.
+export const roleSyncQueue = lazyQueue<RoleSyncJob>('role-sync');
+// Drains the identity-sync outbox for a tenant and converges every connected
+// app instance via SCIM. Coalesces naturally: each run processes all pending
+// events for the tenant, so back-to-back enqueues collapse into one converge.
+export const appSyncQueue = lazyQueue<AppSyncJob>('app-sync');
 
-export type EmailJob = {
+export interface EmailJob {
   to: string;
   subject: string;
   templateId: string;
   data: Record<string, unknown>;
   tenantId: string;
-};
+}
 
-export type WebhookInboundJob = {
+export interface WebhookInboundJob {
   source: 'stripe';
   rawBody: string;
   signature: string;
-};
+}
 
-export type WebhookOutboundJob = {
+export interface WebhookOutboundJob {
   endpointId: string;
   deliveryId: string;
   event: Record<string, unknown>;
-};
+}
 
-export type UsageRollupJob = {
+export interface UsageRollupJob {
   tenantId: string;
   period: string; // YYYY-MM
-};
+}
 
-export type PlanChangedJob = {
+export interface PlanChangedJob {
   tenantId: string;
   oldPlan: string;
   newPlan: string;
-};
+}
+
+export type TenantEnvironmentType = 'DEV' | 'TEST' | 'PROD';
+
+export interface TenantProvisionJob {
+  tenantId: string;
+  environments: TenantEnvironmentType[];
+}
+
+export interface TenantDeprovisionJob {
+  tenantId: string;
+}
+
+export interface RoleSyncJob {
+  tenantId: string;
+}
+
+export interface AppSyncJob {
+  tenantId: string;
+}
 
 /**
  * Enqueue with idempotency protection.
@@ -85,7 +122,10 @@ export async function enqueue<T>(
   opts?: JobsOptions & { idempotencyKey?: string },
 ): Promise<string | undefined> {
   const { idempotencyKey, ...jobOpts } = opts ?? {};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // BullMQ's Queue<T>.add name param type depends on T in a way the generic
+  // wrapper here can't resolve — this is a real upstream typing limitation,
+  // not something to work around.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
   const job = await queue.add(queue.name as any, payload as any, {
     ...jobOpts,
     ...(idempotencyKey ? { jobId: idempotencyKey } : {}),

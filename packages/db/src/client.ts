@@ -1,6 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-
 import { env } from '@platform/config';
+import { PrismaClient } from '@prisma/client';
 
 // Prisma client that applies tenant RLS on every transaction.
 // Use `adminDb` for platform-admin operations that bypass RLS.

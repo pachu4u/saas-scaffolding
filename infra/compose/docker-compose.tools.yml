@@ -2,7 +2,7 @@ name: saas-platform
 
 networks:
   platform:
-    external: true
+    name: platform
 
 services:
   # ─── Mailpit (dev SMTP + inbox UI) ───────────────────────────────────────

@@ -22,14 +22,9 @@ const PLAN_BADGE: Record<string, { text: string; color: string }> = {
 };
 
 function switchToWorkspace(slug: string) {
-  const host = window.location.host;
-  const parts = host.split('.');
-  if (parts.length >= 3) {
-    parts[0] = slug;
-    window.location.href = `${window.location.protocol}//${parts.join('.')}/dashboard`;
-  } else {
-    window.location.href = `/dashboard?ws=${slug}`;
-  }
+  // Tenant dashboards are path-based on this domain; the subdomains belong to
+  // the tenants' Riogentix app instances.
+  window.location.href = `/t/${slug}`;
 }
 
 export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitcherProps) {
@@ -57,7 +52,9 @@ export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitche
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
     if (open) document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+    };
   }, [open]);
 
   function handleToggle() {
@@ -157,7 +154,10 @@ export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitche
             ) : (
               workspaces.map((ws) => {
                 const isCurrent = ws.tenantSlug === currentSlug;
-                const badge = PLAN_BADGE[ws.plan] ?? PLAN_BADGE.free!;
+                const badge = PLAN_BADGE[ws.plan] ?? {
+                  text: 'Free',
+                  color: 'rgba(255,255,255,0.4)',
+                };
                 return (
                   <button
                     key={ws.tenantId}
@@ -228,28 +228,6 @@ export function WorkspaceSwitcher({ currentName, currentSlug }: WorkspaceSwitche
                 );
               })
             )}
-          </div>
-
-          {/* Footer */}
-          <div
-            className="border-t px-4 py-2.5"
-            style={{ borderColor: 'var(--border-light)', background: 'var(--bg-main)' }}
-          >
-            <a
-              href="/onboarding"
-              className="flex items-center gap-2 text-xs font-semibold transition-opacity hover:opacity-80"
-              style={{ color: 'var(--brand-primary)' }}
-              onClick={() => setOpen(false)}
-            >
-              <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
-                <path
-                  fillRule="evenodd"
-                  d="M10 3a1 1 0 0 1 1 1v5h5a1 1 0 1 1 0 2h-5v5a1 1 0 1 1-2 0v-5H4a1 1 0 1 1 0-2h5V4a1 1 0 0 1 1-1z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              Create new workspace
-            </a>
           </div>
         </div>
       )}

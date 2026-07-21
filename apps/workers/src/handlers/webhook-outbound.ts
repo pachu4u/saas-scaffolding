@@ -1,8 +1,7 @@
-import type { Job } from 'bullmq';
-
 import { adminDb } from '@platform/db';
-import { logger } from '@platform/logger';
 import type { WebhookOutboundJob } from '@platform/jobs';
+import { logger } from '@platform/logger';
+import type { Job } from 'bullmq';
 
 export async function handleWebhookOutbound(job: Job<WebhookOutboundJob>): Promise<void> {
   const { endpointId, deliveryId, event } = job.data;
@@ -12,7 +11,7 @@ export async function handleWebhookOutbound(job: Job<WebhookOutboundJob>): Promi
     select: { url: true, secret: true, status: true },
   });
 
-  if (!endpoint || endpoint.status !== 'ACTIVE') {
+  if (endpoint?.status !== 'ACTIVE') {
     logger.warn({ deliveryId }, 'Webhook endpoint not found or inactive');
     return;
   }

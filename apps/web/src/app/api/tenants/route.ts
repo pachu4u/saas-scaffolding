@@ -1,7 +1,6 @@
-import { type NextRequest, NextResponse } from 'next/server';
-
 import { auth } from '@platform/auth';
 import { adminDb, withPlatformAdmin } from '@platform/db';
+import { type NextRequest, NextResponse } from 'next/server';
 
 /**
  * GET /api/tenants
@@ -21,9 +20,7 @@ export async function GET() {
   // to the "platform_super_admin" group which maps to the platform:admin permission.
   const isPlatformAdmin =
     Array.isArray(session.groups) &&
-    (session.groups as string[]).some((g: string) =>
-      ['platform_super_admin', 'platform_support'].includes(g),
-    );
+    session.groups.some((g: string) => ['platform_super_admin', 'platform_support'].includes(g));
 
   if (!isPlatformAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -58,16 +55,19 @@ export async function POST(req: NextRequest) {
 
   const isPlatformAdmin =
     Array.isArray(session.groups) &&
-    (session.groups as string[]).some((g: string) =>
-      ['platform_super_admin', 'platform_support'].includes(g),
-    );
+    session.groups.some((g: string) => ['platform_super_admin', 'platform_support'].includes(g));
 
   if (!isPlatformAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const body = (await req.json()) as { name?: string; slug?: string; plan?: string };
-  const { name, slug, plan = 'free' } = body;
+  const body = (await req.json()) as {
+    name?: string;
+    slug?: string;
+    plan?: string;
+    timezone?: string;
+  };
+  const { name, slug, plan = 'free', timezone } = body;
 
   if (!name || !slug) {
     return NextResponse.json({ error: 'name and slug are required' }, { status: 400 });
@@ -89,6 +89,7 @@ export async function POST(req: NextRequest) {
           slug: slug.trim(),
           plan,
           status: 'ACTIVE',
+          ...(timezone ? { branding: { timezone } } : {}),
         },
         select: { id: true, slug: true, name: true, status: true, plan: true, createdAt: true },
       });

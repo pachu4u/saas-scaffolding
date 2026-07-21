@@ -1,34 +1,28 @@
 import crypto from 'crypto';
 
+import { PLATFORM_ROLE_NAMES, Permission, withAuthz } from '@platform/authz';
+import {
+  adminDb,
+  appendSyncOutbox,
+  withPlatformAdmin,
+  checkRateLimit,
+  rateLimitHeaders,
+} from '@platform/db';
+import { sendEmail } from '@platform/notifications';
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { auth } from '@platform/auth';
-import { adminDb, withPlatformAdmin, checkRateLimit, rateLimitHeaders } from '@platform/db';
-import { sendEmail } from '@platform/notifications';
-import { resolveTenant } from '@platform/tenant';
+import { decodeInviteToken } from '@/lib/invite-token';
+import { enqueueRoleSync } from '@/lib/role-sync';
 
 /**
  * POST /api/team/invite
  * Body: { email: string; roleId: string }
  *
  * Creates a TenantUser record with status INVITED and sends an invite email.
- * Requires: member:invite permission (admin/owner only).
+ * Requires USERS_CREATE.
  */
-export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const tenantSlug = req.headers.get('x-tenant-slug');
-  if (!tenantSlug) {
-    return NextResponse.json({ error: 'No tenant context' }, { status: 400 });
-  }
-
-  const tenantCtx = await resolveTenant(tenantSlug);
-  if (!tenantCtx) {
-    return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-  }
+export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (req, { authz }) => {
+  const tenantCtx = { tenantId: authz.tenantId };
 
   // Rate limit: 20 invites per hour per tenant
   const rl = await checkRateLimit({
@@ -51,22 +45,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'email and roleId are required' }, { status: 400 });
   }
 
+  // Platform-level roles are never assignable via a tenant's own invite flow.
+  if ((PLATFORM_ROLE_NAMES as readonly string[]).includes(roleId)) {
+    return NextResponse.json(
+      { error: `Role "${roleId}" cannot be assigned within a tenant` },
+      { status: 403 },
+    );
+  }
+
   // Normalise email
   const normalizedEmail = email.trim().toLowerCase();
+
+  // Fetch the tenant name for the invite email
+  const tenant = await adminDb.tenant.findUnique({
+    where: { id: tenantCtx.tenantId },
+    select: { name: true },
+  });
+  if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
   // All writes use withPlatformAdmin to bypass FORCE ROW LEVEL SECURITY
   const user = await withPlatformAdmin(async (tx) => {
     // Resolve or create the invited user record
     let foundUser = await tx.user.findUnique({ where: { email: normalizedEmail } });
-    if (!foundUser) {
-      foundUser = await tx.user.create({
-        data: {
-          email: normalizedEmail,
-          // externalId will be filled on first SSO login
-          externalId: `pending-${crypto.randomUUID()}`,
-        },
-      });
-    }
+    foundUser ??= await tx.user.create({
+      data: {
+        email: normalizedEmail,
+        // externalId will be filled on first SSO login
+        externalId: `pending-${crypto.randomUUID()}`,
+      },
+    });
 
     // Upsert TenantUser as INVITED
     await tx.tenantUser.upsert({
@@ -79,9 +86,10 @@ export async function POST(req: NextRequest) {
       update: { status: 'INVITED' },
     });
 
-    // Assign requested role — roles are system-level (tenantId = null), looked up by name
+    // Assign requested role — either a system role or one of this tenant's
+    // own custom roles, looked up by name.
     const role = await tx.role.findFirst({
-      where: { name: roleId },
+      where: { name: roleId, OR: [{ isSystem: true }, { tenantId: tenantCtx.tenantId }] },
     });
     if (role) {
       await tx.roleBinding.upsert({
@@ -97,12 +105,17 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    await appendSyncOutbox(tx, tenantCtx.tenantId, [
+      { resourceType: 'USER', resourceId: foundUser.id },
+      ...(role ? [{ resourceType: 'GROUP' as const, resourceId: role.id }] : []),
+    ]);
+
     return foundUser;
   });
 
   // Generate signed invite token (HMAC-SHA256 over userId:tenantId)
   const secret = process.env.INVITE_TOKEN_SECRET ?? 'dev-invite-secret';
-  const payload = `${user.id}:${tenantCtx.tenantId}:${Date.now()}`;
+  const payload = `${user.id}:${tenantCtx.tenantId}:${String(Date.now())}`;
   const token = crypto.createHmac('sha256', secret).update(payload).digest('hex');
   // Store token in a lightweight way — encode the full payload in the token URL
   // In production, store in a dedicated invitations table with expiry.
@@ -118,6 +131,7 @@ export async function POST(req: NextRequest) {
     await tx.auditLog.create({
       data: {
         tenantId: tenantCtx.tenantId,
+        actorUserId: authz.user.id,
         action: 'member.invited',
         resourceType: 'user',
         resourceId: user.id,
@@ -126,17 +140,20 @@ export async function POST(req: NextRequest) {
     });
   });
 
+  // Propagate the new member's role binding to the tenant's Riogentix instance.
+  await enqueueRoleSync(tenantCtx.tenantId);
+
   // Send invite email
   await sendEmail({
     to: normalizedEmail,
-    subject: `You've been invited to join ${tenantCtx.name} on riogentix`,
+    subject: `You've been invited to join ${tenant.name} on riogentix`,
     templateId: 'invite-user',
-    data: { tenantName: tenantCtx.name, inviteUrl },
+    data: { tenantName: tenant.name, inviteUrl },
     tenantId: tenantCtx.tenantId,
   });
 
   return NextResponse.json({ success: true, inviteUrl }, { status: 201 });
-}
+});
 
 /**
  * GET /api/team/invite?token=<token>
@@ -163,34 +180,4 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ tenantName: tenant.name, tenantSlug: tenant.slug, email: user.email });
-}
-
-export function decodeInviteToken(token: string): {
-  tenantId: string | null;
-  userId: string | null;
-} {
-  try {
-    const [encodedPayload, signature] = token.split('.');
-    if (!encodedPayload || !signature) return { tenantId: null, userId: null };
-
-    const payload = Buffer.from(encodedPayload, 'base64url').toString();
-    const [userId, tenantId, tsStr] = payload.split(':');
-
-    if (!userId || !tenantId || !tsStr) return { tenantId: null, userId: null };
-
-    // Check expiry: 7 days
-    const ts = parseInt(tsStr, 10);
-    if (Date.now() - ts > 7 * 24 * 60 * 60 * 1000) return { tenantId: null, userId: null };
-
-    // Verify signature
-    const secret = process.env.INVITE_TOKEN_SECRET ?? 'dev-invite-secret';
-    const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
-    if (!crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expected, 'hex'))) {
-      return { tenantId: null, userId: null };
-    }
-
-    return { tenantId, userId };
-  } catch {
-    return { tenantId: null, userId: null };
-  }
 }

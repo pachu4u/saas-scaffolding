@@ -172,36 +172,234 @@
 
 ---
 
-## ðŸŸ¢ Polish
+## 🟢 Polish
 
-### P-1 Â· Empty states for all tables
+### P-1 · Empty states for all tables ✅
 
 - **Files:** team/members, audit, webhooks, jobs pages
 - **Add:** Illustrated empty state with CTA when table has 0 rows.
+- **Status:** Webhooks and jobs/DLQ already had real empty + loading states. Added the
+  actual gap — `DataTable` gained an `emptyState` slot (icon/title/description/CTA,
+  distinct from the plain `emptyMessage` text shown for filtered-to-zero results), wired
+  into `team-members-table.tsx` with an "Invite member" CTA. Audit log keeps its plain
+  text message — an empty audit log has no actionable CTA.
 
-### P-2 Â· Loading skeletons
+### P-2 · Loading skeletons ✅
 
-- **Add:** `loading.tsx` per route segment â€” skeleton cards while RSC data fetches.
+- **Add:** `loading.tsx` per route segment — skeleton cards while RSC data fetches.
+- **Status:** `(dashboard)/loading.tsx` already existed. The real gap was `(admin)`
+  having **no** `loading.tsx` at all — added one (table-shaped skeleton, matches most
+  admin pages).
 
-### P-3 Â· Mobile-responsive sidebar
+### P-3 · Mobile-responsive sidebar ✅
 
-- **Add:** Hamburger button in topbar on `<lg` screens â†’ slide-in drawer overlay.
+- **Add:** Hamburger button in topbar on `<lg` screens → slide-in drawer overlay.
 - **Fix:** `apps/web/src/components/layout/sidebar.tsx` + `topbar.tsx`
+- **Status:** New `sidebar-context.tsx` (`SidebarProvider`/`useSidebar`) shares
+  open/close state between `Topbar` (hamburger trigger) and `Sidebar` (off-canvas drawer
+  - backdrop on `<lg`, always visible `≥lg`). Both `(dashboard)` and `(admin)` layouts
+    wrapped in the provider; content margin and loading skeletons changed from a fixed
+    `ml-60` to responsive `lg:ml-[var(--sidebar-width)]`. Verified in a real browser at
+    375px (drawer off-canvas, hamburger visible, opens on tap) and 1440px (always visible,
+    no hamburger).
 
-### P-4 Â· "Send test email" button
+### P-4 · "Send test email" button ✅
 
 - **New API:** `apps/web/src/app/api/notifications/test/route.ts`
-- **Wire into:** Settings â†’ Branding â†’ Email tab.
+- **Wire into:** Settings → Branding → Email tab.
+- **Status:** Button existed with no `onClick` at all. Wired to the new route, which
+  uses the existing `@platform/notifications` `sendEmail()` abstraction (console.log
+  fallback in dev without a real Resend key — pre-existing behavior, unchanged).
 
-### P-5 Â· Test webhook delivery button
+### P-5 · Test webhook delivery button ✅ (already done)
 
-- **Add:** "Send test" on webhook endpoint row â†’ `POST /api/webhooks/[id]/test`.
+- **Add:** "Send test" on webhook endpoint row → `POST /api/webhooks/[id]/test`.
+- **Status:** Found already fully implemented (button, API route, inline success/error
+  feedback) — no work needed.
 
-### P-6 Â· Data export & compliance
+### P-6 · Data export & compliance ✅
 
 - **New file:** `apps/web/src/app/(dashboard)/settings/compliance/page.tsx`
-- **Includes:** "Export all workspace data" (triggers BullMQ job â†’ signed S3 URL) + "Request cryptographic delete" (GDPR).
-- **New settings tab:** Add "Compliance" to settings inner nav.
+- **Includes:** "Export all workspace data" + "Request cryptographic delete" (GDPR).
+- **New settings tab:** Added "Compliance" to settings inner nav.
+- **Scope change from spec:** the original spec called for a BullMQ job → signed S3 URL.
+  This stack has no object storage configured anywhere (no S3/MinIO client, no bucket
+  config) — fabricating that would mean a non-functional feature pointing at infra that
+  doesn't exist. Implemented instead as a direct synchronous JSON download
+  (`GET /api/settings/compliance/export`), which is real and works today. Secrets
+  (webhook signing keys, SCIM tokens, API keys) are deliberately excluded from the
+  export. "Cryptographic delete" records an audited request
+  (`POST /api/settings/compliance/delete-request`) rather than instantly wiping data
+  from a single unconfirmed click — matches how this actually works at most SaaS
+  vendors (reviewed/actioned by a human, not instant self-service).
+
+### P-7 · `/admin/activity` page (found during testing, not in original spec) ✅
+
+- **New file:** `apps/web/src/app/(admin)/admin/activity/page.tsx`
+- **Problem:** Sidebar already linked to `/admin/activity`; page didn't exist → 404.
+- **Fix:** Cross-tenant audit log viewer (last 500 events, searchable), built on the
+  existing generic `DataTable`.
+
+### P-8 · `/admin/settings` page (found during testing, not in original spec) ✅
+
+- **New file:** `apps/web/src/app/(admin)/admin/settings/page.tsx`
+- **Problem:** Sidebar already linked to `/admin/settings`; page didn't exist → 404.
+- **Fix:** There's no `PlatformSettings` DB table, so this isn't a form of editable
+  values that wouldn't persist anywhere — it's a real, honest "Environment &
+  Operations" page: live env info (`NODE_ENV`, build SHA, Keycloak issuer, tenant/user/job
+  counts) plus shortcut links to Keycloak admin, Grafana, Traefik dashboard, and
+  `/admin/jobs`.
+
+---
+
+## 🔨 Session log — bugs found while standing up the local stack (2026-06-25)
+
+Not in the original plan — found and fixed while getting `pnpm dev:up` to actually run
+end-to-end for the first time. Branch `fix/local-dev-stack-bugs`, commit `834c1a4`:
+
+- **`web.Dockerfile`** — `next build` runs `@platform/config`'s eager zod env
+  validation during the image build, before `docker-compose`'s env vars exist. Added
+  build-time placeholders (overridden at container runtime as already documented in the
+  runner stage).
+- **`docker-compose.{observability,tools}.yml`** — incorrect `external: true` on the
+  `platform` network broke the documented one-command `pnpm dev:up` (merges all three
+  compose files; Compose then requires the network to pre-exist).
+- **`schema.prisma`** — missing `linux-musl-arm64-openssl-3.0.x` Prisma binary target;
+  `workers` crash-looped on Apple Silicon.
+- **`0002_rls_grants` migration** — a prior "idempotent" fix only guarded the
+  `tenant_users` policy; the other 11 tables' `CREATE POLICY` statements had no
+  `DROP POLICY IF EXISTS`, so re-running the migration still failed.
+- **`0004_native_status_enums` (new migration)** — 7 status columns are typed as Prisma
+  `enum` in `schema.prisma` but `0001_init` implemented them as `TEXT + CHECK`. Prisma's
+  postgresql client always casts to a native enum type by name for `enum` fields, so
+  every query against those columns failed with `type "TenantStatus" does not exist`
+  etc. Converted to real native enums, matching the pattern `0003_provisioning` already
+  used correctly.
+- **`tempo-config.yml` + compose** — outdated `overrides` schema for the pinned Tempo
+  2.5.0, plus running as root since the named volume is root-owned and the image's
+  non-root user can't `mkdir` under it.
+- **`packages/auth/config.ts`** — the `signIn` event only ever upserted the bare `User`
+  row; despite a comment documenting that Keycloak `groups` should map to tenant slugs,
+  it never created the `TenantUser` membership. Every fresh SSO login had zero tenant
+  membership, which made `/dashboard` redirect to `/` (no tenant) — and middleware
+  redirect any authenticated user on `/` straight back to `/dashboard`. Infinite loop.
+  Now JIT-provisions `TenantUser` + a default `tenant_user` `RoleBinding` from the
+  `groups` claim on sign-in.
+- **`realm-export.json`** — `platform-admin` had a `platform_super_admin` **realm role**
+  but no matching Keycloak **group** (a different concept — the app checks group
+  membership via `session.groups`, not realm roles). Same redirect-loop symptom as
+  above, specific to the platform-admin account. Added the group, assigned membership
+  (also applied directly to the already-running realm via Keycloak's Admin API, since
+  realm import only happens once at first boot).
+
+---
+
+## 🔨 Session log — lint cleanup + missing test suites (2026-06-26)
+
+Per the Definition of Done at the bottom of this doc, `pnpm lint` should be green and
+every package should have tests — neither was true. Commit `1e3a512` on
+`fix/local-dev-stack-bugs`:
+
+- **`pnpm lint`**: was broadly red across nearly every package (hundreds of violations,
+  strict typescript-eslint rules never satisfied). Ran `eslint --fix` repo-wide first,
+  then fixed the remaining ~100 by hand. Now **14/14 packages green**. Most fixes were
+  mechanical (import order, `String(n)` instead of bare numbers in template literals,
+  dead `?? fallback` after an unsafe `as T` cast that hid a real possibly-undefined
+  value — fixed by casting to `T | undefined` instead of deleting the fallback). A few
+  were real bugs, not style nits:
+  - `DataTable`'s search/sort used `String(v ?? '')` on an `unknown` cell value — for
+    any non-primitive value this silently produces `"[object Object]"` and corrupts
+    sort/search results. Added a `toComparable()` helper that returns `''` for
+    non-primitives instead.
+  - Same bug class in `@platform/notifications`'s template substitution — a
+    non-primitive template variable would have silently rendered `"[object Object]"`
+    in an outgoing email body.
+  - `POST /api/webhooks` accepted _any_ string as an event type — the `WEBHOOK_EVENTS`
+    whitelist existed but was never actually checked against. Wired it in.
+  - `apps/workers`'s "graceful shutdown" was aspirational: `Worker` instances were
+    never kept, so SIGTERM/SIGINT hard-killed in-flight jobs instead of letting them
+    finish. Now collects the workers and awaits `worker.close()` on each.
+  - The notes page had a `quota` usage-bar UI block reading from a `setQuota` that was
+    never called anywhere (the API never returned quota data). Removed the dead
+    feature rather than leave a permanently-inert UI block in place.
+  - A handful of `as any` / non-null-assertion casts were masking legitimate runtime
+    fallback paths (SCIM PatchOp body, branding JSON fields, Keycloak profile claims).
+    Fixed by typing the cast honestly (`T | undefined`) so the existing `??` fallback
+    means something to the type checker, instead of deleting the safety net to satisfy
+    the linter.
+  - A couple of casts are genuine upstream type-incompatibilities (BullMQ's generic
+    `Queue.add` name param, OpenTelemetry `sdk-node`/`sdk-metrics` version skew) — kept
+    as-is, with an explanatory comment instead of a bare disable.
+  - NextAuth callbacks and Next.js Server Actions must stay `async` even with no real
+    `await` — this is a framework requirement, confirmed the hard way via an actual
+    failed Docker build (`Error: Server Actions must be async functions`) after
+    initially removing `async` to satisfy `require-await`. Reverted and suppressed the
+    rule there specifically instead.
+- **Missing test suites**: `@platform/billing`, `@platform/tenant`, and `@platform/scim`
+  had a `test` script wired to Vitest but zero test files — `pnpm test` failed
+  immediately. Added 49 new tests across 7 files:
+  - `billing`: plan-tier invariants (`PLAN_FEATURES`), Stripe webhook idempotency,
+    status mapping, and tenant-scoped subscription upsert/cancel behavior.
+  - `tenant`: subdomain slug extraction (reserved names, case, ports, invalid chars),
+    Redis-cached tenant resolution (cache hit/miss/failure paths, soft-delete
+    handling), and `AsyncLocalStorage`-based context isolation across concurrent
+    requests.
+  - `scim`: token authentication (Bearer parsing, hash-based lookup, tenant-slug
+    cross-check), User/Group SCIM mapping, and idempotent user provisioning.
+- **Verified end-to-end**: `pnpm lint` (14/14), `pnpm typecheck` (27/27), `pnpm test`
+  (16/16, 66 tests) all green repo-wide. Rebuilt the `web` and `workers` Docker images
+  and re-ran the real OAuth login flow through an actual browser for alice, bob, and
+  platform-admin — all three land cleanly with zero console or HTTP errors.
+
+Commit `749f22f` on the same branch covers the Polish-tier work above (P-1–P-8).
+
+---
+
+## 🔨 Session log — e2e suite repair (2026-06-26)
+
+The Playwright suite (`apps/e2e`, 106 tests) was almost entirely non-functional: only
+3/106 passing. Commit `ae8c5bb` on `fix/local-dev-stack-bugs` gets it to **106/106
+(105 passed, 1 legitimate skip)**.
+
+- **Root cause #1 — wrong test credentials.** `helpers/auth.ts` hardcoded
+  `admin@platform.test`/`admin` and a non-existent `user@acme.test`/`password`, and
+  never clicked "Continue with SSO" before trying to fill the Keycloak form. Fixed to
+  the real seeded accounts (`platform123` / `alice@acme.test` + `alice123`) and added
+  the missing click. This alone took the suite from 3 → 53 passing.
+- **Root cause #2 — Playwright locators default to case-insensitive substring
+  matching**, not exact. This caused two failure modes throughout nearly every spec
+  file: strict-mode violations (a regex like `/view/i` also matching sidebar
+  "Overview", or `/webhook/i` also matching an empty-state heading "No webhook
+  endpoints") and silently-wrong matches. Fixed file-by-file with `{ exact: true }` or
+  `.first()` depending on intent, plus corrected a bunch of assertions that assumed
+  UI copy that didn't match the real components (placeholder text, button labels,
+  `getByRole('dialog')` on modals that are plain styled `<div>`s with no ARIA role,
+  and a non-existent `toBeOneOf` matcher used throughout → `toContain`).
+- **Root cause #3 — unauthenticated API requests redirect, they don't 401.**
+  Middleware sends a 307 to `/auth/signin` for any unauthenticated request to a
+  protected route. Playwright's `request` fixture follows redirects by default, which
+  replays the original method (POST/PATCH/GET) onto the sign-in _page_ — a route that
+  only supports GET — producing a misleading 405. Fixed by passing `maxRedirects: 0`
+  on every unauthenticated `request.*()` call in the suite and accepting 307 as an
+  expected status, instead of chasing the downstream 405.
+- **Root cause #4 — load-induced flakiness, not a bug.** A batch of `settings.spec.ts`
+  tests intermittently hit 30s `networkidle` timeouts under the default 4-worker
+  parallel run. Reproduced the same page load in isolation (no concurrent load): ~1s.
+  Re-running with `--workers=2` eliminated the flakiness entirely — this stack's
+  single shared Postgres/Next.js instance doesn't have the headroom for 4-way
+  concurrent E2E load. No test or product code changed for this one.
+- **Two real product bugs found and fixed along the way:**
+  - The "Edit role" button in the team members table (`team-members-table.tsx`) had
+    **no `onClick` handler at all** — `ChangeRoleModal` existed in the codebase but
+    was never wired in. Added `editingMember` state and rendered the modal on click.
+  - `PATCH /api/team/members/[userId]/role` **never existed**, even though
+    `change-role-modal.tsx` already called it. Added the route, following the
+    existing `roleId`-is-actually-a-role-name convention from `team/invite/route.ts`.
+  - Both required rebuilding the `web` Docker image — it's a production build with no
+    source volume mount, so editing `apps/web/src` doesn't take effect until
+    `pnpm dev:up` rebuilds and recreates the container.
+- One test (`webhook deliveries page renders for a valid endpoint`) skips
+  legitimately: there's no seeded webhook endpoint to navigate to from a fresh DB.
 
 ---
 
@@ -227,3 +425,107 @@ Week 5:  P-1 â†’ P-2 â†’ P-3 â†’ P-4 â†’ P-5 â†’ P-6   
 - [ ] Responsive at â‰¥375px viewport
 - [ ] No TypeScript errors (`pnpm typecheck` green)
 - [ ] `pnpm lint` green
+
+---
+
+## 🔗 Riogentix Integration — SaaS ↔ AI Platform Architecture
+
+> **Context:** This SaaS layer acts as the control plane that spins up and manages per-tenant Riogentix instances. Roles, plans, and usage limits set here must propagate into each Riogentix instance.
+
+### Mental model
+
+```
+SaaS (saas-scaffolding)            Riogentix (per-tenant instance)
+─────────────────────────          ───────────────────────────────────
+Org/Tenant management              The actual AI platform
+Plan + billing                     Flows, KBs, Deployments
+Keycloak (identity)       ──→      Auth bridge (JWT claims)
+Plan features             ──→      Feature permission slugs
+Usage tracking            ──→      Quota lock (read-only mode)
+```
+
+---
+
+### Layer 1 — Auth bridge (Keycloak JWT → Riogentix)
+
+Keycloak issues JWTs. Add custom claims to every token:
+
+```json
+{
+  "sub": "user-uuid",
+  "saas_tenant_id": "org-uuid",
+  "saas_plan": "pro",
+  "saas_role": "admin",
+  "usage_locked": false
+}
+```
+
+Riogentix reads these claims on every request. `usage_locked: true` is the kill switch — all write operations return 403, reads pass through.
+
+**Where to add this in SaaS:**
+
+- Keycloak protocol mapper (custom claim from tenant DB row), or
+- Token enrichment API that Keycloak calls via a mapper script
+
+---
+
+### Layer 2 — Feature permissions per plan
+
+Map plan tiers to `feature:*` permission slugs in Riogentix:
+
+| Plan         | Permitted features                                                            |
+| ------------ | ----------------------------------------------------------------------------- |
+| `free`       | `feature:chat:access`, `feature:flows:read`                                   |
+| `pro`        | + `feature:flows:write`, `feature:knowledge_bases:access`                     |
+| `enterprise` | + `feature:mcp:access`, `feature:memory:access`, `feature:deployments:access` |
+
+SaaS sends the plan slug in the JWT; Riogentix resolves it to permission slugs at startup and caches per-instance.
+
+---
+
+### Layer 3 — Usage quota lock
+
+When a tenant exceeds their plan quota:
+
+1. SaaS usage metering worker detects overage
+2. Calls `PUT /internal/tenant/{id}/usage-lock` on the Riogentix instance
+3. Riogentix sets `usage_locked = true` in its local config/Redis
+4. All write-path guards check this flag — flows can still be read, not modified
+5. Lock lifted via `DELETE /internal/tenant/{id}/usage-lock` when usage drops or plan upgrades
+
+---
+
+### Internal API (SaaS → Riogentix)
+
+```
+POST   /internal/tenant/{id}/provision      Create tenant context in a new instance
+PUT    /internal/tenant/{id}/plan           Update feature permissions when plan changes
+PUT    /internal/tenant/{id}/usage-lock     Engage read-only mode (quota exceeded)
+DELETE /internal/tenant/{id}/usage-lock     Lift read-only mode
+```
+
+All internal endpoints require a shared HMAC secret (`INTERNAL_API_SECRET`), not a user JWT.
+
+---
+
+### Implementation steps
+
+**In saas-scaffolding:**
+
+1. ✅ Keycloak protocol mapper — emit `saas_tenant_id`, `saas_plan`, `saas_role`, `usage_locked` claims
+2. ✅ `plan-changed.ts` worker — call `PUT /internal/tenant/{id}/plan` on Riogentix when Stripe webhook fires
+3. ✅ Usage metering worker — watch rollup table; call `/usage-lock` when quota threshold crossed
+4. ✅ Admin UI — `/admin/plans` page showing plan → Riogentix feature mapping + "Plans" sidebar item
+
+**In Riogentix:**
+
+1. ✅ JWT middleware (`SaasClaimsMiddleware`) — reads `saas_plan`, `saas_role`, `saas_tenant_id`, `usage_locked` from JWT; attaches to `request.state`
+2. ✅ `usage_locked` guard (`UsageLockMiddleware`) — blocks POST/PUT/PATCH/DELETE with 403 when quota exceeded; exempt path for `/api/v1/internal/saas`
+3. ✅ Feature permission slugs — `saas_features.py` maps plan tiers to `feature:*` slugs; `require_feature()` dependency gates knowledge_bases, memories, mcp, mcp_projects, deployments, and agentic routers; Alembic migration `sa01b2c3d4e5` adds slugs to system roles
+4. ✅ Internal API endpoints (`/api/v1/internal/saas/tenant/{id}/plan|usage-lock|status`) protected by `RIOGENTIX_SAAS_INTERNAL_SECRET` header + SSO endpoint (`/api/v1/internal/saas/sso`)
+
+---
+
+### Key design decision
+
+The `usage_locked` check lives **inside Riogentix**, not enforced by SaaS proxying. Even if a user hits the Riogentix API directly with a valid JWT, the lock still holds. The JWT is signed by Keycloak so it cannot be tampered with client-side.

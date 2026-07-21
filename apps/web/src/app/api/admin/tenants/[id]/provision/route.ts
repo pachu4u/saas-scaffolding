@@ -1,6 +1,7 @@
-import { type NextRequest, NextResponse } from 'next/server';
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
+import { enqueue, tenantProvisionQueue, type TenantEnvironmentType } from '@platform/jobs';
+import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
@@ -84,39 +85,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     ),
   );
 
-  // Simulate async provisioning (in production this would enqueue a job)
-  // For now, mark as completed after a short delay via a background task
-  void simulateProvisioning(id, envTypes as Array<'DEV' | 'TEST' | 'PROD'>);
+  // The worker owns provisioning (drives the stack driver + state machine);
+  // the admin console polls provisioningStatus for the outcome. No idempotency
+  // key: this endpoint is also the retry path, so each call must enqueue.
+  await enqueue(tenantProvisionQueue, {
+    tenantId: tenant.id,
+    environments: envTypes as TenantEnvironmentType[],
+  });
 
   return NextResponse.json({ ok: true, provisioningStatus: 'IN_PROGRESS', environments: envTypes });
-}
-
-async function simulateProvisioning(tenantId: string, envTypes: Array<'DEV' | 'TEST' | 'PROD'>) {
-  // In production: enqueue a BullMQ job instead
-  await new Promise((r) => setTimeout(r, 5_000));
-  try {
-    await Promise.all(
-      envTypes.map((type) =>
-        adminDb.tenantEnvironment.update({
-          where: { tenantId_type: { tenantId, type } },
-          data: {
-            status: 'ACTIVE',
-            endpoint: `https://${type.toLowerCase()}.tenant-${tenantId.slice(0, 8)}.platform.example.com`,
-          },
-        }),
-      ),
-    );
-    await adminDb.tenant.update({
-      where: { id: tenantId },
-      data: { provisioningStatus: 'COMPLETED' },
-    });
-  } catch (err) {
-    await adminDb.tenant.update({
-      where: { id: tenantId },
-      data: {
-        provisioningStatus: 'FAILED',
-        provisioningError: String(err),
-      },
-    });
-  }
 }

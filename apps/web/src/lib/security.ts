@@ -1,4 +1,4 @@
-import { type NextResponse } from 'next/server';
+import type { NextResponse } from 'next/server';
 
 /**
  * Apply security headers to a response.

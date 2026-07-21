@@ -1,3 +1,7 @@
+'use client';
+
+import { useSidebar } from './sidebar-context';
+
 interface TopbarProps {
   title: string;
   subtitle?: string;
@@ -9,6 +13,7 @@ interface TopbarProps {
 }
 
 export function Topbar({ title, subtitle, userEmail, userName, actions, breadcrumb }: TopbarProps) {
+  const { toggle } = useSidebar();
   const initials = userName
     ? userName
         .split(' ')
@@ -28,6 +33,22 @@ export function Topbar({ title, subtitle, userEmail, userName, actions, breadcru
         boxShadow: '0 1px 0 var(--border-light)',
       }}
     >
+      {/* Hamburger — mobile only, opens the sidebar drawer */}
+      <button
+        onClick={toggle}
+        className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border lg:hidden"
+        style={{ borderColor: 'var(--border-light)', color: 'var(--text-secondary)' }}
+        aria-label="Toggle navigation"
+      >
+        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+          <path
+            fillRule="evenodd"
+            d="M3 5.75A.75.75 0 0 1 3.75 5h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 5.75zM3 10a.75.75 0 0 1 .75-.75h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 10zm0 4.25a.75.75 0 0 1 .75-.75h12.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+
       {/* Left: breadcrumb + title */}
       <div className="min-w-0 flex-1">
         {breadcrumb && breadcrumb.length > 0 && (

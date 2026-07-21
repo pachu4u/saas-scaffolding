@@ -4,6 +4,7 @@ networks:
   platform:
     name: platform # exact name — matches Traefik's `providers.docker.network: platform`
     driver: bridge
+    external: true
 
 volumes:
   keycloak-db-data:
@@ -18,12 +19,16 @@ services:
     restart: unless-stopped
     networks:
       platform:
-        # auth.lvh.me is aliased here so server-side OIDC discovery from the web
-        # container routes through Traefik (HTTPS), not directly to Keycloak (HTTP).
-        # This ensures token iss=https://auth.lvh.me/... matches KEYCLOAK_ISSUER.
+        # Aliases so server-side OIDC discovery and token-exchange calls from the
+        # web container reach Keycloak/the app through Traefik (HTTPS) rather than
+        # directly to Keycloak (HTTP). Both the old *.lvh.me hostnames and the new
+        # *.techhanker.com public hostnames need to resolve inside Docker because
+        # KEYCLOAK_ISSUER and AUTH_URL now use techhanker.com.
         aliases:
           - auth.lvh.me
+          - auth.techhanker.com
           - app.lvh.me
+          - saas.techhanker.com
     ports:
       - '80:80'
       - '443:443'
@@ -32,6 +37,24 @@ services:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
       - ./traefik/certs:/etc/traefik/certs:ro
+      - ./traefik/acme:/etc/traefik/acme
+    env_file:
+      - ../../.env
+    environment:
+      - DOCKER_API_VERSION=1.44
+    # Use a custom Docker socket proxy to handle API version mismatch
+    # The host Docker API is 1.52 but Traefik expects 1.44+
+    # This is a workaround for the Docker client version mismatch
+    # command:
+    #   - /bin/sh
+    #   - -c
+    #   - |
+    #     # Start socat to proxy Docker API with compatible version
+    #     apt-get update && apt-get install -y socat 2>/dev/null || true
+    #     socat UNIX-LISTEN:/var/run/docker.sock.fork,mode=777,reuseaddr UNIX-CONNECT:/var/run/docker.sock &
+    #     sleep 1
+    #     # Run traefik with the forked socket
+    #     exec traefik --configFile=/etc/traefik/traefik.yml
     labels:
       - 'traefik.enable=true'
       - 'traefik.http.routers.dashboard.rule=Host(`traefik.lvh.me`)'
@@ -40,6 +63,61 @@ services:
       - 'traefik.http.routers.dashboard.service=api@internal'
       - 'traefik.http.routers.dashboard.middlewares=dashboard-auth'
       - 'traefik.http.middlewares.dashboard-auth.basicauth.users=admin:$$apr1$$H6uskkkW$$IgXLP6ewTrSuBkTrqE8wj/'
+
+  # ─── oauth2-proxy (auth gate for {slug}.techhanker.com tenant apps) ────────
+  # Traefik forwardAuth target for the riogentix-tenants routers (see
+  # traefik/dynamic/riogentix-tenants.yml). Unauthenticated visitors to any
+  # tenant subdomain are redirected to Keycloak; the session cookie is scoped
+  # to .techhanker.com so one login covers all tenant subdomains. The OAuth
+  # callback lands on the fixed host oauthproxy.techhanker.com because
+  # Keycloak only allows wildcards at the *end* of a redirect URI, not in the
+  # host — cross-subdomain return redirects are allowed via whitelist-domain.
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    container_name: oauth2-proxy
+    restart: unless-stopped
+    networks:
+      - platform
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    command:
+      - --http-address=0.0.0.0:4180
+      - --provider=oidc
+      - --provider-display-name=Keycloak
+      - --client-id=oauth2-proxy
+      - --client-secret=517ff84882c2ab974e5828605b800d209836634eec6afde5
+      - --code-challenge-method=S256
+      # Issuer must match the iss claim Keycloak puts in tokens (public URL,
+      # forced by KC_HOSTNAME_URL). Discovery is skipped so token redemption
+      # and JWKS fetches go straight to keycloak:8080 over the Docker network
+      # (avoids trusting the self-signed Traefik cert), while the browser-facing
+      # login URL stays public. Same split the web container uses.
+      - --oidc-issuer-url=https://auth.techhanker.com/realms/saas-platform
+      - --skip-oidc-discovery
+      - --login-url=https://auth.techhanker.com/realms/saas-platform/protocol/openid-connect/auth
+      - --redeem-url=http://keycloak:8080/realms/saas-platform/protocol/openid-connect/token
+      - --oidc-jwks-url=http://keycloak:8080/realms/saas-platform/protocol/openid-connect/certs
+      - --email-domain=*
+      - --redirect-url=https://oauthproxy.techhanker.com/oauth2/callback
+      - --whitelist-domain=.techhanker.com
+      - --cookie-secret=6cT9YjvOYyXGnYJDQEeeKKwAC--DT5VlbLfmQNcwpEA=
+      - --cookie-domain=.techhanker.com
+      - --cookie-secure=true
+      - --cookie-expire=12h
+      - --skip-provider-button=true
+      # forwardAuth mode: authenticated requests are "proxied" to a static 202,
+      # which Traefik treats as auth success.
+      - --upstream=static://202
+      - --reverse-proxy=true
+      - --set-xauthrequest=true
+      # Keep tenant /health probes reachable for uptime monitoring.
+      - --skip-auth-route=GET=^/health$
+    healthcheck:
+      test: ['CMD', '/bin/oauth2-proxy', '--version']
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   # ─── Test service (Phase 0 smoke-test, removed in Phase 2) ────────────────
   whoami:
@@ -87,7 +165,8 @@ services:
       KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: keycloak_secret
-      KC_HOSTNAME: auth.lvh.me
+      KC_HOSTNAME_URL: https://auth.techhanker.com
+      KC_HOSTNAME_ADMIN_URL: https://auth.techhanker.com
       KC_HOSTNAME_STRICT: false
       KC_PROXY: edge
       KC_HTTP_ENABLED: true
@@ -162,6 +241,18 @@ services:
       context: ../..
       dockerfile: infra/docker/web.Dockerfile
       target: runner
+      args:
+        - NEXT_PUBLIC_APP_URL=https://saas.techhanker.com
+        - DATABASE_URL=postgresql://postgres:postgres_secret@app-db:5432/saas_platform
+        - DATABASE_URL_MIGRATOR=postgresql://postgres:postgres_secret@app-db:5432/saas_platform
+        - KEYCLOAK_ISSUER=https://auth.techhanker.com/realms/saas-platform
+        - KEYCLOAK_CLIENT_ID=web
+        - KEYCLOAK_CLIENT_SECRET=saas-scaffolding-keycloak-secret
+        - AUTH_SECRET=saas-auth-secret-32-chars-min-abc123
+        - AUTH_URL=https://saas.techhanker.com
+        - REDIS_URL=redis://redis:6379
+        - PLATFORM_INTERNAL_SECRET=internal-secret-16-chars
+        - NODE_ENV=production
     container_name: web
     restart: unless-stopped
     networks:
@@ -183,16 +274,28 @@ services:
       DATABASE_URL: postgresql://postgres:postgres_secret@app-db:5432/saas_platform
       DATABASE_URL_MIGRATOR: postgresql://postgres:postgres_secret@app-db:5432/saas_platform
       REDIS_URL: redis://redis:6379
-      # auth.lvh.me aliases to Traefik on the platform network. Traefik terminates
-      # TLS and proxies to Keycloak with X-Forwarded-Proto:https headers, so
-      # Keycloak reports issuer=https://auth.lvh.me/... in its discovery doc.
-      # Tokens from browser auth will also have iss=https://auth.lvh.me/... so
-      # KEYCLOAK_ISSUER must be the HTTPS URL.
-      KEYCLOAK_ISSUER: https://auth.lvh.me/realms/saas-platform
+      # Route OIDC discovery through Traefik (HTTPS) via the auth.techhanker.com
+      # alias so Keycloak returns issuer=https://... in the discovery doc —
+      # matching the iss claim in tokens issued through Traefik. Direct HTTP to
+      # keycloak:8080 omits X-Forwarded-Proto, causing an http/https issuer
+      # mismatch that Auth.js surfaces as a Configuration error.
+      KEYCLOAK_ISSUER: https://auth.techhanker.com/realms/saas-platform
+      # Discovery goes via plain HTTP to keycloak:8080 (no TLS). Keycloak returns
+      # issuer=https://... because KC_HOSTNAME_URL forces the public URL in the
+      # discovery doc regardless of how Keycloak is accessed internally.
+      KEYCLOAK_INTERNAL_ISSUER: http://keycloak:8080/realms/saas-platform
       # Trust the mkcert CA so Node.js accepts the self-signed *.lvh.me TLS cert.
       NODE_EXTRA_CA_CERTS: /etc/ssl/certs/mkcert-rootCA.pem
-      AUTH_URL: https://app.lvh.me
-      NEXT_PUBLIC_APP_URL: https://app.lvh.me
+      AUTH_URL: https://saas.techhanker.com
+      NEXT_PUBLIC_APP_URL: https://saas.techhanker.com
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      KEYCLOAK_REALM: saas-platform
+      KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      RIOGENTIX_INTERNAL_URL: http://riogentix:7860
+      RIOGENTIX_INTERNAL_SECRET: ${RIOGENTIX_INTERNAL_SECRET:-riogentix-saas-internal-secret-dev}
+      RIOGENTIX_SAAS_INTERNAL_SECRET: ${RIOGENTIX_SAAS_INTERNAL_SECRET:-riogentix-saas-internal-secret-dev}
+      RIOGENTIX_PUBLIC_URL: https://riogentix.techhanker.com
     labels:
       - 'traefik.enable=true'
       - 'traefik.http.routers.web-app.rule=Host(`app.lvh.me`)'
@@ -231,4 +334,4 @@ services:
       # Override host-facing URLs with Docker-internal service hostnames
       DATABASE_URL: postgresql://postgres:postgres_secret@app-db:5432/saas_platform
       REDIS_URL: redis://redis:6379
-      KEYCLOAK_ISSUER: https://auth.lvh.me/realms/saas-platform
+      KEYCLOAK_ISSUER: https://auth.techhanker.com/realms/saas-platform

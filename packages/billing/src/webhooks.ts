@@ -1,16 +1,15 @@
-import type Stripe from 'stripe';
-
+import { env } from '@platform/config';
 import { adminDb } from '@platform/db';
 import type { Subscription } from '@platform/db';
 import { enqueue, planChangedQueue } from '@platform/jobs';
 import { logger } from '@platform/logger';
+import type Stripe from 'stripe';
 
 import { stripe } from './client.js';
-import { env } from '@platform/config';
 
 type SubscriptionStatus = Subscription['status'];
 
-const HANDLED_EVENTS: Set<Stripe.Event['type']> = new Set([
+const HANDLED_EVENTS = new Set<Stripe.Event['type']>([
   'customer.subscription.created',
   'customer.subscription.updated',
   'customer.subscription.deleted',
@@ -42,7 +41,7 @@ export async function processStripeEvent(rawBody: string, signature: string): Pr
   await adminDb.idempotencyKey.create({
     data: {
       key: `stripe:${event.id}`,
-      tenantId: (await getTenantIdFromEvent(event)) ?? '',
+      tenantId: getTenantIdFromEvent(event) ?? '',
       requestHash: event.id,
       expiresAt,
     },
@@ -54,11 +53,11 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
     event.type === 'customer.subscription.created' ||
     event.type === 'customer.subscription.updated'
   ) {
-    const sub = event.data.object as Stripe.Subscription;
-    const tenantId = sub.metadata['tenantId'];
+    const sub = event.data.object;
+    const tenantId = sub.metadata.tenantId;
     if (!tenantId) return;
 
-    const planCode = sub.metadata['planCode'] ?? 'free';
+    const planCode = sub.metadata.planCode ?? 'free';
     const plan = await adminDb.plan.findUnique({ where: { code: planCode } });
     if (!plan) return;
 
@@ -90,13 +89,13 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
   }
 
   if (event.type === 'customer.subscription.deleted') {
-    const sub = event.data.object as Stripe.Subscription;
-    const tenantId = sub.metadata['tenantId'];
+    const sub = event.data.object;
+    const tenantId = sub.metadata.tenantId;
     if (!tenantId) return;
 
     await adminDb.subscription.update({
       where: { tenantId },
-      data: { status: 'CANCELED' as SubscriptionStatus },
+      data: { status: 'CANCELED' },
     });
 
     await enqueue(planChangedQueue, {
@@ -118,13 +117,13 @@ function mapStripeStatus(status: Stripe.Subscription.Status): SubscriptionStatus
     incomplete_expired: 'CANCELED',
     paused: 'PAUSED',
   };
-  return map[status] ?? 'ACTIVE';
+  return map[status];
 }
 
-async function getTenantIdFromEvent(event: Stripe.Event): Promise<string | null> {
+function getTenantIdFromEvent(event: Stripe.Event): string | null {
   if ('metadata' in event.data.object) {
     const obj = event.data.object as { metadata?: Record<string, string> };
-    return obj.metadata?.['tenantId'] ?? null;
+    return obj.metadata?.tenantId ?? null;
   }
   return null;
 }

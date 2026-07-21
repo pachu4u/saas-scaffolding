@@ -22,8 +22,14 @@
   "ssoSessionMaxLifespan": 36000,
   "roles": {
     "realm": [
-      { "name": "platform_super_admin", "description": "Full platform access" },
-      { "name": "platform_support", "description": "Read-only platform support access" }
+      {
+        "name": "platform_super_admin",
+        "description": "Full platform access"
+      },
+      {
+        "name": "platform_support",
+        "description": "Read-only platform support access"
+      }
     ]
   },
   "groups": [
@@ -38,6 +44,12 @@
       "attributes": {
         "tenant_slug": ["globex"]
       }
+    },
+    {
+      "name": "platform_super_admin"
+    },
+    {
+      "name": "platform_support"
     }
   ],
   "clients": [
@@ -46,17 +58,30 @@
       "name": "SaaS Platform Web",
       "enabled": true,
       "publicClient": false,
-      "secret": "change-me-keycloak-secret",
+      "secret": "saas-scaffolding-keycloak-secret",
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "authorizationServicesEnabled": false,
-      "redirectUris": ["https://app.lvh.me/*", "https://*.lvh.me/*", "http://localhost:3000/*"],
-      "webOrigins": ["https://app.lvh.me", "https://*.lvh.me", "http://localhost:3000"],
+      "redirectUris": [
+        "https://app.lvh.me/*",
+        "https://*.lvh.me/*",
+        "http://localhost:3000/*",
+        "https://saas.techhanker.com/*",
+        "https://*.techhanker.com/*"
+      ],
+      "webOrigins": [
+        "https://app.lvh.me",
+        "https://*.lvh.me",
+        "http://localhost:3000",
+        "https://saas.techhanker.com",
+        "https://*.techhanker.com"
+      ],
       "protocol": "openid-connect",
       "attributes": {
         "access.token.lifespan": "300",
-        "pkce.code.challenge.method": "S256"
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://saas.techhanker.com/auth/signin##https://saas.techhanker.com/*##https://*.techhanker.com/*##https://app.lvh.me/*##https://*.lvh.me/*##http://localhost:3000/*"
       },
       "protocolMappers": [
         {
@@ -83,6 +108,96 @@
             "included.client.audience": "web",
             "id.token.claim": "false",
             "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "saas_plan",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "saas_plan",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "saas_plan",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "saas_role",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "saas_role",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "saas_role",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "saas_tenant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "saas_tenant_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "saas_tenant_id",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "usage_locked",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "usage_locked",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "usage_locked",
+            "jsonType.label": "boolean"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "oauth2-proxy",
+      "name": "Tenant Subdomain Auth Gate (oauth2-proxy)",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "517ff84882c2ab974e5828605b800d209836634eec6afde5",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "redirectUris": ["https://oauthproxy.techhanker.com/oauth2/callback"],
+      "webOrigins": ["https://oauthproxy.techhanker.com"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://oauthproxy.techhanker.com/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups",
+            "jsonType.label": "String",
+            "multivalued": "true"
           }
         }
       ]
@@ -115,7 +230,13 @@
         }
       ],
       "groups": ["acme"],
-      "realmRoles": []
+      "realmRoles": [],
+      "attributes": {
+        "saas_plan": ["pro"],
+        "saas_role": ["admin"],
+        "saas_tenant_id": ["acme"],
+        "usage_locked": ["false"]
+      }
     },
     {
       "username": "bob",
@@ -132,7 +253,13 @@
         }
       ],
       "groups": ["globex"],
-      "realmRoles": []
+      "realmRoles": [],
+      "attributes": {
+        "saas_plan": ["free"],
+        "saas_role": ["developer"],
+        "saas_tenant_id": ["globex"],
+        "usage_locked": ["false"]
+      }
     },
     {
       "username": "platform-admin",
@@ -148,7 +275,7 @@
           "temporary": false
         }
       ],
-      "groups": [],
+      "groups": ["platform_super_admin"],
       "realmRoles": ["platform_super_admin"]
     }
   ],

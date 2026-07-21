@@ -1,6 +1,5 @@
-import { Resend } from 'resend';
-
 import { env } from '@platform/config';
+import { Resend } from 'resend';
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 
@@ -41,5 +40,12 @@ function renderTemplate(templateId: string, data: Record<string, unknown>): stri
   };
 
   const template = templates[templateId] ?? `<p>Notification: ${templateId}</p>`;
-  return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => String(data[key] ?? ''));
+  return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => {
+    const value = data[key];
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+    return '';
+  });
 }

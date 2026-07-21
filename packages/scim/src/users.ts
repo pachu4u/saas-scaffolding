@@ -1,7 +1,7 @@
 import { adminDb, withTenant } from '@platform/db';
 import { auditLog } from '@platform/logger/audit';
 
-import { SCIM_SCHEMAS, type ScimUser } from './types';
+import { SCIM_SCHEMAS, type ScimUser } from './types.js';
 
 export function toScimUser(
   user: { id: string; externalId: string; email: string; createdAt: Date; updatedAt: Date },
@@ -91,7 +91,7 @@ export async function scimCreateUser(
         userId: user.id,
         idp: 'scim',
         idpUserId: data.externalId,
-        raw: data as object,
+        raw: data,
       },
     });
   }

@@ -2,8 +2,8 @@
 
 import {
   type ChangeEvent,
-  type FormEvent,
   type MouseEvent,
+  type SyntheticEvent,
   useRef,
   useState,
   useTransition,
@@ -42,7 +42,7 @@ export function AddWebhookModal({ onClose, onSuccess }: AddWebhookModalProps) {
     );
   }
 
-  function handleSubmit(e: FormEvent) {
+  function handleSubmit(e: SyntheticEvent) {
     e.preventDefault();
     setError(null);
 
@@ -126,7 +126,9 @@ export function AddWebhookModal({ onClose, onSuccess }: AddWebhookModalProps) {
               <input
                 type="url"
                 value={url}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                  setUrl(e.target.value);
+                }}
                 placeholder="https://example.com/webhooks"
                 required
                 className="focus:border-brand-primary w-full rounded-xl border px-4 py-2.5 font-mono text-sm outline-none transition-colors"
@@ -165,7 +167,9 @@ export function AddWebhookModal({ onClose, onSuccess }: AddWebhookModalProps) {
                       <input
                         type="checkbox"
                         checked={checked}
-                        onChange={() => toggleEvent(event.id)}
+                        onChange={() => {
+                          toggleEvent(event.id);
+                        }}
                         className="sr-only"
                       />
                       <div

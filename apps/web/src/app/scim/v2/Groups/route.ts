@@ -1,14 +1,13 @@
-import { type NextRequest, NextResponse } from 'next/server';
-
 import {
   authenticateScim,
   SCIM_SCHEMAS,
   scimCreateGroup,
   scimGetGroups,
   toScimGroup,
-} from '@platform/scim';
+} from '@platform/scim/server';
+import { type NextRequest, NextResponse } from 'next/server';
 
-const BASE_URL = process.env['NEXT_PUBLIC_APP_URL'] ?? 'https://app.lvh.me';
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.lvh.me';
 
 function scimError(status: number, detail: string, scimType?: string) {
   return NextResponse.json(
@@ -58,13 +57,13 @@ export async function POST(req: NextRequest) {
   if (!ctx) return scimError(401, 'Unauthorized');
 
   const body = (await req.json()) as Record<string, unknown>;
-  const displayName = body['displayName'] as string | undefined;
+  const displayName = body.displayName as string | undefined;
 
   if (!displayName || typeof displayName !== 'string') {
     return scimError(400, 'displayName is required', 'invalidValue');
   }
 
-  const members = (body['members'] as Array<{ value: string }> | undefined) ?? [];
+  const members = (body.members as { value: string }[] | undefined) ?? [];
   const tenantSlug = req.headers.get('x-tenant-slug') ?? 'app';
   const scimBase = BASE_URL.replace('app.', `${tenantSlug}.`);
 

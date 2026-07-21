@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers/auth';
+import { signIn, TEST_USER_EMAIL, TEST_USER_PASSWORD } from './helpers/auth';
 
 /**
  * Team management E2E tests.
@@ -15,7 +15,7 @@ import { signIn } from './helpers/auth';
 
 test.describe('Team management', () => {
   test.beforeEach(async ({ page }) => {
-    await signIn(page);
+    await signIn(page, TEST_USER_EMAIL, TEST_USER_PASSWORD);
   });
 
   // ── Team list ──────────────────────────────────────────────────────────────
@@ -40,13 +40,18 @@ test.describe('Team management', () => {
 
   // ── Invite modal ───────────────────────────────────────────────────────────
 
+  // The invite modal is a plain styled <div> overlay — it has no role="dialog"
+  // and its email input's placeholder/label aren't programmatically
+  // associated, so these tests target the modal's actual heading and the
+  // input by type instead.
+
   test('invite modal opens', async ({ page }) => {
     await page.goto('/team');
     await page.waitForLoadState('networkidle');
 
     await page.getByRole('button', { name: /invite/i }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
-    await expect(page.getByPlaceholder(/email/i)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Invite team member' })).toBeVisible();
+    await expect(page.locator('input[type="email"]')).toBeVisible();
   });
 
   test('invite modal closes on cancel', async ({ page }) => {
@@ -55,7 +60,7 @@ test.describe('Team management', () => {
 
     await page.getByRole('button', { name: /invite/i }).click();
     await page.getByRole('button', { name: /cancel/i }).click();
-    await expect(page.getByRole('dialog')).not.toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Invite team member' })).not.toBeVisible();
   });
 
   test('invite modal — send invite calls API', async ({ page }) => {
@@ -72,11 +77,8 @@ test.describe('Team management', () => {
     await page.waitForLoadState('networkidle');
 
     await page.getByRole('button', { name: /invite/i }).click();
-    await page.getByPlaceholder(/email/i).fill('newmember@example.com');
-    await page
-      .getByRole('button', { name: /send invite|invite/i })
-      .last()
-      .click();
+    await page.locator('input[type="email"]').fill('newmember@example.com');
+    await page.getByRole('button', { name: /^send invite$/i }).click();
 
     await page.waitForTimeout(500);
     expect(inviteCalled).toBe(true);
@@ -87,14 +89,11 @@ test.describe('Team management', () => {
     await page.waitForLoadState('networkidle');
 
     await page.getByRole('button', { name: /invite/i }).click();
-    await page.getByPlaceholder(/email/i).fill('not-an-email');
-    await page
-      .getByRole('button', { name: /send invite|invite/i })
-      .last()
-      .click();
+    const emailInput = page.locator('input[type="email"]');
+    await emailInput.fill('not-an-email');
+    await page.getByRole('button', { name: /^send invite$/i }).click();
 
     // HTML5 validation or custom error should fire
-    const emailInput = page.getByPlaceholder(/email/i);
     const validationMessage = await emailInput.evaluate(
       (el: HTMLInputElement) => el.validationMessage,
     );
@@ -107,14 +106,20 @@ test.describe('Team management', () => {
     await page.goto('/team/roles');
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByRole('heading', { name: /roles/i })).toBeVisible();
+    // The page shares the parent "Team" Topbar — there's no separate "Roles"
+    // H1, just the "Roles & Permissions" nav tab and a "Permission Matrix"
+    // section heading.
+    await expect(page).toHaveTitle(/roles/i);
+    await expect(page.getByRole('heading', { name: 'Permission Matrix' })).toBeVisible();
   });
 
   test('role detail page renders for a valid role', async ({ page }) => {
     await page.goto('/team/roles');
     await page.waitForLoadState('networkidle');
 
-    const roleLinks = page.getByRole('link').filter({ hasText: /admin|member|owner/i });
+    // Match by href pattern, not text — the sidebar's "Members" nav link
+    // (href="/team") also matches a text filter like /member/i.
+    const roleLinks = page.locator('a[href^="/team/roles/"]');
     const count = await roleLinks.count();
     if (count === 0) {
       test.skip(count === 0, 'No roles listed');
@@ -130,15 +135,15 @@ test.describe('Team management', () => {
     await page.goto('/team');
     await page.waitForLoadState('networkidle');
 
-    // Look for a role dropdown or change-role button
-    const changeRoleBtn = page.getByRole('button', { name: /change role/i });
+    // The button is labelled "Edit role" in the UI.
+    const changeRoleBtn = page.getByRole('button', { name: /edit role/i });
     if ((await changeRoleBtn.count()) === 0) {
-      test.skip(true, 'No change role button visible');
+      test.skip(true, 'No edit role button visible');
       return;
     }
 
     await changeRoleBtn.first().click();
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Change role' })).toBeVisible();
   });
 
   // ── Invite token acceptance ────────────────────────────────────────────────
@@ -160,14 +165,15 @@ test.describe('Team management', () => {
   test('POST /api/team/invite returns 400 for missing email', async ({ request }) => {
     const response = await request.post('/api/team/invite', {
       data: {},
+      maxRedirects: 0,
     });
-    expect(response.status()).toBeOneOf([400, 401, 403, 422]);
+    expect([307, 400, 401, 403, 422]).toContain(response.status());
   });
 
   test('GET /api/team/invite/[token]/accept redirects appropriately', async ({ request }) => {
     const response = await request.get('/api/team/invite/bad-token/accept', {
       maxRedirects: 0,
     });
-    expect(response.status()).toBeOneOf([302, 307, 400, 401, 404]);
+    expect([302, 307, 400, 401, 404]).toContain(response.status());
   });
 });

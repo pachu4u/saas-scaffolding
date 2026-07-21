@@ -2,9 +2,9 @@ import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
 
-import { Topbar } from '@/components/layout/topbar';
 import { AdminTenantsTable } from '@/components/admin/admin-tenants-table';
 import { CreateTenantButton } from '@/components/admin/create-tenant-button';
+import { Topbar } from '@/components/layout/topbar';
 
 export const metadata = { title: 'Tenants — Admin' };
 
@@ -30,7 +30,7 @@ export default async function AdminTenantsPage() {
     users: t._count.tenantUsers,
     status: t.status,
     createdAt: t.createdAt.toISOString(),
-    lastActivity: t.auditLogs[0]?.occurredAt?.toISOString() ?? null,
+    lastActivity: t.auditLogs[0]?.occurredAt.toISOString() ?? null,
     customDomains: t.customDomains,
   }));
 

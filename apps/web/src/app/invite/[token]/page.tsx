@@ -1,10 +1,9 @@
+import { adminDb } from '@platform/db';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
-import { adminDb } from '@platform/db';
-
-import { decodeInviteToken } from '@/app/api/team/invite/route';
+import { decodeInviteToken } from '@/lib/invite-token';
 
 export const metadata: Metadata = { title: 'Accept Invitation — riogentix' };
 
@@ -16,10 +15,12 @@ async function acceptInvite(token: string) {
   );
   const data = (await res.json()) as { success?: boolean; tenantSlug?: string | null };
   if (data.success) {
-    redirect(data.tenantSlug ? `/dashboard` : '/dashboard');
+    redirect(data.tenantSlug ? `/t/${data.tenantSlug}` : '/dashboard');
   }
 }
 
+// Next.js requires Server Actions to be async even with no real await.
+// eslint-disable-next-line @typescript-eslint/require-await
 async function declineInvite(_token: string) {
   'use server';
   redirect('/');

@@ -1,13 +1,13 @@
 import { adminDb } from '@platform/db';
 import { auditLog } from '@platform/logger/audit';
 
-import { SCIM_SCHEMAS, type ScimGroup, type ScimPatchOp } from './types';
+import { SCIM_SCHEMAS, type ScimGroup, type ScimPatchOp } from './types.js';
 
 export function toScimGroup(
   role: {
     id: string;
     name: string;
-    bindings: Array<{ userId: string; user: { email: string } }>;
+    bindings: { userId: string; user: { email: string } }[];
   },
   baseUrl: string,
 ): ScimGroup {
@@ -67,7 +67,7 @@ export async function scimGetGroup(tenantId: string, groupId: string) {
 
 export async function scimCreateGroup(
   tenantId: string,
-  data: { displayName: string; members?: Array<{ value: string }> },
+  data: { displayName: string; members?: { value: string }[] },
   actorUserId?: string,
 ) {
   const role = await adminDb.role.create({
@@ -137,7 +137,7 @@ export async function scimPatchGroup(
     if (op.path === 'members' || op.path === 'members.$ref') {
       const members = (
         Array.isArray(op.value) ? op.value : op.value !== undefined ? [op.value] : []
-      ) as Array<{ value: string }>;
+      ) as { value: string }[];
 
       if (lowerOp === 'add') {
         await adminDb.roleBinding.createMany({

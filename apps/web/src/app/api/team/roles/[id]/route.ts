@@ -1,8 +1,8 @@
+import { Permission, withAuthz } from '@platform/authz';
+import { adminDb, appendSyncOutbox, withPlatformAdmin } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
-import { auth } from '@platform/auth';
-import { adminDb, withPlatformAdmin } from '@platform/db';
-import { resolveTenant } from '@platform/tenant';
+import { enqueueRoleSync } from '@/lib/role-sync';
 
 export const runtime = 'nodejs';
 
@@ -10,115 +10,125 @@ export const runtime = 'nodejs';
  * PATCH /api/team/roles/[id]
  * Body: { permissions: string[] }
  * Updates the permission set of a custom role. System roles cannot be modified.
+ * Requires USERS_UPDATE — editing a role's permissions changes what every
+ * member holding that role can do.
  */
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export const PATCH = withAuthz<{ params: Promise<{ id: string }> }>(
+  { permission: Permission.USERS_UPDATE },
+  async (req: NextRequest, { authz, params }) => {
+    const { id: roleId } = await params;
 
-  const tenantSlug = req.headers.get('x-tenant-slug');
-  if (!tenantSlug) return NextResponse.json({ error: 'No tenant context' }, { status: 400 });
+    const role = await adminDb.role.findFirst({
+      where: { id: roleId, tenantId: authz.tenantId },
+    });
 
-  const tenantCtx = await resolveTenant(tenantSlug);
-  if (!tenantCtx) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-
-  const { id } = await params;
-  const role = await adminDb.role.findFirst({
-    where: { id, tenantId: tenantCtx.tenantId },
-  });
-
-  if (!role) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (role.isSystem) {
-    return NextResponse.json({ error: 'System roles cannot be modified' }, { status: 403 });
-  }
-
-  const body = (await req.json()) as { permissions?: string[]; name?: string };
-  const { permissions } = body;
-
-  if (!Array.isArray(permissions)) {
-    return NextResponse.json({ error: 'permissions array is required' }, { status: 422 });
-  }
-
-  const updated = await withPlatformAdmin(async (tx) => {
-    // Resolve permission IDs
-    const permRecords = permissions.length
-      ? await tx.permission.findMany({ where: { code: { in: permissions } } })
-      : [];
-
-    // Replace all permissions: delete then create
-    await tx.rolePermission.deleteMany({ where: { roleId: id } });
-    if (permRecords.length) {
-      await tx.rolePermission.createMany({
-        data: permRecords.map((p) => ({ roleId: id, permissionId: p.id })),
-      });
+    if (!role) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (role.isSystem) {
+      return NextResponse.json({ error: 'System roles cannot be modified' }, { status: 403 });
     }
 
-    await tx.auditLog.create({
-      data: {
-        tenantId: tenantCtx.tenantId,
-        actorUserId: session.user.id,
-        action: 'role.updated',
-        resourceType: 'Role',
-        resourceId: id,
-        after: { permissions },
-      },
+    const body = (await req.json()) as { permissions?: string[]; name?: string };
+    const { permissions } = body;
+
+    if (!Array.isArray(permissions)) {
+      return NextResponse.json({ error: 'permissions array is required' }, { status: 422 });
+    }
+
+    // A tenant can never grant PLATFORM_ADMIN through a custom role.
+    const requestedPermissions = permissions.filter((p) => p !== Permission.PLATFORM_ADMIN);
+
+    const updated = await withPlatformAdmin(async (tx) => {
+      // Resolve permission IDs
+      const permRecords = requestedPermissions.length
+        ? await tx.permission.findMany({ where: { code: { in: requestedPermissions } } })
+        : [];
+
+      // Replace all permissions: delete then create
+      await tx.rolePermission.deleteMany({ where: { roleId } });
+      if (permRecords.length) {
+        await tx.rolePermission.createMany({
+          data: permRecords.map((p) => ({ roleId, permissionId: p.id })),
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          tenantId: authz.tenantId,
+          actorUserId: authz.user.id,
+          action: 'role.updated',
+          resourceType: 'Role',
+          resourceId: roleId,
+          after: { permissions: requestedPermissions },
+        },
+      });
+
+      await appendSyncOutbox(tx, authz.tenantId, [{ resourceType: 'GROUP', resourceId: roleId }]);
+
+      return tx.role.findUnique({
+        where: { id: roleId },
+        include: { permissions: { include: { permission: { select: { code: true } } } } },
+      });
     });
 
-    return tx.role.findUnique({
-      where: { id },
-      include: { permissions: { include: { permission: { select: { code: true } } } } },
+    if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    // Members holding this role keep their binding but its permission set
+    // changed — push the refreshed definitions to the Riogentix instance.
+    await enqueueRoleSync(authz.tenantId);
+
+    return NextResponse.json({
+      id: updated.id,
+      name: updated.name,
+      permissions: updated.permissions.map((rp) => rp.permission.code),
     });
-  });
-
-  if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
-  return NextResponse.json({
-    id: updated.id,
-    name: updated.name,
-    permissions: updated.permissions.map((rp) => rp.permission.code),
-  });
-}
+  },
+);
 
 /**
  * DELETE /api/team/roles/[id]
  * Deletes a custom (non-system) role and removes all bindings.
+ * Requires USERS_UPDATE, same as editing a role's permissions.
  */
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export const DELETE = withAuthz<{ params: Promise<{ id: string }> }>(
+  { permission: Permission.USERS_UPDATE },
+  async (req: NextRequest, { authz, params }) => {
+    const { id: roleId } = await params;
 
-  const tenantSlug = req.headers.get('x-tenant-slug');
-  if (!tenantSlug) return NextResponse.json({ error: 'No tenant context' }, { status: 400 });
-
-  const tenantCtx = await resolveTenant(tenantSlug);
-  if (!tenantCtx) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-
-  const { id } = await params;
-  const role = await adminDb.role.findFirst({
-    where: { id, tenantId: tenantCtx.tenantId },
-  });
-
-  if (!role) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (role.isSystem) {
-    return NextResponse.json({ error: 'System roles cannot be deleted' }, { status: 403 });
-  }
-
-  await withPlatformAdmin(async (tx) => {
-    // Remove all bindings first, then permissions, then the role
-    await tx.roleBinding.deleteMany({ where: { roleId: id, tenantId: tenantCtx.tenantId } });
-    await tx.rolePermission.deleteMany({ where: { roleId: id } });
-    await tx.role.delete({ where: { id } });
-
-    await tx.auditLog.create({
-      data: {
-        tenantId: tenantCtx.tenantId,
-        actorUserId: session.user.id,
-        action: 'role.deleted',
-        resourceType: 'Role',
-        resourceId: id,
-        before: { name: role.name },
-      },
+    const role = await adminDb.role.findFirst({
+      where: { id: roleId, tenantId: authz.tenantId },
     });
-  });
 
-  return new NextResponse(null, { status: 204 });
-}
+    if (!role) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (role.isSystem) {
+      return NextResponse.json({ error: 'System roles cannot be deleted' }, { status: 403 });
+    }
+
+    await withPlatformAdmin(async (tx) => {
+      // Remove all bindings first, then permissions, then the role
+      await tx.roleBinding.deleteMany({ where: { roleId, tenantId: authz.tenantId } });
+      await tx.rolePermission.deleteMany({ where: { roleId } });
+      await tx.role.delete({ where: { id: roleId } });
+
+      await tx.auditLog.create({
+        data: {
+          tenantId: authz.tenantId,
+          actorUserId: authz.user.id,
+          action: 'role.deleted',
+          resourceType: 'Role',
+          resourceId: roleId,
+          before: { name: role.name },
+        },
+      });
+
+      await appendSyncOutbox(tx, authz.tenantId, [
+        { resourceType: 'GROUP', resourceId: roleId, op: 'DELETE' },
+      ]);
+    });
+
+    // Deleting the role removed its bindings — sync so the Riogentix instance
+    // drops the corresponding assignments too.
+    await enqueueRoleSync(authz.tenantId);
+
+    return new NextResponse(null, { status: 204 });
+  },
+);

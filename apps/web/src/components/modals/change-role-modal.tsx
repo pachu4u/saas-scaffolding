@@ -2,6 +2,8 @@
 
 import { useRef, useState, useTransition } from 'react';
 
+import { useTenantRoles } from '@/lib/use-tenant-roles';
+
 interface Member {
   userId: string;
   name: string;
@@ -11,33 +13,13 @@ interface Member {
 
 interface ChangeRoleModalProps {
   member: Member;
+  tenantSlug?: string;
   onClose: () => void;
   onSuccess?: () => void;
 }
 
-const ROLES = [
-  { id: 'tenant_admin', name: 'Admin', description: 'Full workspace control', color: '#B06CFF' },
-  {
-    id: 'tenant_billing_admin',
-    name: 'Billing Admin',
-    description: 'Billing management only',
-    color: 'var(--brand-primary)',
-  },
-  {
-    id: 'tenant_user',
-    name: 'Member',
-    description: 'Standard access',
-    color: 'var(--text-secondary)',
-  },
-  {
-    id: 'tenant_viewer',
-    name: 'Viewer',
-    description: 'Read-only access',
-    color: 'var(--text-muted)',
-  },
-];
-
-export function ChangeRoleModal({ member, onClose, onSuccess }: ChangeRoleModalProps) {
+export function ChangeRoleModal({ member, tenantSlug, onClose, onSuccess }: ChangeRoleModalProps) {
+  const { roleOptions } = useTenantRoles(tenantSlug);
   const [selectedRole, setSelectedRole] = useState(member.currentRole);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +29,7 @@ export function ChangeRoleModal({ member, onClose, onSuccess }: ChangeRoleModalP
     if (e.target === overlayRef.current) onClose();
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     if (selectedRole === member.currentRole) {
       onClose();
@@ -146,7 +128,12 @@ export function ChangeRoleModal({ member, onClose, onSuccess }: ChangeRoleModalP
                 Select role
               </label>
               <div className="space-y-2">
-                {ROLES.map((role) => {
+                {!roleOptions && (
+                  <p className="px-1 py-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    Loading roles…
+                  </p>
+                )}
+                {roleOptions?.map((role) => {
                   const isSelected = selectedRole === role.id;
                   const isCurrent = member.currentRole === role.id;
                   return (
@@ -167,7 +154,9 @@ export function ChangeRoleModal({ member, onClose, onSuccess }: ChangeRoleModalP
                         name="role"
                         value={role.id}
                         checked={isSelected}
-                        onChange={() => setSelectedRole(role.id)}
+                        onChange={() => {
+                          setSelectedRole(role.id);
+                        }}
                         className="sr-only"
                       />
                       <div
@@ -235,7 +224,7 @@ export function ChangeRoleModal({ member, onClose, onSuccess }: ChangeRoleModalP
             </button>
             <button
               type="submit"
-              disabled={isPending}
+              disabled={isPending || !roleOptions}
               className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               {isPending

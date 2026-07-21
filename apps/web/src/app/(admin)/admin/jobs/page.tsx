@@ -63,7 +63,9 @@ export default function AdminJobsPage() {
   useEffect(() => {
     void fetchData();
     const interval = setInterval(() => void fetchData(), 10_000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [fetchData]);
 
   function handleJobAction(queueName: string, jobId: string, action: 'retry' | 'discard') {
@@ -205,11 +207,13 @@ export default function AdminJobsPage() {
                 {/* DLQ button */}
                 {hasFailed && (
                   <button
-                    onClick={() => setExpandedQueue(isExpanded ? null : queue.name)}
+                    onClick={() => {
+                      setExpandedQueue(isExpanded ? null : queue.name);
+                    }}
                     className="flex-shrink-0 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors hover:bg-red-50"
                     style={{ borderColor: 'rgba(239,68,68,0.3)', color: '#ef4444' }}
                   >
-                    {isExpanded ? 'Hide DLQ' : `View DLQ (${queue.counts.failed})`}
+                    {isExpanded ? 'Hide DLQ' : `View DLQ (${String(queue.counts.failed)})`}
                   </button>
                 )}
               </div>
@@ -250,7 +254,9 @@ export default function AdminJobsPage() {
                           </div>
                           <div className="flex flex-shrink-0 gap-1.5">
                             <button
-                              onClick={() => handleJobAction(queue.name, job.id, 'retry')}
+                              onClick={() => {
+                                handleJobAction(queue.name, job.id, 'retry');
+                              }}
                               disabled={isPending}
                               className="rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors hover:bg-blue-50 disabled:opacity-50"
                               style={{
@@ -261,7 +267,9 @@ export default function AdminJobsPage() {
                               Retry
                             </button>
                             <button
-                              onClick={() => handleJobAction(queue.name, job.id, 'discard')}
+                              onClick={() => {
+                                handleJobAction(queue.name, job.id, 'discard');
+                              }}
                               disabled={isPending}
                               className="rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors hover:bg-red-50 disabled:opacity-50"
                               style={{ borderColor: 'rgba(239,68,68,0.3)', color: '#ef4444' }}

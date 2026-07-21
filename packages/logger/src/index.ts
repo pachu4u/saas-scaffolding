@@ -1,6 +1,5 @@
-import pino, { type Logger } from 'pino';
-
 import { env } from '@platform/config';
+import pino, { type Logger } from 'pino';
 
 // Prevent logging secrets even if accidentally passed
 const REDACT_PATHS = [

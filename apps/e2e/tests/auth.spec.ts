@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { signIn, TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD } from './helpers/auth';
+import { signIn, TEST_USER_EMAIL, TEST_USER_PASSWORD } from './helpers/auth';
 
 test.describe('Authentication', () => {
   test('redirects unauthenticated users to sign-in', async ({ page }) => {
@@ -20,19 +20,23 @@ test.describe('Authentication', () => {
   });
 
   test('full sign-in flow redirects to dashboard', async ({ page }) => {
-    await signIn(page, TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD);
+    // Platform admins always redirect to /admin, never /dashboard — use a
+    // regular tenant user to test the dashboard-bound flow.
+    await signIn(page, TEST_USER_EMAIL, TEST_USER_PASSWORD);
     await expect(page).toHaveURL(/\/dashboard|\/onboarding/);
   });
 
   test('health endpoint returns 200 without auth', async ({ request }) => {
-    const response = await request.get('/api/health');
+    // /api/health intentionally requires auth — the real public liveness
+    // probe (used by the Docker healthcheck) is /_health.
+    const response = await request.get('/_health');
     expect(response.status()).toBe(200);
-    const body = (await response.json()) as { status: string };
-    expect(body.status).toBe('ok');
+    const body = (await response.json()) as { ok: boolean };
+    expect(body.ok).toBe(true);
   });
 
   test('ready endpoint returns 200 without auth', async ({ request }) => {
     const response = await request.get('/_ready');
-    expect(response.status()).toBeOneOf([200, 503]);
+    expect([200, 503]).toContain(response.status());
   });
 });

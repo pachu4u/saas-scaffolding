@@ -4,6 +4,8 @@ ARG NODE_VERSION=20
 # ─── Stage 1: deps ───────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-alpine AS deps
 RUN corepack enable && corepack prepare pnpm@9.6.0 --activate
+# Install OpenSSL 3.x which is compatible with Prisma query engine on Alpine 3.23
+RUN apk add --no-cache openssl
 WORKDIR /app
 
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
@@ -14,6 +16,7 @@ COPY packages/jobs/package.json ./packages/jobs/
 COPY packages/logger/package.json ./packages/logger/
 COPY packages/notifications/package.json ./packages/notifications/
 COPY packages/billing/package.json ./packages/billing/
+COPY packages/scim/package.json ./packages/scim/
 
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
@@ -56,6 +59,7 @@ RUN pnpm --filter @platform/logger build
 RUN pnpm --filter @platform/jobs build
 RUN pnpm --filter @platform/notifications build
 RUN pnpm --filter @platform/billing build
+RUN pnpm --filter @platform/scim build
 RUN pnpm --filter @platform/workers build
 
 # ─── Stage 3: runner ─────────────────────────────────────────────────────────
@@ -72,7 +76,10 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-RUN apk add --no-cache openssl openssl1.1-compat 2>/dev/null || apk add --no-cache openssl
+# openssl1.1-compat provides libssl.so.1.1 as a fallback for any cached Prisma
+# engine that was compiled against OpenSSL 1.1 (until the pnpm cache refreshes).
+# Alpine 3.23 uses OpenSSL 3.x; the runner stage needs openssl only
+RUN apk add --no-cache openssl
 
 # node_modules — includes Prisma generated client, BullMQ, ioredis, etc.
 COPY --from=builder /app/node_modules ./node_modules
@@ -103,6 +110,10 @@ COPY --from=builder /app/packages/notifications/node_modules ./packages/notifica
 COPY --from=builder /app/packages/billing/package.json ./packages/billing/package.json
 COPY --from=builder /app/packages/billing/dist ./packages/billing/dist
 COPY --from=builder /app/packages/billing/node_modules ./packages/billing/node_modules
+
+COPY --from=builder /app/packages/scim/package.json ./packages/scim/package.json
+COPY --from=builder /app/packages/scim/dist ./packages/scim/dist
+COPY --from=builder /app/packages/scim/node_modules ./packages/scim/node_modules
 
 # Workers app: compiled output, package.json, and app-level node_modules
 # (bullmq lives here as a symlink into root .pnpm/ virtual store)

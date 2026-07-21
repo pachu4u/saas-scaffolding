@@ -1,5 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers/auth';
+import {
+  signIn,
+  signOut,
+  TEST_USER_EMAIL,
+  TEST_USER_PASSWORD,
+  TEST_ADMIN_EMAIL,
+  TEST_ADMIN_PASSWORD,
+} from './helpers/auth';
 
 /**
  * Audit log E2E tests.
@@ -15,7 +22,10 @@ import { signIn } from './helpers/auth';
 
 test.describe('Audit log', () => {
   test.beforeEach(async ({ page }) => {
-    await signIn(page);
+    // Most of these tests cover the tenant-scoped /audit page, which a
+    // platform admin is redirected away from — sign in as a tenant user.
+    // The one test that needs /admin/tenants signs in as admin itself.
+    await signIn(page, TEST_USER_EMAIL, TEST_USER_PASSWORD);
   });
 
   test('audit log page renders', async ({ page }) => {
@@ -58,7 +68,7 @@ test.describe('Audit log', () => {
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
 
-    const auditLink = page.getByRole('link', { name: /view full audit log|audit/i });
+    const auditLink = page.getByRole('link', { name: /view full audit log|audit/i }).first();
     if ((await auditLink.count()) > 0) {
       await auditLink.click();
       await expect(page).toHaveURL(/\/audit/);
@@ -95,10 +105,15 @@ test.describe('Audit log', () => {
   });
 
   test('audit log entries in admin tenant detail show resource info', async ({ page }) => {
+    // This test needs the platform admin console, not the tenant-scoped
+    // session from beforeEach — sign out first, since signIn() on an
+    // already-authenticated page just redirects without re-authenticating.
+    await signOut(page);
+    await signIn(page, TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD);
     await page.goto('/admin/tenants');
     await page.waitForLoadState('networkidle');
 
-    const viewLinks = page.getByRole('link', { name: 'View' });
+    const viewLinks = page.getByRole('link', { name: 'View', exact: true });
     if ((await viewLinks.count()) === 0) {
       test.skip(true, 'No tenants available');
       return;
