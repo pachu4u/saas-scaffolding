@@ -53,8 +53,13 @@ COPY tsconfig.base.json ./
 COPY apps/workers ./apps/workers
 COPY packages ./packages
 
+# Generate the Prisma client before building packages — @platform/logger (audit.ts)
+# and others import types from @platform/db, so the client must exist first.
+RUN pnpm --filter @platform/db db:generate
+
 # Build packages first (dependency order)
 RUN pnpm --filter @platform/config build
+RUN pnpm --filter @platform/db build
 RUN pnpm --filter @platform/logger build
 RUN pnpm --filter @platform/jobs build
 RUN pnpm --filter @platform/notifications build

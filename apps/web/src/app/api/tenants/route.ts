@@ -1,5 +1,6 @@
 import { auth } from '@platform/auth';
 import { adminDb, withPlatformAdmin } from '@platform/db';
+import { enqueue, tenantProvisionQueue, type TenantProvisionJob } from '@platform/jobs';
 import { type NextRequest, NextResponse } from 'next/server';
 
 /**
@@ -94,6 +95,30 @@ export async function POST(req: NextRequest) {
         select: { id: true, slug: true, name: true, status: true, plan: true, createdAt: true },
       });
     });
+
+    // Hand provisioning to the worker, same as /api/signup — without this,
+    // the tenant sits at provisioningStatus PENDING forever with no
+    // ConnectedAppInstance, and every connected-app tile shows "not
+    // provisioned". Enqueue failure is non-fatal: the tenant exists and the
+    // admin console can retry.
+    try {
+      const provisionJob: TenantProvisionJob = {
+        tenantId: tenant.id,
+        environments: ['PROD'],
+      };
+      await enqueue(tenantProvisionQueue, provisionJob, {
+        idempotencyKey: `tenant-provision:admin:${tenant.id}`,
+      });
+    } catch (err) {
+      console.warn('[POST /api/tenants] Failed to enqueue provisioning (non-fatal):', err);
+      await adminDb.tenant.update({
+        where: { id: tenant.id },
+        data: {
+          provisioningStatus: 'FAILED',
+          provisioningError: `Failed to enqueue provisioning: ${String(err)}`,
+        },
+      });
+    }
 
     return NextResponse.json(tenant, { status: 201 });
   } catch (err: unknown) {

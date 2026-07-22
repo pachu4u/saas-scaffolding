@@ -56,8 +56,13 @@ COPY tsconfig.base.json ./
 COPY apps/web ./apps/web
 COPY packages ./packages
 
-# Build packages first (dependency order) - skip db generate for now
+# Generate the Prisma client before building packages — @platform/logger (audit.ts)
+# and others import types from @platform/db, so the client must exist first.
+RUN pnpm --filter @platform/db db:generate
+
+# Build packages first (dependency order)
 RUN pnpm --filter @platform/config build
+RUN pnpm --filter @platform/db build
 RUN pnpm --filter @platform/logger build
 RUN pnpm --filter @platform/jobs build
 RUN pnpm --filter @platform/tenant build
@@ -102,6 +107,7 @@ COPY --from=builder --chown=nextjs:nextjs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nextjs /app/packages ./packages
 
 # Generate Prisma client in the runner stage where OpenSSL 1.1 compat is available
+RUN corepack enable && corepack prepare pnpm@9.6.0 --activate
 RUN pnpm --filter @platform/db db:generate
 
 # Next.js standalone output
