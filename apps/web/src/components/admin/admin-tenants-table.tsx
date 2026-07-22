@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 
-import { TenantStatusButton } from './tenant-status-button';
+import { TenantDeleteButton, TenantStatusButton } from './tenant-status-button';
 
 import { Badge } from '@/components/ui/badge';
 import { DataTable, type Column, type FilterConfig } from '@/components/ui/data-table';
@@ -151,6 +151,7 @@ const columns: Column<TenantRow>[] = [
           View
         </Link>
         <TenantStatusButton tenantId={row.id} currentStatus={row.status} />
+        <TenantDeleteButton tenantId={row.id} tenantName={row.name} currentStatus={row.status} />
       </div>
     ),
   },

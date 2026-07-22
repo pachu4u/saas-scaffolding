@@ -49,3 +49,47 @@ export function TenantStatusButton({
     </button>
   );
 }
+
+export function TenantDeleteButton({
+  tenantId,
+  tenantName,
+  currentStatus,
+}: {
+  tenantId: string;
+  tenantName: string;
+  currentStatus: string;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  if (currentStatus === 'DELETED') return null;
+
+  function handleClick() {
+    if (
+      !window.confirm(
+        `Delete tenant "${tenantName}"? This tears down its app/infrastructure. Tenant data is retained and this can't be undone from here.`,
+      )
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      await fetch(`/api/admin/tenants/${tenantId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete' }),
+      });
+      router.refresh();
+    });
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={isPending}
+      className="rounded-lg border border-red-200 bg-white px-2 py-1 text-xs text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
+      title="Delete tenant and tear down its app"
+    >
+      {isPending ? '…' : 'Delete'}
+    </button>
+  );
+}

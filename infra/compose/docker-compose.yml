@@ -224,11 +224,19 @@ services:
     restart: unless-stopped
     networks:
       - platform
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction --requirepass ${REDIS_PASSWORD:-CbOVe769kslw0TKTLUAyAVi0ViJIuzl}
     volumes:
       - redis-data:/data
+    # Published so the in-cluster tenant-provisioning workers pod (a separate
+    # node network namespace, no route to the `platform` docker network) can
+    # reach Redis via the host's address. Locked to private ranges + this
+    # host's own IP at the firewall (DOCKER-USER chain) — see infra/README or
+    # ops notes — plus requirepass, since this port was actively probed for
+    # the SLAVEOF replication-hijack RCE technique while open+unauthenticated.
+    ports:
+      - '6379:6379'
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD:-CbOVe769kslw0TKTLUAyAVi0ViJIuzl}', '--no-auth-warning', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -248,7 +256,7 @@ services:
         - KEYCLOAK_CLIENT_SECRET=saas-scaffolding-keycloak-secret
         - AUTH_SECRET=saas-auth-secret-32-chars-min-abc123
         - AUTH_URL=https://saas.techhanker.com
-        - REDIS_URL=redis://redis:6379
+        - REDIS_URL=redis://:${REDIS_PASSWORD:-CbOVe769kslw0TKTLUAyAVi0ViJIuzl}@redis:6379
         - PLATFORM_INTERNAL_SECRET=internal-secret-16-chars
         - NODE_ENV=production
     container_name: web
@@ -271,7 +279,7 @@ services:
       # Override host-facing URLs with Docker-internal service hostnames
       DATABASE_URL: postgresql://postgres:postgres_secret@app-db:5432/saas_platform
       DATABASE_URL_MIGRATOR: postgresql://postgres:postgres_secret@app-db:5432/saas_platform
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD:-CbOVe769kslw0TKTLUAyAVi0ViJIuzl}@redis:6379
       # Route OIDC discovery through Traefik (HTTPS) via the auth.techhanker.com
       # alias so Keycloak returns issuer=https://... in the discovery doc —
       # matching the iss claim in tokens issued through Traefik. Direct HTTP to
@@ -332,5 +340,5 @@ services:
       # Override host-facing URLs with Docker-internal service hostnames
       DATABASE_URL: postgresql://postgres:postgres_secret@app-db:5432/saas_platform
       DATABASE_URL_MIGRATOR: postgresql://postgres:postgres_secret@app-db:5432/saas_platform
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD:-CbOVe769kslw0TKTLUAyAVi0ViJIuzl}@redis:6379
       KEYCLOAK_ISSUER: https://auth.techhanker.com/realms/saas-platform

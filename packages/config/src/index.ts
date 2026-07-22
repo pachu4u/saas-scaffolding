@@ -74,6 +74,16 @@ const envSchema = z.object({
   // Hostname pods use to reach that Postgres server, when it differs from the
   // host in TENANT_PG_ADMIN_URL (defaults to the admin URL's host:port)
   TENANT_PG_HOST_FOR_PODS: z.string().optional(),
+  // Only the in-cluster workers Deployment (saas-platform/saas-workers) has a
+  // path to the k3s API (via its own ServiceAccount/ClusterRoleBinding) — an
+  // external `workers` process has no kubeconfig and would fail every
+  // tenant-provision/deprovision job it happened to pick up. Set to 'false'
+  // there so those two queues are only ever consumed by the pod that can
+  // actually act on them.
+  WORKER_ENABLE_TENANT_PROVISIONING: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
 
   // Keycloak admin (for user creation during signup)
   KEYCLOAK_INTERNAL_URL: z.string().url().optional(),

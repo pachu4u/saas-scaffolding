@@ -48,17 +48,26 @@ const workers = [
   makeWorker('webhook-outbound', (job) => handleWebhookOutbound(job as Job<WebhookOutboundJob>)),
   makeWorker('usage-rollup', (job) => handleUsageRollup(job as Job<UsageRollupJob>)),
   makeWorker('plan-changed', (job) => handlePlanChanged(job as Job<PlanChangedJob>)),
-  // Provisioning waits on pod readiness (minutes, not ms) — keep concurrency
-  // low so a burst of signups can't pin every worker slot on rollout waits.
-  makeWorker('tenant-provision', (job) => handleTenantProvision(job as Job<TenantProvisionJob>), 2),
-  makeWorker(
-    'tenant-deprovision',
-    (job) => handleTenantDeprovision(job as Job<TenantDeprovisionJob>),
-    2,
-  ),
   // Outbox drains are per-tenant converges — serialize them so two drains for
   // the same tenant can't interleave SCIM writes.
   makeWorker('app-sync', (job) => handleAppSync(job as Job<AppSyncJob>), 1),
+  ...(env.WORKER_ENABLE_TENANT_PROVISIONING
+    ? [
+        // Provisioning waits on pod readiness (minutes, not ms) — keep
+        // concurrency low so a burst of signups can't pin every worker slot
+        // on rollout waits.
+        makeWorker(
+          'tenant-provision',
+          (job) => handleTenantProvision(job as Job<TenantProvisionJob>),
+          2,
+        ),
+        makeWorker(
+          'tenant-deprovision',
+          (job) => handleTenantDeprovision(job as Job<TenantDeprovisionJob>),
+          2,
+        ),
+      ]
+    : []),
 ];
 
 logger.info('All workers registered. Listening for jobs...');

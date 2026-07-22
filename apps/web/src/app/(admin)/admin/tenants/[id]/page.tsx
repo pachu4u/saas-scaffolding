@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { redirect } from 'next/navigation';
 
 import { ProvisioningPanel } from '@/components/admin/provisioning-panel';
+import { TenantDeleteButton } from '@/components/admin/tenant-status-button';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 import { formatDate, timeAgo } from '@/lib/time';
@@ -178,6 +179,13 @@ export default async function AdminTenantDetailPage({
                     Reinstate tenant
                   </button>
                 </form>
+              )}
+              {tenant.status !== 'DELETED' && (
+                <TenantDeleteButton
+                  tenantId={tenant.id}
+                  tenantName={tenant.name}
+                  currentStatus={tenant.status}
+                />
               )}
             </div>
           </div>
