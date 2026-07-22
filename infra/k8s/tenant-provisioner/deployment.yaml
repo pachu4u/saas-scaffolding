@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: saas-workers
+  namespace: saas-platform
+  labels:
+    app.kubernetes.io/name: saas-workers
+    app.kubernetes.io/part-of: saas-platform
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: saas-workers
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: saas-workers
+    spec:
+      serviceAccountName: saas-workers
+      containers:
+        - name: workers
+          image: saas-platform-workers:k8s-deploy
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: saas-workers-env
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi

@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - rbac.yaml
+  - deployment.yaml
+
+images:
+  - name: saas-platform-workers
+    newTag: k8s-deploy # overridden by deploy.sh with the built image's git-sha tag

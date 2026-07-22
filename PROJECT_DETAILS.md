@@ -208,6 +208,12 @@ helm install saas-platform ./infra/helm/saas-platform -f ./infra/helm/saas-platf
 helm install saas-platform ./infra/helm/saas-platform -f ./infra/helm/saas-platform/values-prod.yaml
 ```
 
+**Note:** this chart is not what's actually running on the current
+single-host k3s cluster — that host runs everything via docker-compose
+except the tenant-provisioning worker, which needs real in-cluster access.
+See `docs/infra/tenant-provisioner.md` and `infra/k8s/tenant-provisioner/`
+for that component's manifests and deploy script.
+
 ---
 
 ## Multi-tenancy Architecture

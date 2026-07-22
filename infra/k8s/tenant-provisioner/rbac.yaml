@@ -1,0 +1,38 @@
+# Scope note: this grants create/delete on namespaces cluster-wide, which is
+# necessarily broad — provisioning a tenant means creating a new namespace,
+# and tearing one down means deleting it. It is NOT cluster-admin: it cannot
+# touch RBAC objects, nodes, CRDs, or any namespace's workloads beyond the
+# four resource kinds listed below. See docs/infra/tenant-provisioner.md.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: saas-tenant-provisioner
+  labels:
+    app.kubernetes.io/name: saas-workers
+    app.kubernetes.io/part-of: saas-platform
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces", "secrets", "services"]
+    verbs: ["get", "list", "create", "patch", "update", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "create", "patch", "update", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "create", "patch", "update", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: saas-tenant-provisioner
+  labels:
+    app.kubernetes.io/name: saas-workers
+    app.kubernetes.io/part-of: saas-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: saas-tenant-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: saas-workers
+    namespace: saas-platform
