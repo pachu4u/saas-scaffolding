@@ -224,7 +224,7 @@ services:
     restart: unless-stopped
     networks:
       - platform
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
     volumes:
       - redis-data:/data
     healthcheck:
