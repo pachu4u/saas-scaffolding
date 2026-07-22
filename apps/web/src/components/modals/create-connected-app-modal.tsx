@@ -79,11 +79,12 @@ export function CreateConnectedAppModal({ onClose }: CreateConnectedAppModalProp
       onClick={handleOverlayClick}
     >
       <div
-        className="w-full max-w-lg overflow-hidden rounded-xl border"
+        className="flex w-full max-w-lg flex-col overflow-hidden rounded-xl border"
         style={{
           background: 'var(--bg-white)',
           borderColor: 'var(--border-light)',
           boxShadow: 'var(--shadow-card)',
+          maxHeight: 'calc(90vh - 2rem)',
         }}
       >
         <div
@@ -114,8 +115,8 @@ export function CreateConnectedAppModal({ onClose }: CreateConnectedAppModalProp
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-5 px-6 py-5">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5" style={{ maxHeight: '60vh' }}>
             <div>
               <label
                 className="mb-1.5 block text-xs font-semibold"
