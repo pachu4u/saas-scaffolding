@@ -3,6 +3,7 @@ import { Permission, PLATFORM_ROLE_NAMES } from '@platform/authz';
 import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
 
+import { PlatformRoleMembers } from '@/components/admin/platform-role-members';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 import { PERMISSION_CATALOG } from '@/lib/permission-catalog';
@@ -40,6 +41,9 @@ export default async function AdminRolesPage() {
   const session = await auth();
   if (!session) redirect('/auth/signin');
 
+  const canManage =
+    Array.isArray(session.groups) && session.groups.includes('platform_super_admin');
+
   const roles = await adminDb.role.findMany({
     where: { tenantId: null, isSystem: true, name: { in: [...PLATFORM_ROLE_NAMES] } },
     include: {
@@ -73,7 +77,7 @@ export default async function AdminRolesPage() {
             color: 'var(--text-muted)',
           }}
         >
-          Membership in these roles is managed via Keycloak groups (
+          Membership in these roles comes from the{' '}
           <code
             className="rounded px-1 py-0.5 font-mono"
             style={{ background: 'var(--bg-subtle)', color: 'var(--brand-secondary)' }}
@@ -86,8 +90,11 @@ export default async function AdminRolesPage() {
             style={{ background: 'var(--bg-subtle)', color: 'var(--brand-secondary)' }}
           >
             platform_support
-          </code>
-          ), not from this app. This page shows what each role is permitted to do.
+          </code>{' '}
+          Keycloak groups.
+          {canManage
+            ? ' You can grant or revoke access below.'
+            : ' Only a platform super admin can grant or revoke access.'}
         </div>
 
         {/* Role cards */}
@@ -120,6 +127,7 @@ export default async function AdminRolesPage() {
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                   {meta.desc}
                 </p>
+                <PlatformRoleMembers role={role.name} canManage={canManage} />
               </div>
             );
           })}

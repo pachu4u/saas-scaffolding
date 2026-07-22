@@ -5,6 +5,8 @@ import { adminDb, appendSyncOutbox, withPlatformAdmin } from '@platform/db';
 import { enqueue, tenantProvisionQueue, type TenantProvisionJob } from '@platform/jobs';
 import { type NextRequest, NextResponse } from 'next/server';
 
+import { getKeycloakAdminToken } from '@/lib/keycloak-admin';
+
 export const runtime = 'nodejs';
 
 interface SignupBody {
@@ -16,32 +18,6 @@ interface SignupBody {
   plan?: string;
   primaryColor?: string;
   timezone?: string;
-}
-
-async function getKeycloakAdminToken(): Promise<string> {
-  const kcUrl = env.KEYCLOAK_INTERNAL_URL ?? env.KEYCLOAK_ISSUER.replace(/\/realms\/.*$/, '');
-  const username = env.KEYCLOAK_ADMIN_USERNAME ?? 'admin';
-  const password = env.KEYCLOAK_ADMIN_PASSWORD ?? '';
-
-  const res = await fetch(`${kcUrl}/realms/master/protocol/openid-connect/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'password',
-      client_id: 'admin-cli',
-      username,
-      password,
-    }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Keycloak admin token failed (${String(res.status)}): ${text}`);
-  }
-
-  const data = (await res.json()) as { access_token?: string };
-  if (!data.access_token) throw new Error('Keycloak admin token response missing access_token');
-  return data.access_token;
 }
 
 async function createKeycloakUser(
