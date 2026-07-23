@@ -137,7 +137,19 @@ export function renderService(spec: TenantStackSpec): V1Service {
   };
 }
 
+/**
+ * `app.{host}`, e.g. app.acme.techhanker.com — a dedicated, unprefixed host
+ * for Riogentix so it can be reached at root instead of `{host}/app`. Traefik
+ * routes this host straight to the k8s-ingress NodePort (see
+ * infra/compose/traefik/dynamic/acme-tenant-subdomains.yml for the acme
+ * example); ingress-nginx needs a matching rule here or it 404s the request.
+ */
+function appHost(spec: TenantStackSpec): string {
+  return `app.${spec.host}`;
+}
+
 export function renderIngress(spec: TenantStackSpec): V1Ingress {
+  const hosts = [spec.host, appHost(spec)];
   return {
     apiVersion: 'networking.k8s.io/v1',
     kind: 'Ingress',
@@ -154,22 +166,20 @@ export function renderIngress(spec: TenantStackSpec): V1Ingress {
       // TLS only when cert-manager issues a per-host cert; otherwise the
       // wildcard cert terminated at the ingress controller covers the host.
       ...(spec.certManagerIssuer && {
-        tls: [{ hosts: [spec.host], secretName: TLS_SECRET_NAME }],
+        tls: [{ hosts, secretName: TLS_SECRET_NAME }],
       }),
-      rules: [
-        {
-          host: spec.host,
-          http: {
-            paths: [
-              {
-                path: '/',
-                pathType: 'Prefix',
-                backend: { service: { name: SERVICE_NAME, port: { name: 'http' } } },
-              },
-            ],
-          },
+      rules: hosts.map((host) => ({
+        host,
+        http: {
+          paths: [
+            {
+              path: '/',
+              pathType: 'Prefix',
+              backend: { service: { name: SERVICE_NAME, port: { name: 'http' } } },
+            },
+          ],
         },
-      ],
+      })),
     },
   };
 }

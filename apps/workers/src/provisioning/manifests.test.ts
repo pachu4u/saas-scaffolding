@@ -118,23 +118,28 @@ describe('renderService', () => {
 });
 
 describe('renderIngress', () => {
-  it('routes the tenant host to the service with no TLS block by default', () => {
+  it('routes the tenant host and the app.{host} host to the service with no TLS block by default', () => {
     const ingress = renderIngress(spec());
-    const rule = ingress.spec?.rules?.[0];
-    expect(rule?.host).toBe('acme-co.example.com');
-    expect(rule?.http?.paths[0]?.backend.service?.name).toBe(SERVICE_NAME);
+    const rules = ingress.spec?.rules ?? [];
+    expect(rules.map((r) => r.host)).toEqual(['acme-co.example.com', 'app.acme-co.example.com']);
+    for (const rule of rules) {
+      expect(rule.http?.paths[0]?.backend.service?.name).toBe(SERVICE_NAME);
+    }
     expect(ingress.spec?.ingressClassName).toBe('nginx');
     // wildcard cert at the controller — the ingress itself carries no TLS
     expect(ingress.spec?.tls).toBeUndefined();
     expect(ingress.metadata?.annotations).toBeUndefined();
   });
 
-  it('adds cert-manager annotation + TLS block when an issuer is configured', () => {
+  it('adds cert-manager annotation + TLS block covering both hosts when an issuer is configured', () => {
     const ingress = renderIngress(spec({ certManagerIssuer: 'letsencrypt-prod' }));
     expect(ingress.metadata?.annotations).toEqual({
       'cert-manager.io/cluster-issuer': 'letsencrypt-prod',
     });
-    expect(ingress.spec?.tls?.[0]?.hosts).toEqual(['acme-co.example.com']);
+    expect(ingress.spec?.tls?.[0]?.hosts).toEqual([
+      'acme-co.example.com',
+      'app.acme-co.example.com',
+    ]);
   });
 });
 
