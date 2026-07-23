@@ -170,6 +170,15 @@
 - **Wire into:** "Create custom role" card on `/team/roles`.
 - **Acceptance:** Enter name + description â†’ select permissions â†’ save â†’ new role card appears.
 
+### M-8 Â· Wire HashiCorp Vault into tenant secret provisioning
+
+- **File:** `apps/workers/**/kubernetes-driver.ts` (`buildSpec()`)
+- **Problem:** Every tenant secret (DB password, `RIOGENTIX_INTERNAL_SECRET`, `RIOGENTIX_SAAS_INTERNAL_SECRET`) is generated with `randomBytes` and stored only as a base64-encoded k8s `Secret` â€” not encrypted at rest, no rotation, no audit trail.
+- **Already built, unused:** `packages/vault` â€” KV v2 client, token + AppRole auth, `TenantSecrets`/`PlatformSecrets` helpers. Nothing in `apps/workers` imports it today.
+- **Fix:** Generate/store/rotate secrets in Vault as source of truth; sync current values into the k8s `Secret` at provision time (pods still need env vars, can't call Vault directly at runtime).
+- **Tradeoff to account for:** adds Vault as a hard dependency for provisioning (down/sealed Vault stalls tenant creation); need a real running/unsealed Vault instance, not the dev "root" token fallback in `singleton.ts`.
+- **Status:** deferred â€” flagged 2026-07-23, do later.
+
 ---
 
 ## 🟢 Polish

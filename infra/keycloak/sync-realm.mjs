@@ -45,6 +45,22 @@ kcadm([
   adminPass,
 ]);
 
+// Realm-level settings (currently just the login theme) — same "file alone
+// doesn't apply to an existing realm" trap as client config, so push it the
+// same way. The brandingApiPath value itself lives on the "web" client's
+// attributes (see below, in the per-client loop), not here — Keycloak's
+// login-theme FreeMarker model exposes client.attributes but has no realm
+// attributes equivalent (see template.ftl for why).
+{
+  const sets = [];
+  if (realm.loginTheme) sets.push('-s', `loginTheme=${realm.loginTheme}`);
+  if (realm.accountTheme) sets.push('-s', `accountTheme=${realm.accountTheme}`);
+  if (sets.length > 0) {
+    kcadm(['update', `realms/${realm.realm}`, ...sets]);
+    console.log(`synced realm ${realm.realm} (theme)`);
+  }
+}
+
 for (const client of realm.clients ?? []) {
   const existing = JSON.parse(
     kcadm(['get', 'clients', '-r', realm.realm, '-q', `clientId=${client.clientId}`]),

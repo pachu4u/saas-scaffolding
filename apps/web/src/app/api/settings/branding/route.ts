@@ -4,6 +4,8 @@ import { adminDb } from '@platform/db';
 import { invalidateTenantCache } from '@platform/tenant';
 import { NextResponse } from 'next/server';
 
+import { enqueueRoleSync } from '@/lib/role-sync';
+
 export const runtime = 'nodejs';
 
 /**
@@ -79,6 +81,11 @@ export const PATCH = withAuthz(
 
     // Bust Redis cache so the new branding CSS is injected on the next page load
     await invalidateTenantCache(tenant.slug);
+
+    // Push the updated branding to the tenant's Riogentix instance (and any
+    // other connected app that cares) via the same outbox-driven convergence
+    // loop identity changes use — see convergeBranding in app-sync-targets.ts.
+    await enqueueRoleSync(tenantCtx.tenantId);
 
     await adminDb.auditLog.create({
       data: {

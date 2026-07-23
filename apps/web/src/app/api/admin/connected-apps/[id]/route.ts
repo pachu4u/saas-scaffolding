@@ -2,6 +2,8 @@ import { auth } from '@platform/auth';
 import { adminDb, type Prisma } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
+import { syncBrandingApiPathToKeycloak } from '@/lib/keycloak-admin';
+
 export const runtime = 'nodejs';
 
 function isPlatformAdmin(session: { groups?: unknown }): boolean {
@@ -120,7 +122,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     },
   });
 
-  return NextResponse.json({ id: app.id, slug: app.slug, name: app.name, status: app.status });
+  // Riogentix's brandingApiPath is Keycloak "web" client config (the login
+  // theme reads it to know where to fetch a tenant's branding from) — push
+  // it live so saving here is the only step, instead of a file edit that
+  // silently needs a separate re-sync to actually take effect.
+  let keycloakSyncError: string | null = null;
+  if (app.slug === 'riogentix' && body.config !== undefined) {
+    const brandingApiPath = body.config.brandingApiPath;
+    if (typeof brandingApiPath === 'string' && brandingApiPath.trim()) {
+      try {
+        await syncBrandingApiPathToKeycloak(brandingApiPath.trim());
+      } catch (err) {
+        keycloakSyncError = err instanceof Error ? err.message : String(err);
+      }
+    }
+  }
+
+  return NextResponse.json({
+    id: app.id,
+    slug: app.slug,
+    name: app.name,
+    status: app.status,
+    ...(keycloakSyncError && { keycloakSyncError }),
+  });
 }
 
 /**

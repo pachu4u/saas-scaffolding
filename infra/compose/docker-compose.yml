@@ -177,6 +177,7 @@ services:
       - --import-realm
     volumes:
       - ../keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - ../keycloak/themes/platform:/opt/keycloak/themes/platform:ro
     labels:
       - 'traefik.enable=true'
       - 'traefik.http.routers.keycloak.rule=Host(`auth.lvh.me`)'
@@ -236,7 +237,15 @@ services:
     ports:
       - '6379:6379'
     healthcheck:
-      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD:-CbOVe769kslw0TKTLUAyAVi0ViJIuzl}', '--no-auth-warning', 'ping']
+      test:
+        [
+          'CMD',
+          'redis-cli',
+          '-a',
+          '${REDIS_PASSWORD:-CbOVe769kslw0TKTLUAyAVi0ViJIuzl}',
+          '--no-auth-warning',
+          'ping',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5

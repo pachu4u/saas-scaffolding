@@ -9,7 +9,44 @@ import {
   type ScimUserWrite,
 } from '@platform/scim';
 
+import { syncBranding } from './riogentix-client.js';
+
 export type AppInstanceWithApp = ConnectedAppInstance & { app: ConnectedApp };
+
+interface TenantBranding {
+  primaryColor?: string;
+  accentColor?: string;
+  bgColor?: string;
+  logoText?: string;
+  loginHeadline?: string;
+  loginSubheading?: string;
+}
+
+/**
+ * Push the tenant's current branding to its Riogentix instance. Runs as part
+ * of every convergence pass (not just after a branding edit) — cheap and
+ * idempotent, and it means a stale/failed push self-heals on the next
+ * identity sync instead of needing its own retry path.
+ */
+async function convergeBranding(instance: AppInstanceWithApp): Promise<void> {
+  if (instance.app.slug !== 'riogentix') return;
+
+  const tenant = await adminDb.tenant.findUnique({
+    where: { id: instance.tenantId },
+    select: { branding: true },
+  });
+  if (!tenant) return;
+
+  const branding = tenant.branding as TenantBranding;
+  await syncBranding(instance.tenantId, {
+    primaryColor: branding.primaryColor,
+    accentColor: branding.accentColor,
+    bgColor: branding.bgColor,
+    logoText: branding.logoText,
+    loginHeadline: branding.loginHeadline,
+    loginSubheading: branding.loginSubheading,
+  });
+}
 
 /**
  * Converge one connected app instance to the tenant's current identity state
@@ -29,6 +66,7 @@ export type AppInstanceWithApp = ConnectedAppInstance & { app: ConnectedApp };
  */
 export async function convergeAppInstance(instance: AppInstanceWithApp): Promise<void> {
   const { tenantId } = instance;
+  await convergeBranding(instance);
   const client = new ScimClient(instance.scimBaseUrl, instance.scimToken);
 
   const [memberships, bindings] = await Promise.all([

@@ -84,3 +84,30 @@ export async function setUsageLock(tenantId: string, locked: boolean): Promise<v
   });
   logger.info({ tenantId, locked }, 'Synced usage-lock to riogentix');
 }
+
+export interface BrandingUpdate {
+  primaryColor?: string | undefined;
+  accentColor?: string | undefined;
+  bgColor?: string | undefined;
+  logoText?: string | undefined;
+  loginHeadline?: string | undefined;
+  loginSubheading?: string | undefined;
+}
+
+/**
+ * Push white-label branding to the tenant's Riogentix instance, so its own
+ * app UI (and the Keycloak login theme, which reads the same stored value
+ * back through Riogentix's public branding endpoint) reflect what's
+ * configured in the SaaS admin without a manual step.
+ */
+export async function syncBranding(tenantId: string, branding: BrandingUpdate): Promise<void> {
+  await callSaas(tenantId, 'PUT', `/api/v1/internal/saas/tenant/${tenantId}/branding`, {
+    primary_color: branding.primaryColor,
+    accent_color: branding.accentColor,
+    bg_color: branding.bgColor,
+    logo_text: branding.logoText,
+    login_headline: branding.loginHeadline,
+    login_subheading: branding.loginSubheading,
+  });
+  logger.info({ tenantId }, 'Synced branding to riogentix');
+}

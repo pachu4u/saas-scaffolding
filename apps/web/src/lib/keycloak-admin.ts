@@ -1,4 +1,5 @@
 import { env } from '@platform/config';
+import { logger } from '@platform/logger';
 
 function kcBaseUrl(): string {
   return env.KEYCLOAK_INTERNAL_URL ?? env.KEYCLOAK_ISSUER.replace(/\/realms\/.*$/, '');
@@ -129,4 +130,56 @@ export async function removeUserFromGroup(groupName: string, userId: string): Pr
     const text = await res.text().catch(() => '');
     throw new Error(`Keycloak remove-from-group failed (${String(res.status)}): ${text}`);
   }
+}
+
+/**
+ * Pushes the Riogentix connected app's configured branding API path onto the
+ * "web" client's attributes, live, the moment an admin saves it in the
+ * Connected Apps console — no separate "run the sync script" step. A manual
+ * re-sync step is exactly what let the post-logout-redirect-uri fix silently
+ * not apply across multiple git commits earlier tonight (see
+ * apps/workers/src/provisioning/keycloak-sync.ts); a value this easy to
+ * forget to re-sync isn't worth repeating that mistake for.
+ *
+ * This has to be a *client* attribute, not a realm attribute: Keycloak's
+ * login-theme FreeMarker model exposes `client.attributes` (ClientBean has
+ * getAttributes()) but has no realm-level equivalent (RealmBean doesn't
+ * expose attributes at all) — see
+ * infra/keycloak/themes/platform/login/template.ftl, which reads it back via
+ * `${client.attributes.brandingApiPath}` to know where, on whatever tenant
+ * host the visitor is on, to fetch branding from. Only the path is
+ * client-level config; the domain is derived per request from the login
+ * URL's redirect_uri query param.
+ */
+export async function syncBrandingApiPathToKeycloak(path: string): Promise<void> {
+  const token = await getKeycloakAdminToken();
+  const kcUrl = kcBaseUrl();
+  const realm = env.KEYCLOAK_REALM;
+
+  const res = await fetch(`${kcUrl}/admin/realms/${realm}/clients?clientId=web`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Keycloak client lookup failed (${String(res.status)})`);
+  const clients = (await res.json()) as { id: string; attributes?: Record<string, string> }[];
+  const client = clients[0];
+  if (!client) throw new Error(`Keycloak client "web" not found in realm ${realm}`);
+
+  if (client.attributes?.brandingApiPath === path) {
+    logger.info({ path }, 'Keycloak web client brandingApiPath already up to date');
+    return;
+  }
+
+  const update = await fetch(`${kcUrl}/admin/realms/${realm}/clients/${client.id}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...client,
+      attributes: { ...client.attributes, brandingApiPath: path },
+    }),
+  });
+  if (!update.ok) {
+    const text = await update.text().catch(() => '');
+    throw new Error(`Keycloak client attribute update failed (${String(update.status)}): ${text}`);
+  }
+  logger.info({ path }, 'Synced brandingApiPath to Keycloak web client');
 }

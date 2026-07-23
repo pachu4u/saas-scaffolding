@@ -1,0 +1,117 @@
+/*
+ * Common redesign for the login + error pages (shared by every tenant).
+ * Per-tenant color overrides land on these same custom properties via
+ * resources/js/tenant-branding.js — this file only sets the *defaults* and
+ * the modern baseline layout, so a tenant that never sets a color (or whose
+ * branding fetch fails) still gets a good-looking page, just untinted.
+ *
+ * Selectors are duplicated across the keycloak.v2 (PatternFly 5, `pf-v5-c-*`)
+ * class names and older/plain element selectors (`button[type=submit]`,
+ * `input[type=submit]`) on purpose — the exact PatternFly class names have
+ * shifted across Keycloak minor versions, but element+type selectors are
+ * stable everywhere, so this degrades gracefully instead of silently doing
+ * nothing if a class name doesn't match.
+ */
+
+:root {
+  --tenant-primary: #4f46e5;
+  --tenant-primary-hover: #4338ca;
+  --tenant-accent: #7c3aed;
+  --tenant-bg: #f6f7fb;
+  --tenant-card-bg: #ffffff;
+  --tenant-text: #1e1b2e;
+  --tenant-radius: 14px;
+}
+
+body {
+  background: linear-gradient(160deg, var(--tenant-bg) 0%, #eef0fa 100%) !important;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif !important;
+}
+
+/* Card container — both v2 PatternFly and legacy selectors */
+.pf-v5-c-login__main,
+.login-pf-page .card-pf,
+#kc-form-wrapper,
+.card-pf {
+  background: var(--tenant-card-bg) !important;
+  border-radius: var(--tenant-radius) !important;
+  box-shadow:
+    0 1px 2px rgba(16, 12, 40, 0.04),
+    0 12px 32px rgba(16, 12, 40, 0.08) !important;
+  border: 1px solid rgba(16, 12, 40, 0.06) !important;
+}
+
+#kc-header-wrapper,
+.login-pf-header,
+.pf-v5-c-login__header {
+  color: var(--tenant-primary) !important;
+  font-weight: 700 !important;
+}
+
+h1,
+#kc-page-title,
+.pf-v5-c-title {
+  color: var(--tenant-text) !important;
+  font-weight: 700 !important;
+}
+
+a,
+a:visited,
+.pf-v5-c-login__main-footer-links a {
+  color: var(--tenant-primary) !important;
+}
+a:hover {
+  color: var(--tenant-primary-hover) !important;
+}
+
+/* Inputs */
+input[type="text"],
+input[type="password"],
+input[type="email"],
+.pf-v5-c-form-control {
+  border-radius: 10px !important;
+  border: 1px solid rgba(16, 12, 40, 0.14) !important;
+}
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus,
+.pf-v5-c-form-control:focus {
+  border-color: var(--tenant-primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tenant-primary) 20%, transparent) !important;
+}
+
+/* Primary action button — every selector variant Keycloak versions have used */
+button[type="submit"],
+input[type="submit"],
+.pf-v5-c-button.pf-m-primary,
+#kc-login {
+  background-color: var(--tenant-primary) !important;
+  border-color: var(--tenant-primary) !important;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  transition: background-color 0.15s ease-in-out;
+}
+button[type="submit"]:hover,
+input[type="submit"]:hover,
+.pf-v5-c-button.pf-m-primary:hover,
+#kc-login:hover {
+  background-color: var(--tenant-primary-hover) !important;
+  border-color: var(--tenant-primary-hover) !important;
+}
+
+/* Social/SSO provider buttons */
+#kc-social-providers a,
+.pf-v5-c-login__main-footer-band-item a {
+  border-radius: 10px !important;
+}
+
+/* Error page (error.ftl, same theme) */
+#kc-error-message,
+.instruction {
+  color: var(--tenant-text) !important;
+}

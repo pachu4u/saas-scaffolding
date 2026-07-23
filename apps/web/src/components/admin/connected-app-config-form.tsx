@@ -19,6 +19,8 @@ const fieldStyle = {
   color: 'var(--text-primary)',
 };
 
+const DEFAULT_BRANDING_API_PATH = '/api/v1/internal/saas/branding';
+
 export function ConnectedAppConfigForm({
   appId,
   name: initialName,
@@ -34,7 +36,15 @@ export function ConnectedAppConfigForm({
   const [iconUrl, setIconUrl] = useState(initialIconUrl ?? '');
   const [docsUrl, setDocsUrl] = useState(initialDocsUrl ?? '');
   const [status, setStatus] = useState(initialStatus);
-  const [configText, setConfigText] = useState(JSON.stringify(initialConfig, null, 2));
+  const [brandingApiPath, setBrandingApiPath] = useState(
+    typeof initialConfig.brandingApiPath === 'string' ? initialConfig.brandingApiPath : '',
+  );
+  // brandingApiPath has its own field below — kept out of the free-form JSON
+  // editor so the two can't drift out of sync with each other.
+  const restConfig = Object.fromEntries(
+    Object.entries(initialConfig).filter(([key]) => key !== 'brandingApiPath'),
+  );
+  const [configText, setConfigText] = useState(JSON.stringify(restConfig, null, 2));
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -51,6 +61,9 @@ export function ConnectedAppConfigForm({
       setError('App-specific config must be valid JSON.');
       return;
     }
+    if (brandingApiPath.trim()) {
+      config.brandingApiPath = brandingApiPath.trim();
+    }
 
     startTransition(async () => {
       try {
@@ -66,12 +79,16 @@ export function ConnectedAppConfigForm({
             config,
           }),
         });
-        const data = (await res.json()) as { error?: string };
+        const data = (await res.json()) as { error?: string; keycloakSyncError?: string };
         if (!res.ok) {
           setError(data.error ?? 'Failed to save');
           return;
         }
-        setSaved(true);
+        if (data.keycloakSyncError) {
+          setError(`Saved, but Keycloak sync failed: ${data.keycloakSyncError}`);
+        } else {
+          setSaved(true);
+        }
         router.refresh();
       } catch {
         setError('Something went wrong. Please try again.');
@@ -184,6 +201,31 @@ export function ConnectedAppConfigForm({
             className="focus:border-brand-primary w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition-colors"
             style={fieldStyle}
           />
+        </div>
+
+        <div className="sm:col-span-2">
+          <label
+            className="mb-1.5 block text-xs font-semibold"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            Branding API path
+          </label>
+          <input
+            type="text"
+            value={brandingApiPath}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+              setBrandingApiPath(e.target.value);
+            }}
+            placeholder={DEFAULT_BRANDING_API_PATH}
+            className="focus:border-brand-primary w-full rounded-xl border px-4 py-2.5 font-mono text-sm outline-none transition-colors"
+            style={fieldStyle}
+          />
+          <p className="mt-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            Path (no domain — the tenant&apos;s domain varies per instance) this app exposes for
+            reading a tenant&apos;s public branding. Used by the Keycloak login/error theme to fetch
+            colors and logo for whichever tenant subdomain the visitor is on. Defaults to{' '}
+            <code>{DEFAULT_BRANDING_API_PATH}</code>.
+          </p>
         </div>
 
         <div className="sm:col-span-2">
