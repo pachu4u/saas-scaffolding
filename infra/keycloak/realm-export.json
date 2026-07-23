@@ -68,20 +68,26 @@
         "https://*.lvh.me/*",
         "http://localhost:3000/*",
         "https://saas.techhanker.com/*",
-        "https://*.techhanker.com/*"
+        "https://*.techhanker.com/*",
+        "https://acme.techhanker.com/*",
+        "https://demo.techhanker.com/*",
+        "https://test.techhanker.com/*"
       ],
       "webOrigins": [
         "https://app.lvh.me",
         "https://*.lvh.me",
         "http://localhost:3000",
         "https://saas.techhanker.com",
-        "https://*.techhanker.com"
+        "https://*.techhanker.com",
+        "https://acme.techhanker.com",
+        "https://demo.techhanker.com",
+        "https://test.techhanker.com"
       ],
       "protocol": "openid-connect",
       "attributes": {
         "access.token.lifespan": "300",
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "https://saas.techhanker.com/auth/signin##https://saas.techhanker.com/*##https://*.techhanker.com/*##https://app.lvh.me/*##https://*.lvh.me/*##http://localhost:3000/*"
+        "post.logout.redirect.uris": "https://saas.techhanker.com/auth/signin##https://saas.techhanker.com/*##https://*.techhanker.com/*##https://app.lvh.me/*##https://*.lvh.me/*##http://localhost:3000/*##https://acme.techhanker.com/auth/signin##https://acme.techhanker.com/*##https://demo.techhanker.com/auth/signin##https://demo.techhanker.com/*##https://test.techhanker.com/auth/signin##https://test.techhanker.com/*"
       },
       "protocolMappers": [
         {

@@ -6,6 +6,7 @@ import { env } from '@platform/config';
 import { logger } from '@platform/logger';
 
 import { ensureTenantDatabase, tenantDatabaseUrl } from './database.js';
+import { registerTenantWithKeycloak } from './keycloak-sync.js';
 import { DEPLOYMENT_NAME, SECRET_NAME, SERVICE_NAME, renderTenantManifests } from './manifests.js';
 import type { ProvisionOutcome, TenantRef, TenantStackDriver, TenantStackSpec } from './types.js';
 
@@ -197,6 +198,7 @@ export const kubernetesDriver: TenantStackDriver = {
   async provision(tenant: TenantRef): Promise<ProvisionOutcome> {
     const spec = await buildSpec(tenant);
     logger.info({ tenantId: tenant.id, namespace: spec.namespace }, 'Applying tenant stack');
+    await registerTenantWithKeycloak(spec.host);
     await applyManifests(spec);
     await waitForDeploymentReady(spec.namespace);
     await provisionInstanceTenant(spec);
