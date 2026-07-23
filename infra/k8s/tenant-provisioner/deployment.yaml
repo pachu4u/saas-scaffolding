@@ -18,6 +18,16 @@ spec:
         app.kubernetes.io/name: saas-workers
     spec:
       serviceAccountName: saas-workers
+      # k3s and the docker-compose Traefik share this single host (see
+      # docs/infra/tenant-provisioner.md) — this hostPath is the compose
+      # Traefik's file-provider directory, so writes here are picked up by
+      # Traefik directly. TRAEFIK_DYNAMIC_DIR (secret.env) must match
+      # mountPath below.
+      volumes:
+        - name: traefik-dynamic
+          hostPath:
+            path: /root/.openclaw/workspace/saas-scaffolding/infra/compose/traefik/dynamic
+            type: Directory
       containers:
         - name: workers
           image: saas-platform-workers:k8s-deploy
@@ -25,10 +35,13 @@ spec:
           envFrom:
             - secretRef:
                 name: saas-workers-env
+          volumeMounts:
+            - name: traefik-dynamic
+              mountPath: /etc/traefik-dynamic
           resources:
             requests:
               cpu: 100m
               memory: 256Mi
             limits:
-              cpu: "1"
+              cpu: '1'
               memory: 1Gi

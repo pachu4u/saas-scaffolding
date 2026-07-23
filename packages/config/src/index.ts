@@ -65,6 +65,24 @@ const envSchema = z.object({
   TENANT_CERT_MANAGER_ISSUER: z.string().optional(),
   // Pinned Riogentix image stamped out per tenant, e.g. registry/riogentix:1.4.2
   RIOGENTIX_IMAGE: z.string().optional(),
+  // Cloudflare API token (DNS edit scope) — also read directly by Traefik
+  // from .env for its own DNS-01 resolver (see infra/compose/traefik/traefik.yml).
+  // Used here to create the per-tenant grey-cloud wildcard record described
+  // below on every provision, so a new tenant's app./admin. subdomains work
+  // without a manual DNS step (see 2026-07-23 glass/globex incident).
+  CF_DNS_API_TOKEN: z.string().optional(),
+  // Origin IP that *.{slug}.TENANT_BASE_DOMAIN grey-cloud records point to.
+  // Cloudflare's free Universal SSL only covers the apex + one wildcard
+  // level, so two-level tenant hosts (app.{slug}.domain) need their own
+  // DNS-only (unproxied) wildcard record for Traefik's DNS-01 resolver to
+  // terminate TLS — see infra/compose/traefik/dynamic/tenant-app-admin-subdomains.yml.
+  TENANT_APP_SUBDOMAIN_IP: z.string().optional(),
+  // In-container path (hostPath-mounted, see deployment.yaml) to the same
+  // directory the compose Traefik reads as its file provider — where
+  // traefik-router.ts writes the per-tenant Host()-rule router that gets
+  // an on-demand ACME cert (HostRegexp rules can't do this — see
+  // 2026-07-23 glass/globex incident).
+  TRAEFIK_DYNAMIC_DIR: z.string().optional(),
   RIOGENTIX_CONTAINER_PORT: z.coerce.number().default(8000),
   TENANT_POD_CPU_LIMIT: z.string().default('1'),
   TENANT_POD_MEMORY_LIMIT: z.string().default('1Gi'),

@@ -5,9 +5,11 @@ import * as k8s from '@kubernetes/client-node';
 import { env } from '@platform/config';
 import { logger } from '@platform/logger';
 
+import { ensureTenantWildcardDns } from './cloudflare-dns.js';
 import { ensureTenantDatabase, tenantDatabaseUrl } from './database.js';
 import { registerTenantWithKeycloak } from './keycloak-sync.js';
 import { DEPLOYMENT_NAME, SECRET_NAME, SERVICE_NAME, renderTenantManifests } from './manifests.js';
+import { ensureTenantTraefikRouter } from './traefik-router.js';
 import type { ProvisionOutcome, TenantRef, TenantStackDriver, TenantStackSpec } from './types.js';
 
 const FIELD_MANAGER = 'saas-provisioner';
@@ -199,6 +201,8 @@ export const kubernetesDriver: TenantStackDriver = {
     const spec = await buildSpec(tenant);
     logger.info({ tenantId: tenant.id, namespace: spec.namespace }, 'Applying tenant stack');
     await registerTenantWithKeycloak(spec.host);
+    await ensureTenantWildcardDns(spec.slug);
+    await ensureTenantTraefikRouter(spec.slug);
     await applyManifests(spec);
     await waitForDeploymentReady(spec.namespace);
     await provisionInstanceTenant(spec);
