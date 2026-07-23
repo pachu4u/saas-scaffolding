@@ -118,6 +118,11 @@ async function buildSpec(tenant: TenantRef): Promise<TenantStackSpec> {
       TENANT_DB_PASSWORD: dbPassword,
       RIOGENTIX_INTERNAL_SECRET: internalSecret,
       RIOGENTIX_SAAS_INTERNAL_SECRET: saasSecret,
+      // Without this, auth cookies set by the SSO exchange (which lands on
+      // the tenant's base host or `app.`/`admin.` subdomain depending on the
+      // caller) are host-only and don't follow the redirect to the sibling
+      // subdomain — the user bounces back to a logged-out state post-SSO.
+      RIOGENTIX_COOKIE_DOMAIN: `${tenant.slug}.${baseDomain}`,
       // Defaults to true upstream, which auto-signs any unauthenticated /app
       // hit in as Riogentix's built-in default superuser (username/password
       // "riogentix"). SSO is the only supported login path for tenant pods.
