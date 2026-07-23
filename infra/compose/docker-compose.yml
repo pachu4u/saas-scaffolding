@@ -178,6 +178,13 @@ services:
     volumes:
       - ../keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
       - ../keycloak/themes/platform:/opt/keycloak/themes/platform:ro
+    # Published so the in-cluster tenant-provisioning workers pod (a separate
+    # node network namespace, no route to the `platform` docker network) can
+    # reach Keycloak's admin API via the host's address — same reason app-db
+    # and redis are published above. Locked to private ranges + this host's
+    # own IP at the firewall (DOCKER-USER chain).
+    ports:
+      - '8081:8080'
     labels:
       - 'traefik.enable=true'
       - 'traefik.http.routers.keycloak.rule=Host(`auth.lvh.me`)'

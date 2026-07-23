@@ -67,6 +67,9 @@ export async function ensureTenantDatabase(
     } else {
       await client.query(`ALTER ROLE "${role}" LOGIN PASSWORD '${quotedPassword}'`);
     }
+    // PG16 restricts CREATEROLE admins from acting on roles they don't hold
+    // membership in — CREATE DATABASE ... OWNER below needs it. Idempotent.
+    await client.query(`GRANT "${role}" TO CURRENT_USER`);
 
     const dbExists = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [db]);
     if (dbExists.rowCount === 0) {

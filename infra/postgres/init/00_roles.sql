@@ -9,3 +9,9 @@ CREATE ROLE platform_admin NOLOGIN;
 GRANT platform_admin TO migrator;
 
 GRANT CONNECT ON DATABASE saas_platform TO app, migrator;
+
+-- Admin role the tenant-provisioner (TENANT_STACK_DRIVER=kubernetes) connects as
+-- to CREATE ROLE/DATABASE per tenant — see apps/workers/src/provisioning/database.ts
+-- and TENANT_PG_ADMIN_URL in infra/k8s/tenant-provisioner/secret.env.
+CREATE ROLE riogentix LOGIN PASSWORD 'riogentix' CREATEDB CREATEROLE;
+CREATE DATABASE riogentix OWNER riogentix;
