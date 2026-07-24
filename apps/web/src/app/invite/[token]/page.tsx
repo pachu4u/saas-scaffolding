@@ -3,19 +3,19 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { acceptInvite as acceptInviteMembership } from '@/lib/accept-invite';
 import { decodeInviteToken } from '@/lib/invite-token';
 
 export const metadata: Metadata = { title: 'Accept Invitation — riogentix' };
 
 async function acceptInvite(token: string) {
   'use server';
-  const res = await fetch(
-    `${process.env.NEXTAUTH_URL ?? 'http://localhost:3000'}/api/team/invite/${token}/accept`,
-    { method: 'POST', cache: 'no-store' },
-  );
-  const data = (await res.json()) as { success?: boolean; tenantSlug?: string | null };
-  if (data.success) {
-    redirect(data.tenantSlug ? `/t/${data.tenantSlug}` : '/dashboard');
+  const { tenantId, userId } = decodeInviteToken(token);
+  if (!tenantId || !userId) return;
+
+  const result = await acceptInviteMembership(tenantId, userId);
+  if (result.success) {
+    redirect('tenantSlug' in result ? `/t/${result.tenantSlug}` : '/dashboard');
   }
 }
 
