@@ -239,7 +239,7 @@ const Icon = {
 
 // ─── Navigation definitions ───────────────────────────────────────────────────
 
-function buildTenantSections(base: string) {
+function buildTenantSections(base: string, connectedAppName?: string) {
   return [
     {
       label: 'OVERVIEW',
@@ -247,7 +247,13 @@ function buildTenantSections(base: string) {
     },
     {
       label: 'WORKSPACE',
-      items: [{ label: 'Workspace Hub', href: `${base}/admin/hub`, icon: Icon.layers }],
+      items: [
+        {
+          label: connectedAppName ?? 'App Settings',
+          href: `${base}/admin/hub`,
+          icon: Icon.layers,
+        },
+      ],
     },
     {
       label: 'GOVERNANCE',
@@ -327,6 +333,7 @@ interface SidebarProps {
   isAdmin?: boolean;
   userName?: string;
   userEmail?: string;
+  connectedAppName?: string;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -410,6 +417,7 @@ export function Sidebar({
   isAdmin,
   userName,
   userEmail,
+  connectedAppName,
 }: SidebarProps) {
   const pathname = usePathname();
   const { isOpen, close } = useSidebar();
@@ -424,7 +432,9 @@ export function Sidebar({
     return pathname === href || pathname.startsWith(href + '/');
   };
 
-  const sections: NavSection[] = isAdmin ? adminSections : buildTenantSections(base);
+  const sections: NavSection[] = isAdmin
+    ? adminSections
+    : buildTenantSections(base, connectedAppName);
 
   return (
     <>

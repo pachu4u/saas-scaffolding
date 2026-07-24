@@ -1,8 +1,8 @@
 import { auth } from '@platform/auth';
-import { PLATFORM_ROLE_NAMES } from '@platform/authz';
 import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
 
+import { ConnectedAppScimPanel } from './connected-app-scim-panel';
 import { HubTeamPanel, type HubMember } from './hub-team-panel';
 
 import { Topbar } from '@/components/layout/topbar';
@@ -10,7 +10,7 @@ import { StatCard } from '@/components/ui/stat-card';
 import { getCurrentTenant } from '@/lib/server-tenant';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Workspace Hub' };
+export const metadata = { title: 'App Settings' };
 
 const ROLE_LABELS: Record<string, string> = {
   tenant_admin: 'Admin',
@@ -19,7 +19,7 @@ const ROLE_LABELS: Record<string, string> = {
   tenant_viewer: 'Viewer',
 };
 
-export default async function WorkspaceHubPage() {
+export default async function AppSettingsPage() {
   const session = await auth();
   if (!session) redirect('/auth/signin');
 
@@ -29,7 +29,7 @@ export default async function WorkspaceHubPage() {
   const { tenantId } = tenantCtx;
   const base = `/t/${tenantCtx.slug}`;
 
-  const [tenant, tenantUsers, roleBindings, roles] = await Promise.all([
+  const [tenant, tenantUsers, roleBindings, connectedAppInstance] = await Promise.all([
     adminDb.tenant.findUnique({
       where: { id: tenantId },
       select: { name: true, slug: true, branding: true },
@@ -43,24 +43,27 @@ export default async function WorkspaceHubPage() {
       where: { tenantId },
       include: { role: { select: { id: true, name: true } } },
     }),
-    adminDb.role.findMany({
-      where: {
-        OR: [
-          { tenantId },
-          { isSystem: true, appId: null, name: { notIn: [...PLATFORM_ROLE_NAMES] } },
-        ],
-      },
-      select: {
-        id: true,
-        name: true,
-        isSystem: true,
-        _count: { select: { bindings: { where: { tenantId } } } },
-      },
-      orderBy: { name: 'asc' },
+    adminDb.connectedAppInstance.findFirst({
+      where: { tenantId },
+      include: { app: true },
     }),
   ]);
 
   if (!tenant) redirect('/');
+
+  const app = connectedAppInstance?.app ?? null;
+  const roles = app
+    ? await adminDb.role.findMany({
+        where: { appId: app.id },
+        select: {
+          id: true,
+          name: true,
+          isSystem: true,
+          _count: { select: { bindings: { where: { tenantId } } } },
+        },
+        orderBy: { name: 'asc' },
+      })
+    : [];
 
   const userRoleName = new Map<string, string>();
   for (const rb of roleBindings) {
@@ -92,8 +95,8 @@ export default async function WorkspaceHubPage() {
   return (
     <div>
       <Topbar
-        title="Workspace Hub"
-        subtitle="Branding, team access, and roles — all in one place"
+        title={app?.name ?? 'App Settings'}
+        subtitle={app?.description ?? 'Connected app configuration, team access, and roles'}
         userEmail={session.user.email}
         userName={session.user.name ?? undefined}
       />
@@ -143,7 +146,7 @@ export default async function WorkspaceHubPage() {
             }
           />
           <StatCard
-            label="Roles Configured"
+            label="App Roles"
             value={roles.length.toLocaleString()}
             change={`${String(roles.filter((r) => !r.isSystem).length)} custom`}
             positive={true}
@@ -172,8 +175,70 @@ export default async function WorkspaceHubPage() {
             />
           </div>
 
-          {/* Right column: branding + roles snapshots */}
+          {/* Right column: connected app, branding + roles snapshots */}
           <div className="space-y-5">
+            {/* Connected app identity */}
+            <div
+              className="rounded-xl border p-4"
+              style={{
+                background: 'var(--bg-white)',
+                borderColor: 'var(--border-light)',
+                boxShadow: 'var(--shadow-card)',
+              }}
+            >
+              {app ? (
+                <div className="flex items-start gap-3">
+                  {app.iconUrl ? (
+                    <img
+                      src={app.iconUrl}
+                      alt=""
+                      className="h-10 w-10 flex-shrink-0 rounded-lg object-contain"
+                    />
+                  ) : (
+                    <div className="brand-gradient flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white">
+                      {app.name[0]?.toUpperCase() ?? 'A'}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className="truncate text-sm font-bold"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
+                      {app.name}
+                    </div>
+                    {app.description && (
+                      <p className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                        {app.description}
+                      </p>
+                    )}
+                    {app.docsUrl && (
+                      <a
+                        href={app.docsUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1.5 inline-block text-xs font-semibold hover:underline"
+                        style={{ color: 'var(--brand-primary)' }}
+                      >
+                        View documentation →
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  No connected app for this workspace yet.
+                </p>
+              )}
+            </div>
+
+            {connectedAppInstance && (
+              <ConnectedAppScimPanel
+                scimBaseUrl={connectedAppInstance.scimBaseUrl}
+                lastSyncedAt={connectedAppInstance.lastSyncedAt?.toISOString() ?? null}
+                lastSyncError={connectedAppInstance.lastSyncError}
+              />
+            )}
+
             {/* Branding snapshot */}
             <div
               className="overflow-hidden rounded-xl border"
@@ -233,11 +298,13 @@ export default async function WorkspaceHubPage() {
               }}
             >
               <h2 className="mb-3 text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                Roles at a glance
+                App roles at a glance
               </h2>
               {topRoles.length === 0 ? (
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  No roles configured yet.
+                  {app
+                    ? 'No app-specific roles configured yet.'
+                    : 'Connect an app to see its roles here.'}
                 </p>
               ) : (
                 <div className="space-y-2.5">
@@ -259,13 +326,6 @@ export default async function WorkspaceHubPage() {
                   ))}
                 </div>
               )}
-              <a
-                href={`${base}/admin/team/roles`}
-                className="mt-3 block text-center text-xs font-semibold hover:underline"
-                style={{ color: 'var(--brand-primary)' }}
-              >
-                Manage roles & permissions →
-              </a>
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { auth } from '@platform/auth';
+import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
@@ -38,6 +39,13 @@ export default async function TenantAdminLayout({ children }: { children: React.
 
   const { tenant } = await getCurrentTenant(session.user.id);
 
+  const connectedAppInstance = tenant
+    ? await adminDb.connectedAppInstance.findFirst({
+        where: { tenantId: tenant.tenantId },
+        select: { app: { select: { name: true } } },
+      })
+    : null;
+
   const tenantName = tenant?.name ?? 'Workspace';
   const tenantSlug = tenant?.slug ?? 'workspace';
   const userName = session.user.name ?? session.user.email.split('@')[0] ?? 'User';
@@ -52,6 +60,7 @@ export default async function TenantAdminLayout({ children }: { children: React.
           tenantSlug={tenantSlug}
           userName={userName}
           userEmail={session.user.email}
+          {...(connectedAppInstance && { connectedAppName: connectedAppInstance.app.name })}
         />
         <div className="lg:ml-[var(--sidebar-width)]">{children}</div>
       </div>
