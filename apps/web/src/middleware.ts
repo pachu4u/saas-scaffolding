@@ -116,7 +116,6 @@ function clearSessionCookies(req: NextRequest, res: NextResponse) {
 // Old tenant paths that redirect to their new /admin/* equivalents
 const LEGACY_TENANT_REDIRECTS: Record<string, string> = {
   '/dashboard': '/admin',
-  '/notes': '/admin/notes',
   '/profile': '/admin/profile',
   '/billing': '/admin/billing',
   '/audit': '/admin/audit',
@@ -207,6 +206,13 @@ export default auth(function middleware(req: NextRequest) {
     // rewritten path, not a fresh browser request — pass it through untouched
     // or it gets wrapped in another /admin + /t/{slug} layer forever.
     if (pathname === `/t/${slug}` || pathname.startsWith(`/t/${slug}/`)) {
+      return NextResponse.next({ request: { headers } });
+    }
+    // API routes (e.g. /api/settings/branding) live at the top level, not under
+    // /t/{slug}/admin — pass them through as-is (tenant resolves via the
+    // x-tenant-slug header set above) instead of rewriting into a path that
+    // doesn't exist and 404ing.
+    if (pathname.startsWith('/api/')) {
       return NextResponse.next({ request: { headers } });
     }
     const adminPath =

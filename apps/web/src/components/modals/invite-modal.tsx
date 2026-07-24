@@ -1,6 +1,7 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 
 import { useTenantRoles } from '@/lib/use-tenant-roles';
 
@@ -16,6 +17,11 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<{ success?: boolean; error?: string } | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   function handleOverlayClick(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target === overlayRef.current) onClose();
@@ -43,7 +49,9 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
     });
   }
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div
       ref={overlayRef}
       className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -246,6 +254,7 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
           </form>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

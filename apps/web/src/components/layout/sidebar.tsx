@@ -248,7 +248,6 @@ function buildTenantSections(base: string, riogentixUrl?: string) {
     {
       label: 'WORKSPACE',
       items: [
-        { label: 'Notes', href: `${base}/admin/notes`, icon: Icon.penSquare },
         ...(riogentixUrl
           ? [{ label: 'Riogentix AI', href: riogentixUrl, icon: Icon.layers }]
           : [{ label: 'Riogentix App', href: `${base}/app`, icon: Icon.layers }]),
