@@ -16,6 +16,7 @@ COPY packages/db/package.json ./packages/db/
 COPY packages/jobs/package.json ./packages/jobs/
 COPY packages/logger/package.json ./packages/logger/
 COPY packages/notifications/package.json ./packages/notifications/
+COPY packages/vault/package.json ./packages/vault/
 COPY packages/observability/package.json ./packages/observability/
 COPY packages/scim/package.json ./packages/scim/
 COPY packages/tenant/package.json ./packages/tenant/
@@ -68,6 +69,7 @@ RUN pnpm --filter @platform/jobs build
 RUN pnpm --filter @platform/tenant build
 RUN pnpm --filter @platform/authz build
 RUN pnpm --filter @platform/auth build
+RUN pnpm --filter @platform/vault build
 RUN pnpm --filter @platform/billing build
 RUN pnpm --filter @platform/scim build
 RUN pnpm --filter @platform/notifications build

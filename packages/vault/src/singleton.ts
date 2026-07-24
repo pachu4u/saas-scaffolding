@@ -3,14 +3,14 @@
  * Uses lazy initialization so the client is created on first use.
  */
 
-import { VaultClient } from './client';
-import { TenantSecrets, PlatformSecrets } from './secrets';
+import { VaultClient } from './client.js';
+import { TenantSecrets, PlatformSecrets } from './secrets.js';
 
 let _client: VaultClient | null = null;
 let _tenantSecrets: TenantSecrets | null = null;
 let _platformSecrets: PlatformSecrets | null = null;
 
-import type { VaultConfig } from './client';
+import type { VaultConfig } from './client.js';
 
 function getVaultConfig(): VaultConfig {
   const endpoint = process.env.VAULT_ADDR ?? 'http://localhost:8200';

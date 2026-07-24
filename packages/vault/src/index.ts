@@ -1,9 +1,9 @@
-export { VaultClient, VaultError } from './client';
-export type { VaultConfig, SecretData } from './client';
-export { TenantSecrets, PlatformSecrets } from './secrets';
+export { VaultClient, VaultError } from './client.js';
+export type { VaultConfig, SecretData } from './client.js';
+export { TenantSecrets, PlatformSecrets } from './secrets.js';
 export {
   getVaultClient,
   getTenantSecrets,
   getPlatformSecrets,
   resetVaultSingletons,
-} from './singleton';
+} from './singleton.js';

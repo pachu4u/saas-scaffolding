@@ -15,6 +15,7 @@ COPY packages/db/package.json ./packages/db/
 COPY packages/jobs/package.json ./packages/jobs/
 COPY packages/logger/package.json ./packages/logger/
 COPY packages/notifications/package.json ./packages/notifications/
+COPY packages/vault/package.json ./packages/vault/
 COPY packages/billing/package.json ./packages/billing/
 COPY packages/scim/package.json ./packages/scim/
 
@@ -62,6 +63,7 @@ RUN pnpm --filter @platform/config build
 RUN pnpm --filter @platform/db build
 RUN pnpm --filter @platform/logger build
 RUN pnpm --filter @platform/jobs build
+RUN pnpm --filter @platform/vault build
 RUN pnpm --filter @platform/notifications build
 RUN pnpm --filter @platform/billing build
 RUN pnpm --filter @platform/scim build
@@ -111,6 +113,10 @@ COPY --from=builder /app/packages/jobs/node_modules ./packages/jobs/node_modules
 COPY --from=builder /app/packages/notifications/package.json ./packages/notifications/package.json
 COPY --from=builder /app/packages/notifications/dist ./packages/notifications/dist
 COPY --from=builder /app/packages/notifications/node_modules ./packages/notifications/node_modules
+
+COPY --from=builder /app/packages/vault/package.json ./packages/vault/package.json
+COPY --from=builder /app/packages/vault/dist ./packages/vault/dist
+COPY --from=builder /app/packages/vault/node_modules ./packages/vault/node_modules
 
 COPY --from=builder /app/packages/billing/package.json ./packages/billing/package.json
 COPY --from=builder /app/packages/billing/dist ./packages/billing/dist

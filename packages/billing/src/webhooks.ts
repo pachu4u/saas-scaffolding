@@ -63,6 +63,7 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
     if (!plan) return;
 
     const existing = await adminDb.subscription.findUnique({ where: { tenantId } });
+    const currentPeriodEnd = getCurrentPeriodEnd(sub);
 
     await adminDb.subscription.upsert({
       where: { tenantId },
@@ -70,7 +71,7 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
         planId: plan.id,
         status: mapStripeStatus(sub.status),
         stripeSubscriptionId: sub.id,
-        currentPeriodEnd: new Date(sub.current_period_end * 1000),
+        currentPeriodEnd,
       },
       create: {
         tenantId,
@@ -78,7 +79,7 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
         status: mapStripeStatus(sub.status),
         stripeCustomerId: sub.customer as string,
         stripeSubscriptionId: sub.id,
-        currentPeriodEnd: new Date(sub.current_period_end * 1000),
+        currentPeriodEnd,
       },
     });
 
@@ -105,6 +106,16 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
       newPlan: 'free',
     });
   }
+}
+
+// Stripe API versions from 2025-03-31 onward moved `current_period_end` off
+// the Subscription object and onto each subscription item instead. Fall back
+// to the top-level field for accounts still pinned to an older API version.
+function getCurrentPeriodEnd(sub: Stripe.Subscription): Date {
+  const item = sub.items.data[0] as unknown as { current_period_end?: number } | undefined;
+  const legacySub = sub as unknown as { current_period_end?: number };
+  const epochSeconds = item?.current_period_end ?? legacySub.current_period_end ?? sub.created;
+  return new Date(epochSeconds * 1000);
 }
 
 function mapStripeStatus(status: Stripe.Subscription.Status): SubscriptionStatus {

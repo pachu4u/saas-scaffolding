@@ -10,7 +10,7 @@
  *   platform/email
  */
 
-import { type VaultClient, type SecretData } from './client';
+import { type VaultClient, type SecretData } from './client.js';
 
 export class TenantSecrets {
   constructor(private readonly vault: VaultClient) {}
