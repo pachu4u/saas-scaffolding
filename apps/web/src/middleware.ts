@@ -202,6 +202,13 @@ export default auth(function middleware(req: NextRequest) {
     if (pathname === '/team' || pathname.startsWith('/team/')) {
       return NextResponse.redirect(new URL('/admin' + pathname, realOrigin));
     }
+    // Rewrites below re-enter this middleware (the matcher covers /t/*), so
+    // a request already rooted at /t/{slug} is a second pass over an already-
+    // rewritten path, not a fresh browser request — pass it through untouched
+    // or it gets wrapped in another /admin + /t/{slug} layer forever.
+    if (pathname === `/t/${slug}` || pathname.startsWith(`/t/${slug}/`)) {
+      return NextResponse.next({ request: { headers } });
+    }
     const adminPath =
       pathname === '/admin' || pathname.startsWith('/admin/')
         ? pathname
