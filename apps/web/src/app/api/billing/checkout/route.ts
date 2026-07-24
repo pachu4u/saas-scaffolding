@@ -63,8 +63,8 @@ export async function POST(req: NextRequest) {
       subscription_data: {
         metadata: { tenantId: tenant.tenantId, tenantSlug: tenant.slug, planCode },
       },
-      success_url: `${appUrl}/billing?checkout=success`,
-      cancel_url: `${appUrl}/billing?checkout=cancelled`,
+      success_url: `${appUrl}/t/${tenant.slug}/admin/billing?checkout=success`,
+      cancel_url: `${appUrl}/t/${tenant.slug}/admin/billing?checkout=cancelled`,
       allow_promotion_codes: true,
       billing_address_collection: 'auto',
       customer_update: { address: 'auto' },
