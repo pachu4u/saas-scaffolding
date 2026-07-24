@@ -1,4 +1,5 @@
 import { auth } from '@platform/auth';
+import { env } from '@platform/config';
 import { adminDb } from '@platform/db';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -44,7 +45,11 @@ export default async function TenantHomePage() {
     ...(isTenantAdmin || isPlatformAdmin
       ? [
           {
-            href: `${base}/admin`,
+            // Tenant admins land on the dedicated admin.{slug} subdomain (same
+            // session cookie, Domain=.rootdomain), not the /t/{slug}/admin path
+            // — mirrors the redirect built in auth/redirect/page.tsx. Platform
+            // admins with no active tenant fall back to the root /admin console.
+            href: tenant ? env.AUTH_URL.replace('saas.', `admin.${tenant.slug}.`) : `${base}/admin`,
             icon: (
               <svg
                 viewBox="0 0 24 24"

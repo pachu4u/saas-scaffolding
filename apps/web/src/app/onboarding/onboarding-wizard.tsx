@@ -94,12 +94,15 @@ export function OnboardingWizard() {
       .map((e) => e.trim())
       .filter(Boolean);
     if (emails.length > 0 && tenantSlug) {
+      // The first invitee is the tenant's primary contact — they're the one
+      // who'll receive credentials and is expected to administer the new
+      // workspace, so they need tenant_admin rather than tenant_user.
       await Promise.all(
-        emails.map((email) =>
+        emails.map((email, i) =>
           fetch('/api/team/invite', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-tenant-slug': tenantSlug },
-            body: JSON.stringify({ email, roleId: 'tenant_user' }),
+            body: JSON.stringify({ email, roleId: i === 0 ? 'tenant_admin' : 'tenant_user' }),
           }).catch(() => {
             // non-blocking — surfaced later from the Team page if it fails
           }),
@@ -358,6 +361,10 @@ export function OnboardingWizard() {
                 <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                   Separate multiple emails with commas, semicolons, or newlines. You can also do
                   this later from the tenant's Team page.
+                </p>
+                <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  The first email listed is assigned the <strong>tenant admin</strong> role; any
+                  additional emails join as regular members.
                 </p>
               </div>
               <div

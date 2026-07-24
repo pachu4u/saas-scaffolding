@@ -33,24 +33,79 @@ body {
     sans-serif !important;
 }
 
+/* keycloak.v2 lays this out as a two-column grid (form + decorative side
+   panel). We never populate the side panel, so left unset it leaves the
+   card stranded in the left column with a blank void on the right.
+   Dropping grid-template-columns alone isn't enough: display stays `grid`,
+   so with zero explicit columns the browser falls back to content-sized
+   (`auto`) implicit tracks instead of stretching to fill the container —
+   that's what was collapsing the card to a sliver and forcing the heading
+   to wrap word-by-word. Switch off grid entirely and use plain block/flex
+   layout so widths come from the explicit rules below, not track sizing. */
+.pf-v5-c-login {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 100vh !important;
+  width: 100% !important;
+  padding: 2rem 1rem !important;
+}
+.pf-v5-c-login__container {
+  display: block !important;
+  width: 100% !important;
+  max-width: 520px !important;
+  margin: 0 auto !important;
+  box-sizing: border-box !important;
+}
+.pf-v5-c-login__main {
+  display: block !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
 /* Card container — both v2 PatternFly and legacy selectors */
 .pf-v5-c-login__main,
 .login-pf-page .card-pf,
-#kc-form-wrapper,
 .card-pf {
   background: var(--tenant-card-bg) !important;
   border-radius: var(--tenant-radius) !important;
-  box-shadow:
-    0 1px 2px rgba(16, 12, 40, 0.04),
-    0 12px 32px rgba(16, 12, 40, 0.08) !important;
-  border: 1px solid rgba(16, 12, 40, 0.06) !important;
+  box-shadow: 0 4px 16px rgba(16, 12, 40, 0.06) !important;
+  border: none !important;
 }
 
+#kc-form-wrapper {
+  background: var(--tenant-card-bg) !important;
+  border-radius: var(--tenant-radius) !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* Brand name — default theme tucks this away small in the top-left corner.
+   Give it real presence as a centered header above the card. */
+/* Default theme absolutely-positions #kc-header itself (not just the
+   wrapper) for its top-left corner placement — that takes it out of
+   normal flow, so margin-bottom on it was a no-op and it rendered
+   floating on top of the card with no gap. Forcing position: static
+   here is what actually reserves the space above the card. */
+#kc-header {
+  position: static !important;
+  width: 100% !important;
+  min-height: 4.5rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 0 2rem !important;
+  padding: 1.5rem 0 0 !important;
+}
 #kc-header-wrapper,
 .login-pf-header,
 .pf-v5-c-login__header {
+  position: static !important;
   color: var(--tenant-primary) !important;
   font-weight: 700 !important;
+  font-size: 2.25rem !important;
+  line-height: 1.3 !important;
 }
 
 h1,
@@ -58,6 +113,7 @@ h1,
 .pf-v5-c-title {
   color: var(--tenant-text) !important;
   font-weight: 700 !important;
+  font-size: 1.25rem !important;
 }
 
 a,
@@ -74,7 +130,9 @@ input[type="text"],
 input[type="password"],
 input[type="email"],
 .pf-v5-c-form-control {
-  border-radius: 10px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  border-radius: 0 !important;
   border: 1px solid rgba(16, 12, 40, 0.14) !important;
 }
 input[type="text"]:focus,
@@ -92,7 +150,7 @@ input[type="submit"],
 #kc-login {
   background-color: var(--tenant-primary) !important;
   border-color: var(--tenant-primary) !important;
-  border-radius: 10px !important;
+  border-radius: 0 !important;
   font-weight: 600 !important;
   transition: background-color 0.15s ease-in-out;
 }
@@ -107,7 +165,7 @@ input[type="submit"]:hover,
 /* Social/SSO provider buttons */
 #kc-social-providers a,
 .pf-v5-c-login__main-footer-band-item a {
-  border-radius: 10px !important;
+  border-radius: 0 !important;
 }
 
 /* Error page (error.ftl, same theme) */

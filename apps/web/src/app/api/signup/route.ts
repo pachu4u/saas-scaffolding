@@ -185,26 +185,33 @@ export async function POST(req: NextRequest) {
         update: { status: 'ACTIVE' },
       });
 
-      // Assign tenant_admin role
+      // Assign tenant_admin role. If this lookup ever comes back empty (e.g. roles
+      // table not seeded in this environment), fail the whole signup loudly instead
+      // of silently creating a tenant with no admin — see incident where `thinktank`,
+      // `demo`, and `acme` were stranded without an admin tile until backfilled by hand.
       const adminRole = await tx.role.findFirst({ where: { name: 'tenant_admin' } });
-      if (adminRole) {
-        await tx.roleBinding.upsert({
-          where: {
-            tenantId_userId_roleId: {
-              tenantId: tenant.id,
-              userId: dbUser.id,
-              roleId: adminRole.id,
-            },
-          },
-          create: { tenantId: tenant.id, userId: dbUser.id, roleId: adminRole.id },
-          update: {},
-        });
+      if (!adminRole) {
+        throw new Error(
+          'tenant_admin role not found — roles/permissions/plans tables are not seeded in this environment. Run db:seed before allowing signups.',
+        );
       }
+
+      await tx.roleBinding.upsert({
+        where: {
+          tenantId_userId_roleId: {
+            tenantId: tenant.id,
+            userId: dbUser.id,
+            roleId: adminRole.id,
+          },
+        },
+        create: { tenantId: tenant.id, userId: dbUser.id, roleId: adminRole.id },
+        update: {},
+      });
 
       await appendSyncOutbox(tx, tenant.id, [
         { resourceType: 'TENANT', resourceId: tenant.id },
         { resourceType: 'USER', resourceId: dbUser.id },
-        ...(adminRole ? [{ resourceType: 'GROUP' as const, resourceId: adminRole.id }] : []),
+        { resourceType: 'GROUP', resourceId: adminRole.id },
       ]);
 
       return { tenant, userId: dbUser.id };

@@ -49,6 +49,13 @@ export default async function ConnectedAppDetailPage({
     lastSyncError: instance.lastSyncError,
   }));
 
+  const connectedTenantIds = new Set(app.instances.map((instance) => instance.tenantId));
+  const allTenants = await adminDb.tenant.findMany({
+    select: { id: true, name: true, slug: true },
+    orderBy: { name: 'asc' },
+  });
+  const availableTenants = allTenants.filter((t) => !connectedTenantIds.has(t.id));
+
   const roleRows = app.roles.map((role) => ({
     id: role.id,
     name: role.name,
@@ -96,7 +103,11 @@ export default async function ConnectedAppDetailPage({
           <h2 className="mb-3 text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
             Tenant instances ({instanceRows.length})
           </h2>
-          <ConnectedAppInstancesTable data={instanceRows} />
+          <ConnectedAppInstancesTable
+            appId={app.id}
+            data={instanceRows}
+            availableTenants={availableTenants}
+          />
         </section>
 
         <section>
