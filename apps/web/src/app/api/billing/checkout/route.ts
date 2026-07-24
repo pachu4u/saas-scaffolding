@@ -75,6 +75,16 @@ export async function POST(req: NextRequest) {
       'Stripe Checkout session created',
     );
 
+    await adminDb.auditLog.create({
+      data: {
+        tenantId: tenant.tenantId,
+        action: 'billing.checkout_started',
+        resourceType: 'Subscription',
+        resourceId: tenant.tenantId,
+        after: { planCode, sessionId: checkoutSession.id },
+      },
+    });
+
     return NextResponse.json({ url: checkoutSession.url });
   } catch (err) {
     logger.error({ err, tenantId: tenant.tenantId }, 'Failed to create Stripe Checkout session');

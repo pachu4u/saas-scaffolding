@@ -56,6 +56,21 @@ export async function PATCH(
     },
   });
 
+  await adminDb.auditLog.create({
+    data: {
+      tenantId: existing.tenantId,
+      action: 'connected_app_instance.updated',
+      resourceType: 'ConnectedAppInstance',
+      resourceId: instanceId,
+      before: { scimBaseUrl: existing.scimBaseUrl, status: existing.status },
+      after: {
+        scimBaseUrl: instance.scimBaseUrl,
+        status: instance.status,
+        scimTokenRotated: Boolean(body.scimToken?.trim()),
+      },
+    },
+  });
+
   return NextResponse.json({
     id: instance.id,
     tenantId: instance.tenantId,
@@ -84,5 +99,16 @@ export async function DELETE(
   if (!existing) return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
 
   await adminDb.connectedAppInstance.delete({ where: { id: instanceId } });
+
+  await adminDb.auditLog.create({
+    data: {
+      tenantId: existing.tenantId,
+      action: 'connected_app_instance.deleted',
+      resourceType: 'ConnectedAppInstance',
+      resourceId: instanceId,
+      before: { scimBaseUrl: existing.scimBaseUrl },
+    },
+  });
+
   return new NextResponse(null, { status: 204 });
 }

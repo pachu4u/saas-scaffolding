@@ -120,6 +120,22 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const actor = await adminDb.user.findUnique({
+      where: { externalId: session.user.id },
+      select: { id: true },
+    });
+
+    await adminDb.auditLog.create({
+      data: {
+        tenantId: tenant.id,
+        actorUserId: actor?.id ?? null,
+        action: 'tenant.created',
+        resourceType: 'Tenant',
+        resourceId: tenant.id,
+        after: { name: tenant.name, slug: tenant.slug, plan: tenant.plan },
+      },
+    });
+
     return NextResponse.json(tenant, { status: 201 });
   } catch (err: unknown) {
     const code = (err as { code?: string }).code;

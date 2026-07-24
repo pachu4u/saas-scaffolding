@@ -3,6 +3,11 @@ import { adminDb } from '@platform/db';
 import { enqueue, tenantDeprovisionQueue } from '@platform/jobs';
 import { type NextRequest, NextResponse } from 'next/server';
 
+async function resolveActorUserId(externalId: string): Promise<string | null> {
+  const user = await adminDb.user.findUnique({ where: { externalId }, select: { id: true } });
+  return user?.id ?? null;
+}
+
 export const runtime = 'nodejs';
 
 function isPlatformAdmin(session: { groups?: unknown }): boolean {
@@ -28,12 +33,36 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const tenant = await adminDb.tenant.findUnique({ where: { id } });
   if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
+  const actorUserId = await resolveActorUserId(session.user.id);
+
   if (action === 'suspend') {
     await adminDb.tenant.update({ where: { id }, data: { status: 'SUSPENDED' } });
+    await adminDb.auditLog.create({
+      data: {
+        tenantId: id,
+        actorUserId,
+        action: 'tenant.suspended',
+        resourceType: 'Tenant',
+        resourceId: id,
+        before: { status: tenant.status },
+        after: { status: 'SUSPENDED' },
+      },
+    });
     return NextResponse.json({ ok: true, status: 'SUSPENDED' });
   }
   if (action === 'reinstate') {
     await adminDb.tenant.update({ where: { id }, data: { status: 'ACTIVE' } });
+    await adminDb.auditLog.create({
+      data: {
+        tenantId: id,
+        actorUserId,
+        action: 'tenant.reinstated',
+        resourceType: 'Tenant',
+        resourceId: id,
+        before: { status: tenant.status },
+        after: { status: 'ACTIVE' },
+      },
+    });
     return NextResponse.json({ ok: true, status: 'ACTIVE' });
   }
   if (action === 'delete') {
@@ -45,6 +74,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // (kubernetes driver: deletes its namespace; shared driver: no-op) —
     // same job the "Deprovision" flow already used, just triggered here too.
     await adminDb.tenant.update({ where: { id }, data: { status: 'DELETED' } });
+    await adminDb.auditLog.create({
+      data: {
+        tenantId: id,
+        actorUserId,
+        action: 'tenant.deleted',
+        resourceType: 'Tenant',
+        resourceId: id,
+        before: { status: tenant.status },
+        after: { status: 'DELETED' },
+      },
+    });
     await enqueue(tenantDeprovisionQueue, { tenantId: id });
     return NextResponse.json({ ok: true, status: 'DELETED' });
   }

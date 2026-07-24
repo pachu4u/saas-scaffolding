@@ -108,6 +108,16 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  await adminDb.auditLog.create({
+    data: {
+      tenantId: tenantCtx.tenantId,
+      action: 'webhook_endpoint.created',
+      resourceType: 'WebhookEndpoint',
+      resourceId: endpoint.id,
+      after: { url: body.url, events: body.events },
+    },
+  });
+
   // Return secret only at creation time
   return NextResponse.json({ ...endpoint, secret }, { status: 201 });
 }

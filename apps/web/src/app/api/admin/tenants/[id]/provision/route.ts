@@ -93,5 +93,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     environments: envTypes as TenantEnvironmentType[],
   });
 
+  const actor = await adminDb.user.findUnique({
+    where: { externalId: session.user.id },
+    select: { id: true },
+  });
+
+  await adminDb.auditLog.create({
+    data: {
+      tenantId: tenant.id,
+      actorUserId: actor?.id ?? null,
+      action: 'tenant.provisioning_triggered',
+      resourceType: 'Tenant',
+      resourceId: tenant.id,
+      after: { environments: envTypes },
+    },
+  });
+
   return NextResponse.json({ ok: true, provisioningStatus: 'IN_PROGRESS', environments: envTypes });
 }

@@ -25,7 +25,7 @@ async function resolveEndpoint(req: NextRequest, id: string) {
   if (!endpoint)
     return { error: NextResponse.json({ error: 'Endpoint not found' }, { status: 404 }) };
 
-  return { endpoint };
+  return { endpoint, tenantCtx };
 }
 
 /**
@@ -60,6 +60,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     },
   });
 
+  await adminDb.auditLog.create({
+    data: {
+      tenantId: resolved.tenantCtx!.tenantId,
+      action: 'webhook_endpoint.updated',
+      resourceType: 'WebhookEndpoint',
+      resourceId: id,
+      before: { url: resolved.endpoint!.url, events: resolved.endpoint!.events },
+      after: { url: updated.url, events: updated.events, status: updated.status },
+    },
+  });
+
   return NextResponse.json(updated);
 }
 
@@ -75,6 +86,16 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   await adminDb.webhookEndpoint.update({
     where: { id },
     data: { status: 'DELETED' },
+  });
+
+  await adminDb.auditLog.create({
+    data: {
+      tenantId: resolved.tenantCtx!.tenantId,
+      action: 'webhook_endpoint.deleted',
+      resourceType: 'WebhookEndpoint',
+      resourceId: id,
+      before: { url: resolved.endpoint!.url },
+    },
   });
 
   return new NextResponse(null, { status: 204 });

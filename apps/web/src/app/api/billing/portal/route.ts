@@ -41,6 +41,15 @@ export async function POST(req: NextRequest) {
       'Stripe Customer Portal session created',
     );
 
+    await adminDb.auditLog.create({
+      data: {
+        tenantId: tenant.tenantId,
+        action: 'billing.portal_opened',
+        resourceType: 'Subscription',
+        resourceId: tenant.tenantId,
+      },
+    });
+
     return NextResponse.json({ url: portalSession.url });
   } catch (err) {
     logger.error(

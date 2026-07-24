@@ -10,6 +10,7 @@ const {
   mockSubscriptionUpsert,
   mockSubscriptionUpdate,
   mockEnqueue,
+  mockAuditLogCreate,
 } = vi.hoisted(() => ({
   mockConstructEvent: vi.fn(),
   mockIdempotencyFindUnique: vi.fn(),
@@ -19,6 +20,7 @@ const {
   mockSubscriptionUpsert: vi.fn(),
   mockSubscriptionUpdate: vi.fn(),
   mockEnqueue: vi.fn(),
+  mockAuditLogCreate: vi.fn(),
 }));
 
 vi.mock('./client.js', () => ({
@@ -46,6 +48,7 @@ vi.mock('@platform/db', () => ({
       upsert: mockSubscriptionUpsert,
       update: mockSubscriptionUpdate,
     },
+    auditLog: { create: mockAuditLogCreate },
   },
 }));
 
@@ -82,6 +85,7 @@ beforeEach(() => {
   mockSubscriptionUpsert.mockResolvedValue({});
   mockSubscriptionUpdate.mockResolvedValue({});
   mockEnqueue.mockResolvedValue('job-1');
+  mockAuditLogCreate.mockResolvedValue({});
 });
 
 describe('processStripeEvent', () => {
@@ -128,6 +132,12 @@ describe('processStripeEvent', () => {
       data: { tenantId: string };
     };
     expect(idempotencyArg.data.tenantId).toBe(TENANT_ID);
+
+    expect(mockAuditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ tenantId: TENANT_ID, action: 'subscription.created' }),
+      }),
+    );
   });
 
   it('maps Stripe subscription statuses to the internal SubscriptionStatus enum', async () => {
@@ -167,6 +177,12 @@ describe('processStripeEvent', () => {
     expect(mockEnqueue).toHaveBeenCalledWith(
       { name: 'plan-changed' },
       expect.objectContaining({ tenantId: TENANT_ID, newPlan: 'free' }),
+    );
+
+    expect(mockAuditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ tenantId: TENANT_ID, action: 'subscription.cancelled' }),
+      }),
     );
   });
 });

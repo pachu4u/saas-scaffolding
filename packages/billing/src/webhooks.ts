@@ -65,7 +65,7 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
     const existing = await adminDb.subscription.findUnique({ where: { tenantId } });
     const currentPeriodEnd = getCurrentPeriodEnd(sub);
 
-    await adminDb.subscription.upsert({
+    const updatedSub = await adminDb.subscription.upsert({
       where: { tenantId },
       update: {
         planId: plan.id,
@@ -83,6 +83,17 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
       },
     });
 
+    await adminDb.auditLog.create({
+      data: {
+        tenantId,
+        action: existing ? 'subscription.updated' : 'subscription.created',
+        resourceType: 'Subscription',
+        resourceId: updatedSub.tenantId,
+        ...(existing && { before: { planId: existing.planId, status: existing.status } }),
+        after: { planId: plan.id, planCode, status: mapStripeStatus(sub.status) },
+      },
+    });
+
     await enqueue(planChangedQueue, {
       tenantId,
       oldPlan: existing?.planId ?? 'free',
@@ -95,9 +106,22 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
     const tenantId = sub.metadata.tenantId;
     if (!tenantId) return;
 
+    const existing = await adminDb.subscription.findUnique({ where: { tenantId } });
+
     await adminDb.subscription.update({
       where: { tenantId },
       data: { status: 'CANCELED' },
+    });
+
+    await adminDb.auditLog.create({
+      data: {
+        tenantId,
+        action: 'subscription.cancelled',
+        resourceType: 'Subscription',
+        resourceId: tenantId,
+        ...(existing && { before: { status: existing.status } }),
+        after: { status: 'CANCELED' },
+      },
     });
 
     await enqueue(planChangedQueue, {
@@ -106,13 +130,40 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
       newPlan: 'free',
     });
   }
+
+  if (event.type === 'invoice.payment_succeeded' || event.type === 'invoice.payment_failed') {
+    const invoice = event.data.object;
+    const customerId =
+      typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
+    if (!customerId) return;
+
+    const sub = await adminDb.subscription.findFirst({ where: { stripeCustomerId: customerId } });
+    if (!sub) return;
+
+    await adminDb.auditLog.create({
+      data: {
+        tenantId: sub.tenantId,
+        action:
+          event.type === 'invoice.payment_succeeded'
+            ? 'billing.invoice_paid'
+            : 'billing.invoice_payment_failed',
+        resourceType: 'Subscription',
+        resourceId: sub.tenantId,
+        after: {
+          invoiceId: invoice.id,
+          amountDue: invoice.amount_due,
+          amountPaid: invoice.amount_paid,
+        },
+      },
+    });
+  }
 }
 
 // Stripe API versions from 2025-03-31 onward moved `current_period_end` off
 // the Subscription object and onto each subscription item instead. Fall back
 // to the top-level field for accounts still pinned to an older API version.
 function getCurrentPeriodEnd(sub: Stripe.Subscription): Date {
-  const item = sub.items.data[0] as unknown as { current_period_end?: number } | undefined;
+  const item = sub.items?.data?.[0] as unknown as { current_period_end?: number } | undefined;
   const legacySub = sub as unknown as { current_period_end?: number };
   const epochSeconds = item?.current_period_end ?? legacySub.current_period_end ?? sub.created;
   return new Date(epochSeconds * 1000);
