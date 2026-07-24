@@ -29,7 +29,6 @@ export default async function ConnectedAppDetailPage({
       },
       roles: {
         include: {
-          permissions: { include: { permission: { select: { code: true } } } },
           _count: { select: { bindings: true } },
         },
         orderBy: { name: 'asc' },
@@ -60,7 +59,6 @@ export default async function ConnectedAppDetailPage({
     id: role.id,
     name: role.name,
     memberCount: role._count.bindings,
-    permissions: role.permissions.map((rp) => rp.permission.code),
   }));
 
   return (
@@ -116,7 +114,8 @@ export default async function ConnectedAppDetailPage({
           </h2>
           <p className="mb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
             Roles defined here become assignable in every tenant that connects {app.name}, and sync
-            to it as SCIM groups with the permission codes below.
+            to it as SCIM groups. Permissions for each role are configured inside {app.name}
+            itself.
           </p>
           <ConnectedAppRolesPanel appId={app.id} roles={roleRows} />
         </section>

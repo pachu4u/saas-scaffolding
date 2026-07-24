@@ -64,10 +64,11 @@ model User {
 }
 
 model TenantUser {
-  tenantId String   @map("tenant_id") @db.Uuid
-  userId   String   @map("user_id") @db.Uuid
-  status   TenantUserStatus @default(ACTIVE)
-  joinedAt DateTime @default(now()) @map("joined_at")
+  tenantId                 String    @map("tenant_id") @db.Uuid
+  userId                   String    @map("user_id") @db.Uuid
+  status                   TenantUserStatus @default(ACTIVE)
+  joinedAt                 DateTime  @default(now()) @map("joined_at")
+  lastNotificationsReadAt  DateTime? @map("last_notifications_read_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)

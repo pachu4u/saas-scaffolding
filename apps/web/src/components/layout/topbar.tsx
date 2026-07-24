@@ -1,5 +1,6 @@
 'use client';
 
+import { NotificationsBell } from './notifications-bell';
 import { useSidebar } from './sidebar-context';
 
 interface TopbarProps {
@@ -93,20 +94,7 @@ export function Topbar({ title, subtitle, userEmail, userName, actions, breadcru
       <div className="flex flex-shrink-0 items-center gap-2">
         {actions}
 
-        {/* Notification bell */}
-        <button
-          className="relative flex h-8 w-8 items-center justify-center rounded-lg border transition-colors hover:bg-gray-50"
-          style={{ borderColor: 'var(--border-light)', color: 'var(--text-secondary)' }}
-          title="Notifications"
-        >
-          <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-            <path d="M10 2a6 6 0 0 0-6 6v3.586l-.707.707A1 1 0 0 0 4 14h12a1 1 0 0 0 .707-1.707L16 11.586V8a6 6 0 0 0-6-6zm0 16a2 2 0 0 1-2-2h4a2 2 0 0 1-2 2z" />
-          </svg>
-          <span
-            className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full"
-            style={{ background: 'var(--brand-accent)' }}
-          />
-        </button>
+        <NotificationsBell />
 
         {/* User avatar + info pill */}
         <div

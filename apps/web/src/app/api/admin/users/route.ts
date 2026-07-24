@@ -2,6 +2,13 @@ import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
+import {
+  createPendingKeycloakUser,
+  deleteKeycloakUser,
+  findUserIdByEmail,
+  sendKeycloakSetPasswordEmail,
+} from '@/lib/keycloak-admin';
+
 export const runtime = 'nodejs';
 
 function isPlatformAdmin(session: { groups?: unknown }): boolean {
@@ -71,6 +78,70 @@ export async function GET(req: NextRequest) {
     limit,
     offset,
   });
+}
+
+/**
+ * POST /api/admin/users
+ * Body: { email: string; name?: string }
+ *
+ * Creates a bare platform-level account: a Keycloak identity plus a `users`
+ * row, with no TenantUser and no RoleBinding. This is the only way to add a
+ * user to the app without also putting them in a workspace or granting a
+ * tenant-scoped role — every other entry point (signup, team invite) creates
+ * both as one step. Requires platform-admin session.
+ */
+export async function POST(req: NextRequest) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!isPlatformAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  const body = (await req.json().catch(() => ({}))) as { email?: string; name?: string };
+  const email = body.email?.trim().toLowerCase();
+  const trimmedName = body.name?.trim();
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- '' should become undefined too
+  const name = trimmedName ? trimmedName : undefined;
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ error: 'A valid email is required' }, { status: 422 });
+  }
+
+  const existing = await adminDb.user.findUnique({ where: { email } });
+  if (existing) {
+    return NextResponse.json({ error: 'A user with that email already exists' }, { status: 409 });
+  }
+
+  // Reuse an existing Keycloak identity if one already exists for this email
+  // (e.g. left over from a deleted tenant); only create — and only roll back
+  // — when we're the ones creating it.
+  let kcUserId = await findUserIdByEmail(email).catch(() => null);
+  const createdKcUser = !kcUserId;
+  kcUserId ??= await createPendingKeycloakUser(email, name);
+
+  try {
+    const user = await adminDb.user.create({
+      data: { email, externalId: kcUserId, name: name ?? null },
+      select: {
+        id: true,
+        externalId: true,
+        email: true,
+        name: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+
+    if (createdKcUser) {
+      await sendKeycloakSetPasswordEmail(kcUserId).catch((err: unknown) => {
+        console.warn('[POST /api/admin/users] execute-actions-email failed (non-fatal):', err);
+      });
+    }
+
+    return NextResponse.json({ user }, { status: 201 });
+  } catch (err) {
+    if (createdKcUser) await deleteKeycloakUser(kcUserId);
+    console.error('[POST /api/admin/users]', err);
+    return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
+  }
 }
 
 /**

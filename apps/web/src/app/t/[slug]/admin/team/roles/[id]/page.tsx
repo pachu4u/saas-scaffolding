@@ -39,25 +39,18 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
   const { tenantId } = tenantCtx;
   const base = `/t/${tenantCtx.slug}`;
 
-  const connectedAppIds = (
-    await adminDb.connectedAppInstance.findMany({
-      where: { tenantId, status: 'ACTIVE' },
-      select: { appId: true },
-    })
-  ).map((instance) => instance.appId);
-
   // Fetch role from DB, scoped to what this tenant is allowed to see: its own
-  // custom roles, tenant-level system roles, or app-scoped system roles for
-  // apps this tenant actually connects. Platform-level system roles
+  // custom roles or tenant-level system roles. Platform-level system roles
   // (platform_super_admin, platform_support) are deliberately excluded so a
   // tenant admin can't view/reach platform role details via this page.
+  // App-scoped roles are excluded too — they have no permissions to edit
+  // here and are managed instead from Connected Apps.
   const role = await adminDb.role.findFirst({
     where: {
       id,
       OR: [
         { tenantId },
         { isSystem: true, appId: null, name: { notIn: [...PLATFORM_ROLE_NAMES] } },
-        { isSystem: true, appId: { in: connectedAppIds } },
       ],
     },
     include: {

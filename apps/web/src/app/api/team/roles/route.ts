@@ -20,22 +20,16 @@ export async function GET(req: NextRequest) {
   const tenantCtx = await getTenantFromRequest(req);
   if (!tenantCtx) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
-  // App-scoped system roles only apply to tenants that actually connect that
-  // app — otherwise every tenant would see roles meaningful only to apps they
-  // don't have.
-  const connectedAppIds = (
-    await adminDb.connectedAppInstance.findMany({
-      where: { tenantId: tenantCtx.tenantId, status: 'ACTIVE' },
-      select: { appId: true },
-    })
-  ).map((instance) => instance.appId);
-
+  // App-scoped roles (Role.appId set) are deliberately excluded here — they're
+  // additive SCIM-group memberships assigned separately on the Roles &
+  // Permissions "connected app" tabs, not a member's single primary role, so
+  // they must never appear in the primary-role picker (assigning one there
+  // would replace, not add to, the member's existing role bindings).
   const roles = await adminDb.role.findMany({
     where: {
       OR: [
         { tenantId: tenantCtx.tenantId },
         { isSystem: true, appId: null, name: { notIn: [...PLATFORM_ROLE_NAMES] } },
-        { isSystem: true, appId: { in: connectedAppIds } },
       ],
     },
     include: {

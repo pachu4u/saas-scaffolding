@@ -37,8 +37,16 @@ export const PATCH = withAuthz<{ params: Promise<{ userId: string }> }>(
 
     // Only system roles or this tenant's own custom roles are assignable —
     // never another tenant's custom role that happens to share the name.
+    // App-scoped roles (appId set) are excluded: they're additive SCIM-group
+    // memberships managed via /api/team/roles/[id]/members, and replacing a
+    // member's entire role-binding set with just one would silently drop
+    // their base tenant role (Admin, Member, etc).
     const role = await adminDb.role.findFirst({
-      where: { name: roleName, OR: [{ isSystem: true }, { tenantId: authz.tenantId }] },
+      where: {
+        name: roleName,
+        appId: null,
+        OR: [{ isSystem: true }, { tenantId: authz.tenantId }],
+      },
     });
     if (!role) return NextResponse.json({ error: `Unknown role "${roleName}"` }, { status: 422 });
 

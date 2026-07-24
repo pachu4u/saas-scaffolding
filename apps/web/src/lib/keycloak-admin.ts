@@ -85,6 +85,83 @@ export async function listGroupMembers(groupName: string): Promise<KeycloakGroup
   }));
 }
 
+/**
+ * Creates a Keycloak user with no credentials and a required UPDATE_PASSWORD
+ * action, for platform admins adding a bare account (no tenant, no role
+ * binding) via /admin/users. The user sets their own password via the
+ * execute-actions email rather than the admin choosing one for them.
+ */
+export async function createPendingKeycloakUser(email: string, name?: string): Promise<string> {
+  const token = await getKeycloakAdminToken();
+  const kcUrl = kcBaseUrl();
+  const realm = env.KEYCLOAK_REALM;
+
+  const [firstName, ...rest] = (name ?? email).trim().split(' ');
+  const lastName = rest.join(' ') || firstName;
+
+  const res = await fetch(`${kcUrl}/admin/realms/${realm}/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      username: email.toLowerCase(),
+      email: email.toLowerCase(),
+      firstName: firstName ?? '',
+      lastName,
+      enabled: true,
+      emailVerified: false,
+      requiredActions: ['UPDATE_PASSWORD'],
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Keycloak user creation failed (${String(res.status)}): ${text}`);
+  }
+
+  // 201 Location header: .../admin/realms/{realm}/users/{userId}
+  const location = res.headers.get('Location') ?? '';
+  const kcUserId = location.split('/').pop();
+  if (!kcUserId)
+    throw new Error('Keycloak user created but could not extract user ID from Location header');
+  return kcUserId;
+}
+
+export async function deleteKeycloakUser(kcUserId: string): Promise<void> {
+  const token = await getKeycloakAdminToken();
+  const kcUrl = kcBaseUrl();
+  const realm = env.KEYCLOAK_REALM;
+
+  await fetch(`${kcUrl}/admin/realms/${realm}/users/${kcUserId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  }).catch(() => undefined);
+}
+
+/**
+ * Triggers Keycloak's own "execute actions" email (via the realm's configured
+ * SMTP) so a newly-created pending user can set their password. Best-effort —
+ * callers should treat failure as non-fatal since SMTP may be unconfigured in
+ * some environments.
+ */
+export async function sendKeycloakSetPasswordEmail(kcUserId: string): Promise<void> {
+  const token = await getKeycloakAdminToken();
+  const kcUrl = kcBaseUrl();
+  const realm = env.KEYCLOAK_REALM;
+
+  const res = await fetch(
+    `${kcUrl}/admin/realms/${realm}/users/${kcUserId}/execute-actions-email?lifespan=259200`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(['UPDATE_PASSWORD']),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Keycloak execute-actions-email failed (${String(res.status)}): ${text}`);
+  }
+}
+
 export async function findUserIdByEmail(email: string): Promise<string | null> {
   const token = await getKeycloakAdminToken();
   const kcUrl = kcBaseUrl();

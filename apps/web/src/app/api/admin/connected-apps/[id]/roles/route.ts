@@ -15,12 +15,12 @@ function isPlatformAdmin(session: { groups?: unknown }): boolean {
 
 /**
  * POST /api/admin/connected-apps/[id]/roles
- * Body: { name: string; permissions: string[] }
- * Defines a role that only makes sense for this connected app — it becomes
- * available (as a system role) to every tenant that connects the app, and
- * syncs to that app's SCIM Groups with the given permission codes. Permission
- * codes here are opaque to the platform: they're whatever the connected app
- * itself understands, not the platform's own Permission enum.
+ * Body: { name: string }
+ * Defines a role name that only makes sense for this connected app — it
+ * becomes available (as a system role) to every tenant that connects the
+ * app, and syncs to that app's SCIM Groups. What the role actually grants is
+ * configured inside the app itself, not here — the platform only tracks the
+ * role's existence and its membership.
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -31,8 +31,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const app = await adminDb.connectedApp.findUnique({ where: { id: appId } });
   if (!app) return NextResponse.json({ error: 'App not found' }, { status: 404 });
 
-  const body = (await req.json()) as { name?: string; permissions?: string[] };
-  const { name, permissions = [] } = body;
+  const body = (await req.json()) as { name?: string };
+  const { name } = body;
 
   if (!name?.trim()) {
     return NextResponse.json({ error: 'name is required' }, { status: 422 });
@@ -48,33 +48,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   }
 
-  const cleanCodes = [...new Set(permissions.map((p) => p.trim()).filter(Boolean))];
-
-  const role = await adminDb.$transaction(async (tx) => {
-    const permRecords = await Promise.all(
-      cleanCodes.map((code) =>
-        tx.permission.upsert({ where: { code }, update: {}, create: { code } }),
-      ),
-    );
-    return tx.role.create({
-      data: {
-        tenantId: null,
-        appId,
-        name: name.trim(),
-        isSystem: true,
-        permissions: { create: permRecords.map((p) => ({ permissionId: p.id })) },
-      },
-      include: { permissions: { include: { permission: { select: { code: true } } } } },
-    });
+  const role = await adminDb.role.create({
+    data: { tenantId: null, appId, name: name.trim(), isSystem: true },
   });
 
   return NextResponse.json(
-    {
-      id: role.id,
-      name: role.name,
-      isSystem: role.isSystem,
-      permissions: role.permissions.map((rp) => rp.permission.code),
-    },
+    { id: role.id, name: role.name, isSystem: role.isSystem },
     { status: 201 },
   );
 }

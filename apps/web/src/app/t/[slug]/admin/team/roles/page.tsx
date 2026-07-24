@@ -36,25 +36,17 @@ export default async function RolesPage() {
 
   const { tenantId } = tenantCtx;
 
-  // App-scoped system roles (defined per connected app in platform admin)
-  // only apply to tenants that actually connect that app.
-  const connectedAppIds = (
-    await adminDb.connectedAppInstance.findMany({
-      where: { tenantId, status: 'ACTIVE' },
-      select: { appId: true },
-    })
-  ).map((instance) => instance.appId);
-
-  // Fetch all roles applicable to this tenant: tenant-scoped roles + tenant-level
-  // system roles. Platform-level system roles (platform_super_admin,
-  // platform_support) are excluded — they have tenantId: null but are not
-  // relevant to, or assignable within, a single tenant's role management.
+  // Fetch all workspace-level roles applicable to this tenant: its own
+  // custom roles + tenant-level system roles. Platform-level system roles
+  // (platform_super_admin, platform_support) are excluded — they have
+  // tenantId: null but are not relevant to a single tenant's role management.
+  // App-scoped roles (Role.appId set) are managed from Connected Apps, not
+  // shown in this workspace-level list.
   const roles = await adminDb.role.findMany({
     where: {
       OR: [
         { tenantId },
         { isSystem: true, appId: null, name: { notIn: [...PLATFORM_ROLE_NAMES] } },
-        { isSystem: true, appId: { in: connectedAppIds } },
       ],
     },
     include: {

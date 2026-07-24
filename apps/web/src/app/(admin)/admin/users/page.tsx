@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState, useTransition } from 'react';
 
+import { AddPlatformUserModal } from '@/components/modals/add-platform-user-modal';
+
 interface TenantMembership {
   status: string;
   tenant: { id: string; name: string; slug: string; plan: string };
@@ -44,6 +46,7 @@ export default function AdminUsersPage() {
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [showAddUser, setShowAddUser] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -111,21 +114,44 @@ export default function AdminUsersPage() {
             {data ? ` · ${data.total.toLocaleString()} users` : ''}
           </p>
         </div>
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
+        <div className="flex items-center gap-3">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+            }}
+            placeholder="Search by email…"
+            className="w-full rounded-xl border px-3 py-2 text-sm outline-none sm:w-64"
+            style={{
+              borderColor: 'var(--border-default)',
+              background: 'var(--bg-main)',
+              color: 'var(--text-primary)',
+            }}
+          />
+          <button
+            onClick={() => {
+              setShowAddUser(true);
+            }}
+            className="brand-gradient flex-shrink-0 rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            Add user
+          </button>
+        </div>
+      </div>
+
+      {showAddUser && (
+        <AddPlatformUserModal
+          onClose={() => {
+            setShowAddUser(false);
           }}
-          placeholder="Search by email…"
-          className="w-full rounded-xl border px-3 py-2 text-sm outline-none sm:w-64"
-          style={{
-            borderColor: 'var(--border-default)',
-            background: 'var(--bg-main)',
-            color: 'var(--text-primary)',
+          onSuccess={() => {
+            setShowAddUser(false);
+            setActionMsg('User created');
+            void fetchUsers(debouncedQuery);
           }}
         />
-      </div>
+      )}
 
       <main className="p-6">
         {actionMsg && (

@@ -41,6 +41,22 @@ function publicOrigin(req: NextRequest): string {
 }
 
 /**
+ * admin.{slug}.techhanker.com (see tenant-app-admin-subdomains.yml +
+ * middleware.ts's extractSlug) only routes to this web app, not to
+ * Riogentix's /api/v1 — so building the SSO/app URLs from that host 404s.
+ * Strip the `admin.` label to get back to the tenant's base host, which is
+ * the one Traefik actually wires to Riogentix.
+ */
+function canonicalTenantOrigin(origin: string): string {
+  const url = new URL(origin);
+  const labels = url.hostname.split('.');
+  if (labels[0] === 'admin' && labels.length > 3) {
+    url.hostname = labels.slice(1).join('.');
+  }
+  return url.origin;
+}
+
+/**
  * `app.{host}` origin, e.g. https://app.acme.techhanker.com — Riogentix's
  * own dedicated root host (see renderIngress in manifests.ts and
  * tenant-app-admin-subdomains.yml), as opposed to `{host}/app` on the base
@@ -53,7 +69,7 @@ function appOrigin(origin: string): string {
 }
 
 export async function GET(req: NextRequest) {
-  const origin = publicOrigin(req);
+  const origin = canonicalTenantOrigin(publicOrigin(req));
   const session = await auth();
   if (!session?.user) {
     return NextResponse.redirect(new URL('/auth/signin', origin));

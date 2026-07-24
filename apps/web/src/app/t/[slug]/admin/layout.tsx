@@ -6,7 +6,6 @@ export const dynamic = 'force-dynamic';
 import { Sidebar } from '@/components/layout/sidebar';
 import { SidebarProvider } from '@/components/layout/sidebar-context';
 import { getCurrentTenant } from '@/lib/server-tenant';
-import { tenantAppUrl } from '@/lib/tenant-urls';
 
 function buildBrandingStyle(branding: unknown): string {
   if (!branding || typeof branding !== 'object') return '';
@@ -53,7 +52,6 @@ export default async function TenantAdminLayout({ children }: { children: React.
           tenantSlug={tenantSlug}
           userName={userName}
           userEmail={session.user.email}
-          riogentixUrl={tenant ? tenantAppUrl(tenant.slug) : process.env.RIOGENTIX_PUBLIC_URL}
         />
         <div className="lg:ml-[var(--sidebar-width)]">{children}</div>
       </div>

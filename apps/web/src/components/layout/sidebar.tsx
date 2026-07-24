@@ -239,7 +239,7 @@ const Icon = {
 
 // ─── Navigation definitions ───────────────────────────────────────────────────
 
-function buildTenantSections(base: string, riogentixUrl?: string) {
+function buildTenantSections(base: string) {
   return [
     {
       label: 'OVERVIEW',
@@ -247,11 +247,7 @@ function buildTenantSections(base: string, riogentixUrl?: string) {
     },
     {
       label: 'WORKSPACE',
-      items: [
-        ...(riogentixUrl
-          ? [{ label: 'Riogentix AI', href: riogentixUrl, icon: Icon.layers }]
-          : [{ label: 'Riogentix App', href: `${base}/app`, icon: Icon.layers }]),
-      ],
+      items: [{ label: 'Workspace Hub', href: `${base}/admin/hub`, icon: Icon.layers }],
     },
     {
       label: 'GOVERNANCE',
@@ -331,7 +327,6 @@ interface SidebarProps {
   isAdmin?: boolean;
   userName?: string;
   userEmail?: string;
-  riogentixUrl?: string | undefined;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -415,7 +410,6 @@ export function Sidebar({
   isAdmin,
   userName,
   userEmail,
-  riogentixUrl,
 }: SidebarProps) {
   const pathname = usePathname();
   const { isOpen, close } = useSidebar();
@@ -430,7 +424,7 @@ export function Sidebar({
     return pathname === href || pathname.startsWith(href + '/');
   };
 
-  const sections: NavSection[] = isAdmin ? adminSections : buildTenantSections(base, riogentixUrl);
+  const sections: NavSection[] = isAdmin ? adminSections : buildTenantSections(base);
 
   return (
     <>
