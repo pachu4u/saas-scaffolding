@@ -255,6 +255,9 @@ importers:
       '@platform/logger':
         specifier: workspace:*
         version: link:../logger
+      '@platform/vault':
+        specifier: workspace:*
+        version: link:../vault
       stripe:
         specifier: ^16.2.0
         version: 16.12.0

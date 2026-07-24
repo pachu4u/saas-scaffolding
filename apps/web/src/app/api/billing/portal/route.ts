@@ -1,5 +1,5 @@
 import { auth } from '@platform/auth';
-import { stripe } from '@platform/billing';
+import { getStripeClient } from '@platform/billing';
 import { env } from '@platform/config';
 import { adminDb } from '@platform/db';
 import { logger } from '@platform/logger';
@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
   }
 
   const appUrl = env.NEXT_PUBLIC_APP_URL;
+  const stripe = await getStripeClient();
 
   try {
     const portalSession = await stripe.billingPortal.sessions.create({

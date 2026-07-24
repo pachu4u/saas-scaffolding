@@ -1,11 +1,10 @@
-import { env } from '@platform/config';
 import { adminDb } from '@platform/db';
 import type { Subscription } from '@platform/db';
 import { enqueue, planChangedQueue } from '@platform/jobs';
 import { logger } from '@platform/logger';
 import type Stripe from 'stripe';
 
-import { stripe } from './client.js';
+import { getStripeClient, getStripeWebhookSecret } from './client.js';
 
 type SubscriptionStatus = Subscription['status'];
 
@@ -18,7 +17,9 @@ const HANDLED_EVENTS = new Set<Stripe.Event['type']>([
 ]);
 
 export async function processStripeEvent(rawBody: string, signature: string): Promise<void> {
-  const event = stripe.webhooks.constructEvent(rawBody, signature, env.STRIPE_WEBHOOK_SECRET ?? '');
+  const stripe = await getStripeClient();
+  const webhookSecret = await getStripeWebhookSecret();
+  const event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
 
   if (!HANDLED_EVENTS.has(event.type)) {
     logger.debug({ eventType: event.type }, 'Unhandled Stripe event — skipping');

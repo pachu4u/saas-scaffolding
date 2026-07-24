@@ -303,6 +303,7 @@ const adminSections = [
     items: [
       { label: 'Revenue', href: '/admin/revenue', icon: Icon.trendingUp },
       { label: 'Plans', href: '/admin/plans', icon: Icon.layers },
+      { label: 'Billing', href: '/admin/billing', icon: Icon.creditCard },
     ],
   },
   {

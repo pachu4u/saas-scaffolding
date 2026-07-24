@@ -1,5 +1,5 @@
 import { auth } from '@platform/auth';
-import { stripe } from '@platform/billing';
+import { getStripeClient } from '@platform/billing';
 import { env } from '@platform/config';
 import { adminDb } from '@platform/db';
 import { logger } from '@platform/logger';
@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
   });
 
   let customerId = subscription?.stripeCustomerId;
+  const stripe = await getStripeClient();
 
   if (!customerId) {
     const customer = await stripe.customers.create({

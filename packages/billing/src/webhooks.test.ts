@@ -22,11 +22,10 @@ const {
 }));
 
 vi.mock('./client.js', () => ({
-  stripe: { webhooks: { constructEvent: mockConstructEvent } },
-}));
-
-vi.mock('@platform/config', () => ({
-  env: { STRIPE_WEBHOOK_SECRET: 'whsec_test' },
+  getStripeClient: vi.fn().mockResolvedValue({
+    webhooks: { constructEvent: mockConstructEvent },
+  }),
+  getStripeWebhookSecret: vi.fn().mockResolvedValue('whsec_test'),
 }));
 
 vi.mock('@platform/logger', () => ({
