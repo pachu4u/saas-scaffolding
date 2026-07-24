@@ -21,6 +21,7 @@
   "dependencies": {
     "@platform/config": "workspace:*",
     "@platform/db": "workspace:*",
+    "@platform/vault": "workspace:*",
     "resend": "^3.4.0"
   },
   "devDependencies": {

@@ -318,6 +318,10 @@ services:
       RIOGENTIX_INTERNAL_SECRET: ${RIOGENTIX_INTERNAL_SECRET:-riogentix-saas-internal-secret-dev}
       RIOGENTIX_SAAS_INTERNAL_SECRET: ${RIOGENTIX_SAAS_INTERNAL_SECRET:-riogentix-saas-internal-secret-dev}
       RIOGENTIX_PUBLIC_URL: https://riogentix.techhanker.com
+      # Vault runs as its own container (docker-compose.tools.yml); route to it
+      # by Docker-internal hostname instead of the host-facing localhost:8200.
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: ${VAULT_TOKEN:-root}
     labels:
       - 'traefik.enable=true'
       - 'traefik.http.routers.web-app.rule=Host(`app.lvh.me`)'
@@ -358,3 +362,7 @@ services:
       DATABASE_URL_MIGRATOR: postgresql://postgres:postgres_secret@app-db:5432/saas_platform
       REDIS_URL: redis://:${REDIS_PASSWORD:-CbOVe769kslw0TKTLUAyAVi0ViJIuzl}@redis:6379
       KEYCLOAK_ISSUER: https://auth.techhanker.com/realms/saas-platform
+      # Vault runs as its own container (docker-compose.tools.yml); route to it
+      # by Docker-internal hostname instead of the host-facing localhost:8200.
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: ${VAULT_TOKEN:-root}

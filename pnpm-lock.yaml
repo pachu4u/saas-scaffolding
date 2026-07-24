@@ -356,6 +356,9 @@ importers:
       '@platform/db':
         specifier: workspace:*
         version: link:../db
+      '@platform/vault':
+        specifier: workspace:*
+        version: link:../vault
       resend:
         specifier: ^3.4.0
         version: 3.5.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)

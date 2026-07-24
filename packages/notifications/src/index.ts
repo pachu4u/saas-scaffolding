@@ -1,7 +1,32 @@
 import { env } from '@platform/config';
+import { getPlatformSecrets } from '@platform/vault';
 import { Resend } from 'resend';
 
-const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
+let emailConfig: { apiKey: string | null; from: string } | null = null;
+
+/**
+ * Resolves Resend credentials from Vault (platform/email), falling back to
+ * RESEND_API_KEY/EMAIL_FROM env vars when Vault is unreachable or unconfigured.
+ */
+async function getEmailConfig(): Promise<{ apiKey: string | null; from: string }> {
+  if (emailConfig) return emailConfig;
+
+  let vaultConfig: { api_key: string; from_email: string } | null = null;
+  try {
+    vaultConfig = await getPlatformSecrets().getEmailConfig();
+  } catch (err) {
+    console.warn(
+      '[notifications] Vault lookup for platform/email failed, falling back to env:',
+      err,
+    );
+  }
+
+  emailConfig = {
+    apiKey: vaultConfig?.api_key ?? env.RESEND_API_KEY ?? null,
+    from: vaultConfig?.from_email ?? env.EMAIL_FROM ?? 'noreply@platform.test',
+  };
+  return emailConfig;
+}
 
 export interface EmailPayload {
   to: string;
@@ -13,10 +38,11 @@ export interface EmailPayload {
 
 /**
  * Send a transactional email.
- * Falls back to console.log in development when RESEND_API_KEY is not set.
+ * Falls back to console.log in development when no Resend API key is available.
  */
 export async function sendEmail(payload: EmailPayload): Promise<void> {
-  const from = env.EMAIL_FROM ?? 'noreply@platform.test';
+  const { apiKey, from } = await getEmailConfig();
+  const resend = apiKey ? new Resend(apiKey) : null;
 
   if (!resend || env.NODE_ENV === 'development') {
     console.log('[notifications] sendEmail:', JSON.stringify({ from, ...payload }, null, 2));
