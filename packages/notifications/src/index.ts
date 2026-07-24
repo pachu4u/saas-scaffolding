@@ -23,12 +23,16 @@ export async function sendEmail(payload: EmailPayload): Promise<void> {
     return;
   }
 
-  await resend.emails.send({
+  const { error } = await resend.emails.send({
     from,
     to: payload.to,
     subject: payload.subject,
     html: renderTemplate(payload.templateId, payload.data),
   });
+
+  if (error) {
+    throw new Error(`[notifications] Resend send failed: ${error.name} — ${error.message}`);
+  }
 }
 
 function renderTemplate(templateId: string, data: Record<string, unknown>): string {
