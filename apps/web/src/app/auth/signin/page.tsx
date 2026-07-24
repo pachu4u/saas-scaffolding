@@ -8,12 +8,21 @@ export const metadata = { title: 'Sign in' };
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tenant?: string }>;
+  searchParams: Promise<{ tenant?: string; callbackUrl?: string }>;
 }) {
   // Tenant slug: prefer x-tenant-slug header (set by middleware when on a subdomain)
   // then fall back to the optional ?tenant= query param for legacy links.
   const h = await headers();
-  const tenantSlug = h.get('x-tenant-slug') ?? (await searchParams).tenant ?? '';
+  const params = await searchParams;
+  const tenantSlug = h.get('x-tenant-slug') ?? params.tenant ?? '';
+  // Set by middleware (or the keycloak-logout route) when the user was bounced
+  // here from a page like /invite/{token} that carries state in the path
+  // itself — the default post-login tenant redirect would lose it. Only ever
+  // a relative path, never trusted as a full URL.
+  const callbackUrl =
+    params.callbackUrl?.startsWith('/') && !params.callbackUrl.startsWith('//')
+      ? params.callbackUrl
+      : '';
   // Whether this request came in on admin.{slug}.techhanker.com — set by
   // middleware from the actual Host header. Threaded through to /auth/redirect
   // so post-login lands back on the same subdomain instead of the bare tenant
@@ -99,11 +108,14 @@ export default async function SignInPage({
               // headers/searchParams inside the action because the action always
               // runs on saas.techhanker.com (AUTH_URL origin), so x-tenant-slug
               // would be empty here — we need the values from the page render.
-              const params = new URLSearchParams();
-              if (tenantSlug) params.set('tenant', tenantSlug);
-              if (isAdminHost) params.set('host', 'admin');
-              const query = params.toString();
-              const redirectTo = query ? `/auth/redirect?${query}` : '/auth/redirect';
+              let redirectTo = callbackUrl;
+              if (!redirectTo) {
+                const redirectParams = new URLSearchParams();
+                if (tenantSlug) redirectParams.set('tenant', tenantSlug);
+                if (isAdminHost) redirectParams.set('host', 'admin');
+                const query = redirectParams.toString();
+                redirectTo = query ? `/auth/redirect?${query}` : '/auth/redirect';
+              }
               await signIn('keycloak', { redirectTo });
             }}
             className="space-y-4"

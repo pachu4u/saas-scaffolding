@@ -13,8 +13,26 @@ export type AcceptInviteResult =
  * the invite page's server action so the action never has to round-trip
  * through its own HTTP layer (that self-fetch doesn't carry the browser's
  * session cookie and gets redirected to /auth/signin by middleware).
+ *
+ * `sessionUserId` is the platform User.id of whoever is actually browsing
+ * (resolved from their auth session), required to match the invited
+ * `userId`. Without this check, activating the membership doesn't depend on
+ * who's logged in, so a stale/wrong session in the browser accepts on behalf
+ * of the invited user while leaving the wrong account signed in.
  */
-export async function acceptInvite(tenantId: string, userId: string): Promise<AcceptInviteResult> {
+export async function acceptInvite(
+  tenantId: string,
+  userId: string,
+  sessionUserId: string | null,
+): Promise<AcceptInviteResult> {
+  if (sessionUserId !== userId) {
+    return {
+      success: false,
+      error: 'Signed in as a different user than this invite is for',
+      status: 403,
+    };
+  }
+
   const tenantUser = await adminDb.tenantUser.findUnique({
     where: { tenantId_userId: { tenantId, userId } },
   });

@@ -179,6 +179,10 @@ export default auth(function middleware(req: NextRequest) {
     // the signin page brands correctly and the post-login redirect returns here.
     const signInUrl = new URL('/auth/signin', realOrigin);
     if (pathTenant) signInUrl.searchParams.set('tenant', pathTenant.slug);
+    // Invite links carry a one-time token in the path itself — bouncing through
+    // the default post-login tenant redirect would lose it, so send the user
+    // straight back here once they're signed in.
+    if (pathname.startsWith('/invite/')) signInUrl.searchParams.set('callbackUrl', pathname);
     const res = NextResponse.redirect(signInUrl);
     if (staleSessionCookies) clearSessionCookies(req, res);
     return res;

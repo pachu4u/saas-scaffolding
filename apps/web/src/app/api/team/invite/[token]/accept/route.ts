@@ -1,3 +1,5 @@
+import { auth } from '@platform/auth';
+import { adminDb } from '@platform/db';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { acceptInvite } from '@/lib/accept-invite';
@@ -16,7 +18,15 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ to
     return NextResponse.json({ error: 'Invalid or expired invite link' }, { status: 400 });
   }
 
-  const result = await acceptInvite(tenantId, userId);
+  const session = await auth();
+  const sessionDbUser = session?.user
+    ? await adminDb.user.findUnique({
+        where: { externalId: session.user.id },
+        select: { id: true },
+      })
+    : null;
+
+  const result = await acceptInvite(tenantId, userId, sessionDbUser?.id ?? null);
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }

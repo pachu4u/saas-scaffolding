@@ -44,10 +44,20 @@ export async function GET(req: Request) {
     : undefined;
   const isSecure = appUrl.startsWith('https');
 
+  // Optional return path (e.g. an /invite/{token} link) to send the user back
+  // to after they sign back in — otherwise they'd land on the default signin
+  // page and lose it. Only ever a relative path, never an absolute URL, so
+  // this can't be used to redirect off-site.
+  const returnTo = new URL(req.url).searchParams.get('returnTo');
+  const signInPath =
+    returnTo?.startsWith('/') && !returnTo.startsWith('//')
+      ? `/auth/signin?callbackUrl=${encodeURIComponent(returnTo)}`
+      : '/auth/signin';
+
   // Build Keycloak end_session URL
   const logoutUrl = new URL(`${keycloakIssuer}/protocol/openid-connect/logout`);
   if (idToken) logoutUrl.searchParams.set('id_token_hint', idToken);
-  logoutUrl.searchParams.set('post_logout_redirect_uri', `${postLogoutBase}/auth/signin`);
+  logoutUrl.searchParams.set('post_logout_redirect_uri', `${postLogoutBase}${signInPath}`);
   logoutUrl.searchParams.set('client_id', process.env.KEYCLOAK_CLIENT_ID ?? 'saas-platform');
 
   const response = NextResponse.redirect(logoutUrl);

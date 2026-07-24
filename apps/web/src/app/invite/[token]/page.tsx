@@ -1,3 +1,4 @@
+import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -13,7 +14,15 @@ async function acceptInvite(token: string) {
   const { tenantId, userId } = decodeInviteToken(token);
   if (!tenantId || !userId) return;
 
-  const result = await acceptInviteMembership(tenantId, userId);
+  const session = await auth();
+  const sessionDbUser = session?.user
+    ? await adminDb.user.findUnique({
+        where: { externalId: session.user.id },
+        select: { id: true },
+      })
+    : null;
+
+  const result = await acceptInviteMembership(tenantId, userId, sessionDbUser?.id ?? null);
   if (result.success) {
     redirect('tenantSlug' in result ? `/t/${result.tenantSlug}` : '/dashboard');
   }
@@ -80,6 +89,57 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
 
   if (tenantUser.status === 'ACTIVE') {
     redirect('/dashboard');
+  }
+
+  // This invite is only valid for the specific account it was issued to. If the
+  // browser's current session belongs to someone else (a stale login left over
+  // from a previous account, or the admin who sent the invite), accepting here
+  // would activate the membership for the invited user while leaving the wrong
+  // person signed in. Require them to sign out and back in as the invited
+  // account first.
+  const session = await auth();
+  const sessionDbUser = session?.user
+    ? await adminDb.user.findUnique({
+        where: { externalId: session.user.id },
+        select: { id: true, email: true },
+      })
+    : null;
+  const wrongAccount = sessionDbUser && sessionDbUser.id !== userId;
+
+  if (wrongAccount) {
+    const returnTo = `/invite/${token}`;
+    return (
+      <div
+        className="flex min-h-screen items-center justify-center px-6"
+        style={{ background: 'var(--bg-main)' }}
+      >
+        <div className="w-full max-w-sm text-center">
+          <div
+            className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-xl"
+            style={{ background: 'rgba(220, 38, 38, 0.08)' }}
+          >
+            <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="#DC2626" strokeWidth="1.5" />
+              <path d="M12 7v5M12 16v.5" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </div>
+          <h1 className="mb-2 text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
+            Wrong account
+          </h1>
+          <p className="mb-6 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            This invite is for <strong>{user.email}</strong>, but you&apos;re signed in as{' '}
+            <strong>{sessionDbUser.email}</strong>. Sign out and sign back in as {user.email} to
+            accept it.
+          </p>
+          <a
+            href={`/api/auth/keycloak-logout?returnTo=${encodeURIComponent(returnTo)}`}
+            className="brand-gradient inline-block rounded-xl px-6 py-3 text-sm font-semibold text-white"
+          >
+            Sign out and continue
+          </a>
+        </div>
+      </div>
+    );
   }
 
   const acceptWithToken = acceptInvite.bind(null, token);
