@@ -39,6 +39,7 @@ model Tenant {
   riogentixUsers    RiogentixUser[]
   connectedAppInstances ConnectedAppInstance[]
   syncOutboxEvents      SyncOutboxEvent[]
+  externalIdentities    ExternalIdentity[]
 
   @@map("tenants")
 }
@@ -184,6 +185,8 @@ model ScimToken {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  // Looked up on every SCIM request (bearer token auth) — must be indexed.
+  @@index([hashedToken])
   @@map("scim_tokens")
 }
 
@@ -195,7 +198,8 @@ model ExternalIdentity {
   idpUserId String @map("idp_user_id")
   raw      Json   @default("{}") @db.JsonB
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, idp, idpUserId])
   @@map("external_identities")
@@ -307,7 +311,10 @@ model AuditLog {
   userAgent    String?  @map("user_agent")
   occurredAt   DateTime @default(now()) @map("occurred_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade: the audit trail must survive a tenant row delete.
+  // Application code only ever soft-deletes tenants (status: DELETED); the DB
+  // constraint shouldn't let a hard delete silently wipe compliance history.
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   actor  User?  @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, occurredAt])

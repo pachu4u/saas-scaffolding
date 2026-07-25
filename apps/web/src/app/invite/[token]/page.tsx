@@ -24,7 +24,9 @@ async function acceptInvite(token: string) {
 
   const result = await acceptInviteMembership(tenantId, userId, sessionDbUser?.id ?? null);
   if (result.success) {
-    redirect('tenantSlug' in result ? `/t/${result.tenantSlug}` : '/dashboard');
+    redirect(
+      'tenantSlug' in result && result.tenantSlug ? `/t/${result.tenantSlug}` : '/dashboard',
+    );
   }
 }
 

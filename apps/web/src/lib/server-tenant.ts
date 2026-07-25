@@ -36,7 +36,7 @@ async function getActiveMemberships(
  */
 export async function getTenantFromRequest(req: NextRequest): Promise<TenantContext | null> {
   const session = await auth();
-  const externalUserId = session?.user?.id;
+  const externalUserId = session?.user.id;
   if (!externalUserId) return null;
 
   const slug = req.headers.get('x-tenant-slug') ?? process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG;

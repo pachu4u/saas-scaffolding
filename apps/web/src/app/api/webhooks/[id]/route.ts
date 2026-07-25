@@ -62,11 +62,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   await adminDb.auditLog.create({
     data: {
-      tenantId: resolved.tenantCtx!.tenantId,
+      tenantId: resolved.tenantCtx.tenantId,
       action: 'webhook_endpoint.updated',
       resourceType: 'WebhookEndpoint',
       resourceId: id,
-      before: { url: resolved.endpoint!.url, events: resolved.endpoint!.events },
+      before: { url: resolved.endpoint.url, events: resolved.endpoint.events },
       after: { url: updated.url, events: updated.events, status: updated.status },
     },
   });
@@ -90,11 +90,11 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
   await adminDb.auditLog.create({
     data: {
-      tenantId: resolved.tenantCtx!.tenantId,
+      tenantId: resolved.tenantCtx.tenantId,
       action: 'webhook_endpoint.deleted',
       resourceType: 'WebhookEndpoint',
       resourceId: id,
-      before: { url: resolved.endpoint!.url },
+      before: { url: resolved.endpoint.url },
     },
   });
 

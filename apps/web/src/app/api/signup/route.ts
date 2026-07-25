@@ -1,11 +1,22 @@
 import crypto from 'crypto';
 
 import { env } from '@platform/config';
-import { adminDb, appendSyncOutbox, withPlatformAdmin } from '@platform/db';
+import {
+  adminDb,
+  appendSyncOutbox,
+  withPlatformAdmin,
+  checkRateLimit,
+  rateLimitHeaders,
+} from '@platform/db';
 import { enqueue, tenantProvisionQueue, type TenantProvisionJob } from '@platform/jobs';
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { getKeycloakAdminToken } from '@/lib/keycloak-admin';
+
+/** Best-effort client IP from the Traefik-forwarded chain; the first entry is the client. */
+function clientIp(req: NextRequest): string {
+  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+}
 
 export const runtime = 'nodejs';
 
@@ -78,6 +89,21 @@ async function deleteKeycloakUser(token: string, kcUserId: string): Promise<void
  * Creates a tenant, Keycloak user, DB user, TenantUser, role binding, and provisions Riogentix.
  */
 export async function POST(req: NextRequest) {
+  // Unauthenticated endpoint that creates real Keycloak users, tenants, and
+  // provisioning jobs — rate limit per IP to bound abuse before doing any work.
+  const rl = await checkRateLimit({
+    prefix: 'signup',
+    id: clientIp(req),
+    limit: 5,
+    windowMs: 60 * 60 * 1000,
+  });
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many signup attempts. Please try again later.' },
+      { status: 429, headers: rateLimitHeaders(rl) },
+    );
+  }
+
   const body = (await req.json().catch(() => ({}))) as SignupBody;
   const {
     companyName,
