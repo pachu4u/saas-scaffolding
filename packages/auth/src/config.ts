@@ -105,7 +105,7 @@ export const authConfig: NextAuthConfig = {
         token.email = profile.email;
         // Keycloak groups claim (mapped to tenant slugs)
         token.groups = (profile as Record<string, unknown>).groups ?? [];
-        token.idToken = account.id_token;
+        if (account.id_token) token.idToken = account.id_token;
         token.expiresAt = account.expires_at;
       }
       return token;
@@ -119,10 +119,10 @@ export const authConfig: NextAuthConfig = {
       if (token.groups) {
         (session as unknown as Record<string, unknown>).groups = token.groups;
       }
-      // Expose id_token so the federated-logout route can pass it to Keycloak
-      if (token.idToken) {
-        session.idToken = token.idToken as string;
-      }
+      // id_token deliberately stays out of the client-visible session object —
+      // /api/auth/session and useSession() both serialize whatever we return
+      // here to the browser. The federated-logout route reads it straight off
+      // the encrypted JWT cookie via next-auth/jwt's getToken() instead.
       return session;
     },
   },
@@ -211,7 +211,5 @@ declare module 'next-auth' {
       image?: string | null;
     };
     groups: string[];
-    /** OIDC id_token — used for federated logout with Keycloak */
-    idToken?: string;
   }
 }

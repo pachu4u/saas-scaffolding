@@ -1,4 +1,6 @@
-import { auth } from '@platform/auth';
+import { env } from '@platform/config';
+import { getToken } from 'next-auth/jwt';
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 /**
@@ -9,12 +11,19 @@ import { NextResponse } from 'next/server';
  * is also destroyed.  Without this, Keycloak silently re-authenticates the
  * user on the next SSO click even after Next.js has cleared its own cookie.
  */
-export async function GET(req: Request) {
-  const session = await auth();
-  const idToken = session?.idToken;
+export async function GET(req: NextRequest) {
+  const appUrl = process.env.AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.lvh.me';
+  const isSecure = appUrl.startsWith('https');
+  // Read id_token straight off the encrypted session JWT rather than the
+  // client-visible session object — it's never exposed to the browser.
+  const token = await getToken({
+    req,
+    secret: env.AUTH_SECRET,
+    secureCookie: isSecure,
+  });
+  const idToken = typeof token?.idToken === 'string' ? token.idToken : undefined;
 
   const keycloakIssuer = process.env.KEYCLOAK_ISSUER ?? 'https://auth.lvh.me/realms/saas-platform';
-  const appUrl = process.env.AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.lvh.me';
 
   // Prefer the origin the user came from (e.g. demo.techhanker.com) so they
   // land back on their tenant's branded sign-in page after logout.
@@ -42,7 +51,6 @@ export async function GET(req: Request) {
   const cookieDomain = authHost.includes('.')
     ? '.' + authHost.split('.').slice(-2).join('.')
     : undefined;
-  const isSecure = appUrl.startsWith('https');
 
   // Optional return path (e.g. an /invite/{token} link) to send the user back
   // to after they sign back in — otherwise they'd land on the default signin

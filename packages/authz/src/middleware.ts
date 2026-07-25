@@ -72,6 +72,9 @@ export function withAuthz<
     if (!tenantCtx) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
+    if (tenantCtx.status === 'SUSPENDED') {
+      return NextResponse.json({ error: 'Tenant suspended' }, { status: 403 });
+    }
 
     const tenantId = tenantCtx.tenantId;
     const plan = tenantCtx.plan;
