@@ -48,6 +48,10 @@ vi.mock('@platform/db', () => ({
     },
     syncOutboxEvent: { create: mockSyncOutboxEventCreate },
   },
+  withLock: async (_key: string, _ttlMs: number, fn: () => Promise<unknown>) => ({
+    acquired: true,
+    value: await fn(),
+  }),
 }));
 
 vi.mock('@platform/jobs', () => ({

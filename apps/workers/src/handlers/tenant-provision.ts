@@ -1,5 +1,5 @@
 import { env } from '@platform/config';
-import { adminDb } from '@platform/db';
+import { adminDb, withLock } from '@platform/db';
 import {
   appSyncQueue,
   enqueue,
@@ -10,6 +10,14 @@ import { logger } from '@platform/logger';
 import type { Job } from 'bullmq';
 
 import { getTenantStackDriver } from '../provisioning/index.js';
+
+// Provisioning can take minutes (kubernetes driver) and the admin route
+// deliberately enqueues every retry without deduping (see its comment) so
+// clicking "retry" always does something. That means two runs for the same
+// tenant can be in flight at once; without serializing them, each one
+// generates its own random DB-role password and the last ALTER ROLE to run
+// can silently disagree with whichever run last wrote the k8s Secret.
+const PROVISION_LOCK_TTL_MS = 10 * 60 * 1000;
 
 /**
  * Tenant stack provisioning — the state machine lives here, the
@@ -28,6 +36,26 @@ export async function handleTenantProvision(job: Job<TenantProvisionJob>): Promi
     logger.warn({ tenantId, jobId: job.id }, 'Provision job for missing tenant — skipping');
     return;
   }
+
+  const { acquired } = await withLock(
+    `lock:tenant-provision:${tenantId}`,
+    PROVISION_LOCK_TTL_MS,
+    () => runProvision(job, tenant, environments),
+  );
+  if (!acquired) {
+    logger.info(
+      { tenantId, jobId: job.id },
+      'Provision job skipped — another run for this tenant is already in flight',
+    );
+  }
+}
+
+async function runProvision(
+  job: Job<TenantProvisionJob>,
+  tenant: { id: string; slug: string; plan: string },
+  environments: TenantProvisionJob['environments'],
+): Promise<void> {
+  const { tenantId } = job.data;
 
   await adminDb.tenant.update({
     where: { id: tenantId },

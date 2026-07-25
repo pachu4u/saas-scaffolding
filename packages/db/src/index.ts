@@ -7,6 +7,7 @@ export {
   type RateLimitOptions,
   type RateLimitResult,
 } from './ratelimit.js';
+export { withLock, type WithLockResult } from './lock.js';
 export { Prisma, PrismaClient } from '@prisma/client';
 export type {
   Tenant,
