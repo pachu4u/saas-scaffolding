@@ -44,3 +44,6 @@ docker-compose.override.yml
 
 # Temp files from git operations
 _tmp_*
+
+# Local credentials (never commit — private keys)
+.stackit_audit_key.json

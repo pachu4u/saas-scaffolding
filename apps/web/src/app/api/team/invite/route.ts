@@ -38,8 +38,8 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
     );
   }
 
-  const body = (await req.json()) as { email?: string; roleId?: string };
-  const { email, roleId } = body;
+  const body = (await req.json()) as { email?: string; roleId?: string; appRoleIds?: string[] };
+  const { email, roleId, appRoleIds = [] } = body;
 
   if (!email || !roleId) {
     return NextResponse.json({ error: 'email and roleId are required' }, { status: 400 });
@@ -105,9 +105,47 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
       });
     }
 
+    // Additive connected-app roles (e.g. Riogentix) requested alongside the
+    // primary tenant role — mirrors POST /api/team/roles/[id]/members/[userId],
+    // only reachable for roles this tenant actually has an active app instance for.
+    const appRoles = appRoleIds.length
+      ? await tx.role.findMany({
+          where: { id: { in: appRoleIds }, tenantId: null, appId: { not: null }, isSystem: true },
+        })
+      : [];
+    const assignableAppRoles = appRoles.length
+      ? await (async () => {
+          const instances = await tx.connectedAppInstance.findMany({
+            where: {
+              tenantId: tenantCtx.tenantId,
+              status: 'ACTIVE',
+              appId: { in: appRoles.map((r) => r.appId).filter((id): id is string => id !== null) },
+            },
+            select: { appId: true },
+          });
+          const activeAppIds = new Set(instances.map((i) => i.appId));
+          return appRoles.filter((r) => r.appId && activeAppIds.has(r.appId));
+        })()
+      : [];
+
+    for (const appRole of assignableAppRoles) {
+      await tx.roleBinding.upsert({
+        where: {
+          tenantId_userId_roleId: {
+            tenantId: tenantCtx.tenantId,
+            userId: foundUser.id,
+            roleId: appRole.id,
+          },
+        },
+        create: { tenantId: tenantCtx.tenantId, userId: foundUser.id, roleId: appRole.id },
+        update: {},
+      });
+    }
+
     await appendSyncOutbox(tx, tenantCtx.tenantId, [
       { resourceType: 'USER', resourceId: foundUser.id },
       ...(role ? [{ resourceType: 'GROUP' as const, resourceId: role.id }] : []),
+      ...assignableAppRoles.map((r) => ({ resourceType: 'GROUP' as const, resourceId: r.id })),
     ]);
 
     return foundUser;

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { createPortal } from 'react-dom';
 
+import { useConnectedAppRoles } from '@/lib/use-connected-app-roles';
 import { useTenantRoles } from '@/lib/use-tenant-roles';
 
 interface InviteModalProps {
@@ -12,8 +13,10 @@ interface InviteModalProps {
 
 export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
   const { roleOptions } = useTenantRoles(tenantSlug);
+  const { appRoles } = useConnectedAppRoles(tenantSlug);
   const [email, setEmail] = useState('');
   const [roleId, setRoleId] = useState('tenant_user');
+  const [appRoleIds, setAppRoleIds] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<{ success?: boolean; error?: string } | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -25,6 +28,10 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
 
   function handleOverlayClick(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target === overlayRef.current) onClose();
+  }
+
+  function toggleAppRole(id: string) {
+    setAppRoleIds((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]));
   }
 
   function handleSubmit(e: React.SyntheticEvent) {
@@ -39,7 +46,7 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
             'Content-Type': 'application/json',
             'x-tenant-slug': tenantSlug,
           },
-          body: JSON.stringify({ email, roleId }),
+          body: JSON.stringify({ email, roleId, appRoleIds }),
         });
         const data = (await res.json()) as { success?: boolean; error?: string };
         setResult(data);
@@ -225,6 +232,53 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
                   ))}
                 </div>
               </div>
+
+              {/* Connected app roles — additive, on top of the tenant role above */}
+              {appRoles && appRoles.length > 0 && (
+                <div>
+                  <label
+                    className="mb-1.5 block text-xs font-semibold"
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
+                    {appRoles[0]?.appName} access
+                  </label>
+                  <div className="space-y-2">
+                    {appRoles.map((role) => {
+                      const checked = appRoleIds.includes(role.id);
+                      return (
+                        <label
+                          key={role.id}
+                          className="flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all"
+                          style={
+                            checked
+                              ? {
+                                  borderColor: 'var(--brand-primary)',
+                                  background: 'rgba(79,123,255,0.05)',
+                                }
+                              : { borderColor: 'var(--border-light)', background: 'var(--bg-main)' }
+                          }
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              toggleAppRole(role.id);
+                            }}
+                            className="h-4 w-4 flex-shrink-0 rounded"
+                            style={{ accentColor: 'var(--brand-primary)' }}
+                          />
+                          <div
+                            className="text-sm font-semibold"
+                            style={{ color: 'var(--text-primary)' }}
+                          >
+                            {role.name}
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Error */}
               {result?.error && <p className="px-1 text-xs text-red-600">{result.error}</p>}
