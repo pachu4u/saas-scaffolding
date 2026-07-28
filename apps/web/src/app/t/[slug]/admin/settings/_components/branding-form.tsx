@@ -58,6 +58,10 @@ export function BrandingForm({
   const [logoText, setLogoText] = useState(initialLogoText);
   const [emailFrom, setEmailFrom] = useState(initialEmailFrom);
   const [emailReply, setEmailReply] = useState(initialEmailReply);
+  const [loginHeadline, setLoginHeadline] = useState(initialLoginHeadline);
+  const [loginSubheading, setLoginSubheading] = useState(initialLoginSubheading);
+  const [loginTestimonial, setLoginTestimonial] = useState(initialLoginTestimonial);
+  const [ssoButtonLabel, setSsoButtonLabel] = useState(initialSsoButtonLabel);
   const [activePreset, setActivePreset] = useState<string | null>(
     matchPreset(initialPrimaryColor, initialAccentColor, initialBgColor),
   );
@@ -105,6 +109,11 @@ export function BrandingForm({
         } else if (section === 'email') {
           body.emailFrom = emailFrom;
           body.emailReply = emailReply;
+        } else {
+          body.loginHeadline = loginHeadline;
+          body.loginSubheading = loginSubheading;
+          body.loginTestimonial = loginTestimonial;
+          body.loginSsoLabel = ssoButtonLabel;
         }
         const res = await fetch('/api/settings/branding', {
           method: 'PATCH',
@@ -698,7 +707,10 @@ export function BrandingForm({
                   </label>
                   <input
                     type="text"
-                    defaultValue={initialLoginHeadline}
+                    value={loginHeadline}
+                    onChange={(e) => {
+                      setLoginHeadline(e.target.value);
+                    }}
                     className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                     style={{
                       borderColor: 'var(--border-default)',
@@ -716,7 +728,10 @@ export function BrandingForm({
                   </label>
                   <input
                     type="text"
-                    defaultValue={initialLoginSubheading}
+                    value={loginSubheading}
+                    onChange={(e) => {
+                      setLoginSubheading(e.target.value);
+                    }}
                     className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                     style={{
                       borderColor: 'var(--border-default)',
@@ -761,7 +776,10 @@ export function BrandingForm({
                   </label>
                   <textarea
                     rows={3}
-                    defaultValue={initialLoginTestimonial}
+                    value={loginTestimonial}
+                    onChange={(e) => {
+                      setLoginTestimonial(e.target.value);
+                    }}
                     className="w-full resize-none rounded-xl border px-3 py-2 font-mono text-sm outline-none"
                     style={{
                       borderColor: 'var(--border-default)',
@@ -779,7 +797,10 @@ export function BrandingForm({
                   </label>
                   <input
                     type="text"
-                    defaultValue={initialSsoButtonLabel}
+                    value={ssoButtonLabel}
+                    onChange={(e) => {
+                      setSsoButtonLabel(e.target.value);
+                    }}
                     className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                     style={{
                       borderColor: 'var(--border-default)',

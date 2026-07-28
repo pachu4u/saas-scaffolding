@@ -116,6 +116,16 @@ h1,
   font-size: 1.25rem !important;
 }
 
+/* Tenant-configured login subheading, injected by tenant-branding.js right
+   after the page title when a tenant sets one. */
+.tenant-login-subheading {
+  color: var(--tenant-text) !important;
+  opacity: 0.7;
+  font-size: 0.875rem !important;
+  font-weight: 400 !important;
+  margin: 0.35rem 0 0 !important;
+}
+
 a,
 a:visited,
 .pf-v5-c-login__main-footer-links a {

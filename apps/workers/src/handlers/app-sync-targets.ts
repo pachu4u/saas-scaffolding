@@ -20,6 +20,8 @@ interface TenantBranding {
   logoText?: string;
   loginHeadline?: string;
   loginSubheading?: string;
+  loginTestimonial?: string;
+  loginSsoLabel?: string;
 }
 
 /**
@@ -45,6 +47,8 @@ async function convergeBranding(instance: AppInstanceWithApp): Promise<void> {
     logoText: branding.logoText,
     loginHeadline: branding.loginHeadline,
     loginSubheading: branding.loginSubheading,
+    loginTestimonial: branding.loginTestimonial,
+    loginSsoLabel: branding.loginSsoLabel,
   });
 }
 

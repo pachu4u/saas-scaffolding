@@ -71,6 +71,20 @@
       if (header) header.textContent = branding.logo_text;
       document.title = branding.logo_text + ' — ' + document.title;
     }
+    var titleEl = document.querySelector('.pf-v5-c-login__main-header h1.pf-v5-c-title');
+    if (branding.login_headline && titleEl) {
+      titleEl.textContent = branding.login_headline;
+    }
+    if (branding.login_subheading && titleEl) {
+      var sub = document.getElementById('tenant-login-subheading');
+      if (!sub) {
+        sub = document.createElement('p');
+        sub.id = 'tenant-login-subheading';
+        sub.className = 'tenant-login-subheading';
+        titleEl.insertAdjacentElement('afterend', sub);
+      }
+      sub.textContent = branding.login_subheading;
+    }
   }
 
   var host = tenantHostFromLocation();

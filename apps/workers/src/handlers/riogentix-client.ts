@@ -92,6 +92,8 @@ export interface BrandingUpdate {
   logoText?: string | undefined;
   loginHeadline?: string | undefined;
   loginSubheading?: string | undefined;
+  loginTestimonial?: string | undefined;
+  loginSsoLabel?: string | undefined;
 }
 
 /**
@@ -108,6 +110,8 @@ export async function syncBranding(tenantId: string, branding: BrandingUpdate): 
     logo_text: branding.logoText,
     login_headline: branding.loginHeadline,
     login_subheading: branding.loginSubheading,
+    login_testimonial: branding.loginTestimonial,
+    login_sso_label: branding.loginSsoLabel,
   });
   logger.info({ tenantId }, 'Synced branding to riogentix');
 }
