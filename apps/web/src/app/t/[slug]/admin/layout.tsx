@@ -65,7 +65,11 @@ export default async function TenantAdminLayout({ children }: { children: React.
     Array.isArray(session.groups) &&
     session.groups.some((g: string) => ['platform_super_admin', 'platform_support'].includes(g));
 
-  if (isPlatformAdmin) redirect('/admin');
+  // Relative redirect() resolves against whatever host served the request. On
+  // {slug}.techhanker.com / admin.{slug}.techhanker.com, the middleware rewrites
+  // "/admin" straight back into this tenant's admin tree, so a relative target
+  // here loops forever instead of reaching the real platform panel.
+  if (isPlatformAdmin) redirect(new URL('/admin', process.env.AUTH_URL).toString());
 
   const { tenant } = await getCurrentTenant(session.user.id);
 
