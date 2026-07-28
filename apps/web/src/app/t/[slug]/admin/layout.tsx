@@ -1,6 +1,7 @@
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,11 +66,18 @@ export default async function TenantAdminLayout({ children }: { children: React.
     Array.isArray(session.groups) &&
     session.groups.some((g: string) => ['platform_super_admin', 'platform_support'].includes(g));
 
+  // admin.{slug}.techhanker.com is the dedicated tenant-admin host (see URL
+  // strategy) — a platform admin landing here explicitly asked for this
+  // tenant's admin panel, so show it rather than bouncing them away. Only
+  // ambiguous entry points (bare /t/{slug}/admin path, no dedicated host)
+  // still redirect a platform admin to the real platform panel.
+  const isAdminHost = (await headers()).get('x-tenant-admin-host') === '1';
+
   // Relative redirect() resolves against whatever host served the request. On
-  // {slug}.techhanker.com / admin.{slug}.techhanker.com, the middleware rewrites
-  // "/admin" straight back into this tenant's admin tree, so a relative target
-  // here loops forever instead of reaching the real platform panel.
-  if (isPlatformAdmin) redirect(new URL('/admin', process.env.AUTH_URL).toString());
+  // {slug}.techhanker.com, the middleware rewrites "/admin" straight back into
+  // this tenant's admin tree, so a relative target here loops forever instead
+  // of reaching the real platform panel.
+  if (isPlatformAdmin && !isAdminHost) redirect(new URL('/admin', process.env.AUTH_URL).toString());
 
   const { tenant } = await getCurrentTenant(session.user.id);
 
