@@ -23,8 +23,31 @@ function matchPreset(primary: string, accent: string, bg: string): string | null
   return match?.name ?? null;
 }
 
+// Images are stored inline as data URLs (same pattern as user avatar upload —
+// see /api/users/me/avatar) — no object storage wired up yet, so the branding
+// JSON column carries the encoded bytes directly.
+const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2MB
+const LOGO_ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
+const FAVICON_ALLOWED_TYPES = ['image/png', 'image/x-icon', 'image/vnd.microsoft.icon'];
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve(reader.result as string);
+    };
+    reader.onerror = () => {
+      reject(new Error('Failed to read file'));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 interface BrandingFormProps {
   initialLogoText: string;
+  initialLogoUrl: string;
+  initialLogoIconUrl: string;
+  initialFaviconUrl: string;
   initialPrimaryColor: string;
   initialAccentColor: string;
   initialBgColor: string;
@@ -40,6 +63,9 @@ interface BrandingFormProps {
 
 export function BrandingForm({
   initialLogoText,
+  initialLogoUrl,
+  initialLogoIconUrl,
+  initialFaviconUrl,
   initialPrimaryColor,
   initialAccentColor,
   initialBgColor,
@@ -56,6 +82,13 @@ export function BrandingForm({
   const [accentColor, setAccentColor] = useState(initialAccentColor);
   const [bgColor, setBgColor] = useState(initialBgColor);
   const [logoText, setLogoText] = useState(initialLogoText);
+  const [logoUrl, setLogoUrl] = useState(initialLogoUrl);
+  const [logoIconUrl, setLogoIconUrl] = useState(initialLogoIconUrl);
+  const [faviconUrl, setFaviconUrl] = useState(initialFaviconUrl);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [uploadingField, setUploadingField] = useState<
+    'logoUrl' | 'logoIconUrl' | 'faviconUrl' | null
+  >(null);
   const [emailFrom, setEmailFrom] = useState(initialEmailFrom);
   const [emailReply, setEmailReply] = useState(initialEmailReply);
   const [loginHeadline, setLoginHeadline] = useState(initialLoginHeadline);
@@ -92,6 +125,41 @@ export function BrandingForm({
     }
   }
 
+  async function handleImageUpload(field: 'logoUrl' | 'logoIconUrl' | 'faviconUrl', file: File) {
+    const allowedTypes = field === 'faviconUrl' ? FAVICON_ALLOWED_TYPES : LOGO_ALLOWED_TYPES;
+    if (!allowedTypes.includes(file.type)) {
+      setLogoError(
+        field === 'faviconUrl'
+          ? 'Favicon must be PNG or ICO'
+          : 'Logo must be PNG, JPEG, SVG, or WebP',
+      );
+      return;
+    }
+    if (file.size > LOGO_MAX_BYTES) {
+      setLogoError('File must be less than 2MB');
+      return;
+    }
+
+    setLogoError(null);
+    setUploadingField(field);
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      if (field === 'logoUrl') setLogoUrl(dataUrl);
+      else if (field === 'logoIconUrl') setLogoIconUrl(dataUrl);
+      else setFaviconUrl(dataUrl);
+    } catch {
+      setLogoError('Failed to read file');
+    } finally {
+      setUploadingField(null);
+    }
+  }
+
+  function removeImage(field: 'logoUrl' | 'logoIconUrl' | 'faviconUrl') {
+    if (field === 'logoUrl') setLogoUrl('');
+    else if (field === 'logoIconUrl') setLogoIconUrl('');
+    else setFaviconUrl('');
+  }
+
   function saveBranding(
     section: 'colors' | 'logo' | 'email' | 'login',
     extra: Record<string, string> = {},
@@ -106,6 +174,9 @@ export function BrandingForm({
           body.bgColor = bgColor;
         } else if (section === 'logo') {
           body.logoText = logoText;
+          body.logoUrl = logoUrl;
+          body.logoIconUrl = logoIconUrl;
+          body.faviconUrl = faviconUrl;
         } else if (section === 'email') {
           body.emailFrom = emailFrom;
           body.emailReply = emailReply;
@@ -343,85 +414,62 @@ export function BrandingForm({
               }}
             >
               <div className="space-y-6 p-6">
-                {/* Logo upload */}
-                <div>
-                  <label
-                    className="mb-3 block text-xs font-semibold"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    Workspace logo
-                  </label>
-                  <div className="flex items-center gap-4">
-                    <div
-                      className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-xl text-2xl font-bold text-white"
-                      style={{ background: primaryColor }}
-                    >
-                      {logoText[0]?.toUpperCase()}
-                    </div>
-                    <div className="flex-1">
-                      <div
-                        className="hover:bg-bg-subtle flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 transition-colors"
-                        style={{ borderColor: 'var(--border-default)' }}
-                      >
-                        <svg
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          className="h-8 w-8"
-                          style={{ color: 'var(--text-muted)' }}
-                        >
-                          <path
-                            d="M4 16l4.586-4.586a2 2 0 0 1 2.828 0L16 16m-2-2 1.586-1.586a2 2 0 0 1 2.828 0L20 14M14 8h.01M6 20h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        <span
-                          className="text-xs font-semibold"
-                          style={{ color: 'var(--text-secondary)' }}
-                        >
-                          Click to upload or drag & drop
-                        </span>
-                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                          PNG, SVG, WebP · Max 2MB · 512×512px recommended
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                {/* Logo with text */}
+                <LogoUploadField
+                  label="Logo (with text)"
+                  hint="PNG, SVG, WebP · Max 2MB · used in wide layouts (app header, emails)"
+                  value={logoUrl}
+                  fallbackLetter={logoText[0]?.toUpperCase() ?? 'A'}
+                  fallbackColor={primaryColor}
+                  fallbackShape="rounded-xl"
+                  size="h-16 w-16"
+                  accept="image/png,image/svg+xml,image/webp,image/jpeg"
+                  uploading={uploadingField === 'logoUrl'}
+                  onUpload={(file) => void handleImageUpload('logoUrl', file)}
+                  onRemove={() => {
+                    removeImage('logoUrl');
+                  }}
+                />
+
+                {/* Icon-only logo */}
+                <LogoUploadField
+                  label="Icon-only logo"
+                  hint="PNG, SVG, WebP · Max 2MB · square mark used in tight spaces (collapsed sidebar, mobile)"
+                  value={logoIconUrl}
+                  fallbackLetter={logoText[0]?.toUpperCase() ?? 'A'}
+                  fallbackColor={primaryColor}
+                  fallbackShape="rounded-xl"
+                  size="h-16 w-16"
+                  accept="image/png,image/svg+xml,image/webp,image/jpeg"
+                  uploading={uploadingField === 'logoIconUrl'}
+                  onUpload={(file) => void handleImageUpload('logoIconUrl', file)}
+                  onRemove={() => {
+                    removeImage('logoIconUrl');
+                  }}
+                />
 
                 {/* Favicon */}
-                <div>
-                  <label
-                    className="mb-3 block text-xs font-semibold"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    Favicon
-                  </label>
-                  <div className="flex items-center gap-4">
-                    <div
-                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded text-xs font-bold text-white"
-                      style={{ background: primaryColor }}
-                    >
-                      {logoText[0]?.toUpperCase()}
-                    </div>
-                    <div
-                      className="hover:bg-bg-subtle flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-2 transition-colors"
-                      style={{ borderColor: 'var(--border-default)' }}
-                    >
-                      <span
-                        className="text-xs font-semibold"
-                        style={{ color: 'var(--text-secondary)' }}
-                      >
-                        Upload favicon
-                      </span>
-                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                        · ICO, PNG · 32×32 or 64×64px
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                <LogoUploadField
+                  label="Favicon"
+                  hint="ICO, PNG · 32×32 or 64×64px · shown in the browser tab"
+                  value={faviconUrl}
+                  fallbackLetter={logoText[0]?.toUpperCase() ?? 'A'}
+                  fallbackColor={primaryColor}
+                  fallbackShape="rounded"
+                  size="h-8 w-8"
+                  accept="image/png,image/x-icon,image/vnd.microsoft.icon"
+                  uploading={uploadingField === 'faviconUrl'}
+                  onUpload={(file) => void handleImageUpload('faviconUrl', file)}
+                  onRemove={() => {
+                    removeImage('faviconUrl');
+                  }}
+                />
+
+                {logoError && (
+                  <p className="text-xs" style={{ color: '#ef4444' }}>
+                    {logoError}
+                  </p>
+                )}
 
                 {/* Workspace display name */}
                 <div>
@@ -1022,6 +1070,98 @@ export function BrandingForm({
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LogoUploadField({
+  label,
+  hint,
+  value,
+  fallbackLetter,
+  fallbackColor,
+  fallbackShape,
+  size,
+  accept,
+  uploading,
+  onUpload,
+  onRemove,
+}: {
+  label: string;
+  hint: string;
+  value: string;
+  fallbackLetter: string;
+  fallbackColor: string;
+  fallbackShape: string;
+  size: string;
+  accept: string;
+  uploading: boolean;
+  onUpload: (file: File) => void;
+  onRemove: () => void;
+}) {
+  const inputId = `logo-upload-${label.replace(/\s+/g, '-').toLowerCase()}`;
+
+  return (
+    <div>
+      <label
+        className="mb-3 block text-xs font-semibold"
+        style={{ color: 'var(--text-secondary)' }}
+      >
+        {label}
+      </label>
+      <div className="flex items-center gap-4">
+        <div
+          className={`flex ${size} flex-shrink-0 items-center justify-center overflow-hidden ${fallbackShape} text-2xl font-bold text-white`}
+          style={{ background: value ? 'var(--bg-subtle)' : fallbackColor }}
+        >
+          {value ? (
+            <img src={value} alt={label} className="h-full w-full object-contain" />
+          ) : (
+            fallbackLetter
+          )}
+        </div>
+        <div className="flex flex-1 items-center gap-2">
+          <input
+            type="file"
+            accept={accept}
+            id={inputId}
+            className="hidden"
+            disabled={uploading}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onUpload(file);
+              e.target.value = '';
+            }}
+          />
+          <label
+            htmlFor={inputId}
+            className={`hover:bg-bg-subtle flex flex-1 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed p-4 text-center transition-colors ${uploading ? 'pointer-events-none opacity-50' : ''}`}
+            style={{ borderColor: 'var(--border-default)' }}
+          >
+            <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
+              {uploading
+                ? 'Uploading…'
+                : value
+                  ? 'Click to replace'
+                  : 'Click to upload or drag & drop'}
+            </span>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {hint}
+            </span>
+          </label>
+          {value && !uploading && (
+            <button
+              type="button"
+              onClick={onRemove}
+              className="rounded-lg px-2 py-1 text-xs font-semibold"
+              style={{ color: '#ef4444' }}
+              title={`Remove ${label.toLowerCase()}`}
+            >
+              Remove
+            </button>
+          )}
         </div>
       </div>
     </div>

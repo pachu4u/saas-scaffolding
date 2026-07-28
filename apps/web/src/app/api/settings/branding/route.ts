@@ -25,6 +25,9 @@ export const PATCH = withAuthz(
       accentColor?: string;
       bgColor?: string;
       logoText?: string;
+      logoUrl?: string;
+      logoIconUrl?: string;
+      faviconUrl?: string;
       emailFrom?: string;
       emailReply?: string;
       emailFooter?: string;
@@ -47,6 +50,24 @@ export const PATCH = withAuthz(
       }
     }
 
+    // Logo/favicon are stored as inline data URLs (no object storage wired up
+    // yet — same pattern as user avatar upload). Cap at ~2MB raw, allowing for
+    // base64 overhead, and require the image mime types the upload UI offers.
+    const DATA_URL_RE = /^data:image\/(png|jpeg|svg\+xml|webp|x-icon|vnd\.microsoft\.icon);base64,/;
+    const MAX_DATA_URL_LENGTH = Math.ceil((2 * 1024 * 1024 * 4) / 3) + 100;
+    if (body.section === 'logo') {
+      for (const field of ['logoUrl', 'logoIconUrl', 'faviconUrl'] as const) {
+        const value = body[field];
+        if (value === undefined || value === '') continue;
+        if (!DATA_URL_RE.test(value) || value.length > MAX_DATA_URL_LENGTH) {
+          return NextResponse.json(
+            { error: `${field} must be a PNG/JPEG/SVG/WebP/ICO image under 2MB` },
+            { status: 422 },
+          );
+        }
+      }
+    }
+
     // Merge incoming fields into branding JSON
     const currentTenant = await adminDb.tenant.findUnique({
       where: { id: tenantCtx.tenantId },
@@ -60,6 +81,9 @@ export const PATCH = withAuthz(
       'accentColor',
       'bgColor',
       'logoText',
+      'logoUrl',
+      'logoIconUrl',
+      'faviconUrl',
       'emailFrom',
       'emailReply',
       'emailFooter',

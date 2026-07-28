@@ -116,6 +116,14 @@ h1,
   font-size: 1.25rem !important;
 }
 
+/* Tenant-uploaded logo image, injected by tenant-branding.js into
+   #kc-header-wrapper in place of the realm display-name text. */
+.tenant-login-logo {
+  max-height: 3rem;
+  max-width: 16rem;
+  object-fit: contain;
+}
+
 /* Tenant-configured login subheading, injected by tenant-branding.js right
    after the page title when a tenant sets one. */
 .tenant-login-subheading {

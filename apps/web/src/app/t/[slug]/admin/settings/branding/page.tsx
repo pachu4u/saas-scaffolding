@@ -29,6 +29,9 @@ export default async function BrandingPage() {
   return (
     <BrandingForm
       initialLogoText={(b.logoText as string | undefined) ?? tenant.name}
+      initialLogoUrl={(b.logoUrl as string | undefined) ?? ''}
+      initialLogoIconUrl={(b.logoIconUrl as string | undefined) ?? ''}
+      initialFaviconUrl={(b.faviconUrl as string | undefined) ?? ''}
       initialPrimaryColor={(b.primaryColor as string | undefined) ?? '#4F7BFF'}
       initialAccentColor={(b.accentColor as string | undefined) ?? '#B06CFF'}
       initialBgColor={(b.bgColor as string | undefined) ?? '#F8F6FF'}

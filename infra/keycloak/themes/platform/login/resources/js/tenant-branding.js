@@ -53,6 +53,16 @@
     );
   }
 
+  function applyFavicon(url) {
+    var link = document.querySelector("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+    link.href = url;
+  }
+
   function applyBranding(branding) {
     if (!branding) return;
     var root = document.documentElement.style;
@@ -66,10 +76,28 @@
     if (branding.bg_color && hexToRgb(branding.bg_color)) {
       root.setProperty('--tenant-bg', branding.bg_color);
     }
+    if (branding.favicon_url || branding.logo_icon_url) {
+      applyFavicon(branding.favicon_url || branding.logo_icon_url);
+    }
     if (branding.logo_text) {
-      var header = document.getElementById('kc-header-wrapper');
-      if (header) header.textContent = branding.logo_text;
       document.title = branding.logo_text + ' — ' + document.title;
+    }
+    // Logo image (with-text preferred, icon-only as fallback) replaces the
+    // realm display-name text Keycloak renders into #kc-header-wrapper by
+    // default; falls back to that text when no image has been uploaded.
+    var header = document.getElementById('kc-header-wrapper');
+    if (header) {
+      var logoSrc = branding.logo_url || branding.logo_icon_url;
+      if (logoSrc) {
+        header.textContent = '';
+        var img = document.createElement('img');
+        img.src = logoSrc;
+        img.alt = branding.logo_text || '';
+        img.className = 'tenant-login-logo';
+        header.appendChild(img);
+      } else if (branding.logo_text) {
+        header.textContent = branding.logo_text;
+      }
     }
     var titleEl = document.querySelector('.pf-v5-c-login__main-header h1.pf-v5-c-title');
     if (branding.login_headline && titleEl) {

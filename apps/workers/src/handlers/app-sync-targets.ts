@@ -18,6 +18,9 @@ interface TenantBranding {
   accentColor?: string;
   bgColor?: string;
   logoText?: string;
+  logoUrl?: string;
+  logoIconUrl?: string;
+  faviconUrl?: string;
   loginHeadline?: string;
   loginSubheading?: string;
   loginTestimonial?: string;
@@ -45,6 +48,9 @@ async function convergeBranding(instance: AppInstanceWithApp): Promise<void> {
     accentColor: branding.accentColor,
     bgColor: branding.bgColor,
     logoText: branding.logoText,
+    logoUrl: branding.logoUrl,
+    logoIconUrl: branding.logoIconUrl,
+    faviconUrl: branding.faviconUrl,
     loginHeadline: branding.loginHeadline,
     loginSubheading: branding.loginSubheading,
     loginTestimonial: branding.loginTestimonial,

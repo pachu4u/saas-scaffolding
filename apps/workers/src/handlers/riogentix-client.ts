@@ -90,6 +90,9 @@ export interface BrandingUpdate {
   accentColor?: string | undefined;
   bgColor?: string | undefined;
   logoText?: string | undefined;
+  logoUrl?: string | undefined;
+  logoIconUrl?: string | undefined;
+  faviconUrl?: string | undefined;
   loginHeadline?: string | undefined;
   loginSubheading?: string | undefined;
   loginTestimonial?: string | undefined;
@@ -108,6 +111,9 @@ export async function syncBranding(tenantId: string, branding: BrandingUpdate): 
     accent_color: branding.accentColor,
     bg_color: branding.bgColor,
     logo_text: branding.logoText,
+    logo_url: branding.logoUrl,
+    logo_icon_url: branding.logoIconUrl,
+    favicon_url: branding.faviconUrl,
     login_headline: branding.loginHeadline,
     login_subheading: branding.loginSubheading,
     login_testimonial: branding.loginTestimonial,
