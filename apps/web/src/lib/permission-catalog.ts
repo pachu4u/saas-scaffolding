@@ -115,4 +115,154 @@ export const PERMISSION_CATALOG: PermissionCatalogGroup[] = [
       },
     ],
   },
+  {
+    resource: 'Flows',
+    icon: '🧩',
+    permissions: [
+      { code: Permission.RIOGENTIX_FLOW_CREATE, label: 'Create flows', desc: 'Build new flows' },
+      { code: Permission.RIOGENTIX_FLOW_READ, label: 'View flows', desc: 'See existing flows' },
+      {
+        code: Permission.RIOGENTIX_FLOW_UPDATE,
+        label: 'Edit flows',
+        desc: 'Modify existing flows',
+      },
+      { code: Permission.RIOGENTIX_FLOW_DELETE, label: 'Delete flows', desc: 'Remove flows' },
+    ],
+  },
+  {
+    resource: 'Deployments',
+    icon: '🚀',
+    permissions: [
+      {
+        code: Permission.RIOGENTIX_DEPLOYMENT_CREATE,
+        label: 'Create deployments',
+        desc: 'Deploy flows',
+      },
+      {
+        code: Permission.RIOGENTIX_DEPLOYMENT_READ,
+        label: 'View deployments',
+        desc: 'See existing deployments',
+      },
+      {
+        code: Permission.RIOGENTIX_DEPLOYMENT_UPDATE,
+        label: 'Edit deployments',
+        desc: 'Modify existing deployments',
+      },
+      {
+        code: Permission.RIOGENTIX_DEPLOYMENT_DELETE,
+        label: 'Delete deployments',
+        desc: 'Remove deployments',
+      },
+    ],
+  },
+  {
+    resource: 'Projects',
+    icon: '📁',
+    permissions: [
+      {
+        code: Permission.RIOGENTIX_PROJECT_CREATE,
+        label: 'Create projects',
+        desc: 'Add new projects',
+      },
+      {
+        code: Permission.RIOGENTIX_PROJECT_READ,
+        label: 'View projects',
+        desc: 'See existing projects',
+      },
+      {
+        code: Permission.RIOGENTIX_PROJECT_UPDATE,
+        label: 'Edit projects',
+        desc: 'Modify existing projects',
+      },
+      {
+        code: Permission.RIOGENTIX_PROJECT_DELETE,
+        label: 'Delete projects',
+        desc: 'Remove projects',
+      },
+    ],
+  },
+  {
+    resource: 'Knowledge Bases',
+    icon: '📚',
+    permissions: [
+      {
+        code: Permission.RIOGENTIX_KNOWLEDGE_BASE_CREATE,
+        label: 'Create knowledge bases',
+        desc: 'Add new knowledge bases',
+      },
+      {
+        code: Permission.RIOGENTIX_KNOWLEDGE_BASE_READ,
+        label: 'View knowledge bases',
+        desc: 'See existing knowledge bases',
+      },
+      {
+        code: Permission.RIOGENTIX_KNOWLEDGE_BASE_UPDATE,
+        label: 'Edit knowledge bases',
+        desc: 'Modify existing knowledge bases',
+      },
+      {
+        code: Permission.RIOGENTIX_KNOWLEDGE_BASE_DELETE,
+        label: 'Delete knowledge bases',
+        desc: 'Remove knowledge bases',
+      },
+    ],
+  },
+  {
+    resource: 'Variables',
+    icon: '🔑',
+    permissions: [
+      {
+        code: Permission.RIOGENTIX_VARIABLE_CREATE,
+        label: 'Create variables',
+        desc: 'Add new variables',
+      },
+      {
+        code: Permission.RIOGENTIX_VARIABLE_READ,
+        label: 'View variables',
+        desc: 'See existing variables',
+      },
+      {
+        code: Permission.RIOGENTIX_VARIABLE_UPDATE,
+        label: 'Edit variables',
+        desc: 'Modify existing variables',
+      },
+      {
+        code: Permission.RIOGENTIX_VARIABLE_DELETE,
+        label: 'Delete variables',
+        desc: 'Remove variables',
+      },
+    ],
+  },
+  {
+    resource: 'Files',
+    icon: '📄',
+    permissions: [
+      { code: Permission.RIOGENTIX_FILE_CREATE, label: 'Upload files', desc: 'Add new files' },
+      { code: Permission.RIOGENTIX_FILE_READ, label: 'View files', desc: 'See existing files' },
+      {
+        code: Permission.RIOGENTIX_FILE_UPDATE,
+        label: 'Edit files',
+        desc: 'Modify existing files',
+      },
+      { code: Permission.RIOGENTIX_FILE_DELETE, label: 'Delete files', desc: 'Remove files' },
+    ],
+  },
+  {
+    resource: 'Shares',
+    icon: '🔗',
+    permissions: [
+      {
+        code: Permission.RIOGENTIX_SHARE_CREATE,
+        label: 'Create shares',
+        desc: 'Share flows or deployments externally',
+      },
+      { code: Permission.RIOGENTIX_SHARE_READ, label: 'View shares', desc: 'See existing shares' },
+      {
+        code: Permission.RIOGENTIX_SHARE_UPDATE,
+        label: 'Edit shares',
+        desc: 'Modify existing shares',
+      },
+      { code: Permission.RIOGENTIX_SHARE_DELETE, label: 'Delete shares', desc: 'Revoke shares' },
+    ],
+  },
 ];

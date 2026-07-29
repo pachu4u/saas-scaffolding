@@ -2,6 +2,33 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+const RIOGENTIX_RESOURCES = [
+  'flow',
+  'deployment',
+  'project',
+  'knowledge_base',
+  'variable',
+  'file',
+  'share',
+] as const;
+
+const RIOGENTIX_PERMISSIONS = RIOGENTIX_RESOURCES.flatMap((resource) => [
+  `riogentix:${resource}:create`,
+  `riogentix:${resource}:read`,
+  `riogentix:${resource}:update`,
+  `riogentix:${resource}:delete`,
+]);
+
+const RIOGENTIX_READ_PERMISSIONS = RIOGENTIX_RESOURCES.map(
+  (resource) => `riogentix:${resource}:read`,
+);
+
+const RIOGENTIX_NO_DELETE_PERMISSIONS = RIOGENTIX_RESOURCES.flatMap((resource) => [
+  `riogentix:${resource}:create`,
+  `riogentix:${resource}:read`,
+  `riogentix:${resource}:update`,
+]);
+
 // Must stay in sync with packages/authz/src/permissions.ts ROLE_PERMISSIONS
 const ROLE_PERMISSION_MAP: Record<string, string[]> = {
   platform_super_admin: [
@@ -20,6 +47,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'audit:read',
     'scim:manage',
     'webhooks:manage',
+    ...RIOGENTIX_PERMISSIONS,
     'platform:admin',
   ],
   platform_support: ['notes:read', 'users:read', 'billing:read', 'audit:read'],
@@ -38,10 +66,17 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'audit:read',
     'scim:manage',
     'webhooks:manage',
+    ...RIOGENTIX_PERMISSIONS,
   ],
   tenant_billing_admin: ['billing:read', 'billing:manage', 'settings:read'],
-  tenant_user: ['notes:create', 'notes:read', 'notes:update', 'users:read'],
-  tenant_viewer: ['notes:read', 'users:read'],
+  tenant_user: [
+    'notes:create',
+    'notes:read',
+    'notes:update',
+    'users:read',
+    ...RIOGENTIX_NO_DELETE_PERMISSIONS,
+  ],
+  tenant_viewer: ['notes:read', 'users:read', ...RIOGENTIX_READ_PERMISSIONS],
 };
 
 const SYSTEM_ROLES = [
@@ -69,6 +104,7 @@ const PERMISSIONS = [
   'audit:read',
   'scim:manage',
   'webhooks:manage',
+  ...RIOGENTIX_PERMISSIONS,
   'platform:admin',
 ] as const;
 
