@@ -10,10 +10,12 @@ const {
   mockConnectedAppUpsert,
   mockConnectedAppInstanceUpsert,
   mockConnectedAppInstanceUpdateMany,
+  mockRoleBindingFindFirst,
   mockSyncOutboxEventCreate,
   mockEnqueue,
   mockProvision,
   mockDeprovision,
+  mockBootstrapTenantAdmin,
 } = vi.hoisted(() => ({
   mockTenantFindUnique: vi.fn(),
   mockTenantUpdate: vi.fn(),
@@ -23,10 +25,12 @@ const {
   mockConnectedAppUpsert: vi.fn(),
   mockConnectedAppInstanceUpsert: vi.fn(),
   mockConnectedAppInstanceUpdateMany: vi.fn(),
+  mockRoleBindingFindFirst: vi.fn(),
   mockSyncOutboxEventCreate: vi.fn(),
   mockEnqueue: vi.fn(),
   mockProvision: vi.fn(),
   mockDeprovision: vi.fn(),
+  mockBootstrapTenantAdmin: vi.fn(),
 }));
 
 vi.mock('@platform/config', () => ({
@@ -46,6 +50,7 @@ vi.mock('@platform/db', () => ({
       upsert: mockConnectedAppInstanceUpsert,
       updateMany: mockConnectedAppInstanceUpdateMany,
     },
+    roleBinding: { findFirst: mockRoleBindingFindFirst },
     syncOutboxEvent: { create: mockSyncOutboxEventCreate },
   },
   withLock: async (_key: string, _ttlMs: number, fn: () => Promise<unknown>) => ({
@@ -71,6 +76,10 @@ vi.mock('../provisioning/index.js', () => ({
   }),
 }));
 
+vi.mock('./riogentix-client.js', () => ({
+  bootstrapTenantAdmin: mockBootstrapTenantAdmin,
+}));
+
 import { handleTenantDeprovision, handleTenantProvision } from './tenant-provision.js';
 
 const TENANT = { id: 'tenant-1', slug: 'acme', plan: 'pro' };
@@ -89,6 +98,8 @@ beforeEach(() => {
   mockConnectedAppUpsert.mockResolvedValue({ id: 'app-uuid-riogentix' });
   mockConnectedAppInstanceUpsert.mockResolvedValue({});
   mockConnectedAppInstanceUpdateMany.mockResolvedValue({ count: 1 });
+  mockRoleBindingFindFirst.mockResolvedValue(null);
+  mockBootstrapTenantAdmin.mockResolvedValue(null);
 });
 
 describe('handleTenantProvision', () => {
@@ -175,6 +186,76 @@ describe('handleTenantProvision', () => {
       }),
     );
     expect(mockEnqueue).toHaveBeenCalledWith({}, { tenantId: 'tenant-1' });
+  });
+
+  it('bootstraps the riogentix admin role for the holder of the tenant_admin binding', async () => {
+    const scimEndpoint = {
+      baseUrl: 'http://riogentix.internal/api/v1/scim/v2/tenants/tenant-1',
+      token: 'secret-token',
+    };
+    mockProvision.mockResolvedValue({ publicUrl: null, scimEndpoint });
+    mockRoleBindingFindFirst.mockResolvedValue({
+      user: { id: 'user-1', email: 'founder@acme.com' },
+    });
+    mockBootstrapTenantAdmin.mockResolvedValue({
+      userId: 'riogentix-user-1',
+      roleId: 'riogentix-role-admin',
+      assignmentId: 'riogentix-assignment-1',
+    });
+
+    await handleTenantProvision(job({ tenantId: 'tenant-1', environments: ['PROD'] }) as never);
+
+    expect(mockRoleBindingFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId: 'tenant-1', role: { appId: null, name: 'tenant_admin' } },
+      }),
+    );
+    expect(mockBootstrapTenantAdmin).toHaveBeenCalledWith(
+      'tenant-1',
+      'founder@acme.com',
+      'founder',
+      'admin',
+    );
+  });
+
+  it('skips riogentix admin bootstrap when the tenant has no tenant_admin binding yet', async () => {
+    const scimEndpoint = {
+      baseUrl: 'http://riogentix.internal/api/v1/scim/v2/tenants/tenant-1',
+      token: 'secret-token',
+    };
+    mockProvision.mockResolvedValue({ publicUrl: null, scimEndpoint });
+    mockRoleBindingFindFirst.mockResolvedValue(null);
+
+    await handleTenantProvision(job({ tenantId: 'tenant-1', environments: ['PROD'] }) as never);
+
+    expect(mockBootstrapTenantAdmin).not.toHaveBeenCalled();
+    // Convergence still gets enqueued — bootstrap is best-effort on top of it.
+    expect(mockEnqueue).toHaveBeenCalledWith({}, { tenantId: 'tenant-1' });
+  });
+
+  it('fails the provision (and lets BullMQ retry) when riogentix admin bootstrap throws', async () => {
+    const scimEndpoint = {
+      baseUrl: 'http://riogentix.internal/api/v1/scim/v2/tenants/tenant-1',
+      token: 'secret-token',
+    };
+    mockProvision.mockResolvedValue({ publicUrl: null, scimEndpoint });
+    mockRoleBindingFindFirst.mockResolvedValue({
+      user: { id: 'user-1', email: 'founder@acme.com' },
+    });
+    mockBootstrapTenantAdmin.mockRejectedValue(new Error('riogentix unreachable'));
+
+    await expect(
+      handleTenantProvision(job({ tenantId: 'tenant-1', environments: ['PROD'] }) as never),
+    ).rejects.toThrow('riogentix unreachable');
+
+    expect(mockTenantUpdate.mock.calls.at(-1)?.[0]).toMatchObject({
+      data: {
+        provisioningStatus: 'FAILED',
+        provisioningError: expect.stringContaining('riogentix unreachable') as string,
+      },
+    });
+    // Never reached — bootstrap failure short-circuits before convergence enqueue.
+    expect(mockEnqueue).not.toHaveBeenCalled();
   });
 
   it('skips ConnectedAppInstance upsert when scimEndpoint is null', async () => {
