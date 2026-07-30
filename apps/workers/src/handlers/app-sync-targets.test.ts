@@ -1,9 +1,18 @@
 import { SCIM_ROLE_EXTENSION } from '@platform/scim';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockTenantUserFindMany, mockRoleBindingFindMany } = vi.hoisted(() => ({
+const {
+  mockTenantUserFindMany,
+  mockRoleBindingFindMany,
+  mockRoleFindFirst,
+  mockRoleCreate,
+  mockTenantFindUnique,
+} = vi.hoisted(() => ({
   mockTenantUserFindMany: vi.fn(),
   mockRoleBindingFindMany: vi.fn(),
+  mockRoleFindFirst: vi.fn(),
+  mockRoleCreate: vi.fn(),
+  mockTenantFindUnique: vi.fn(),
 }));
 
 const scimMocks = vi.hoisted(() => ({
@@ -16,10 +25,19 @@ const scimMocks = vi.hoisted(() => ({
   deleteGroup: vi.fn(),
 }));
 
+const riogentixClientMocks = vi.hoisted(() => ({
+  syncBranding: vi.fn(),
+  fetchRiogentixRoles: vi.fn(),
+  fetchRiogentixAssignments: vi.fn(),
+  createRiogentixAssignment: vi.fn(),
+}));
+
 vi.mock('@platform/db', () => ({
   adminDb: {
     tenantUser: { findMany: mockTenantUserFindMany },
     roleBinding: { findMany: mockRoleBindingFindMany },
+    role: { findFirst: mockRoleFindFirst, create: mockRoleCreate },
+    tenant: { findUnique: mockTenantFindUnique },
   },
 }));
 
@@ -35,15 +53,21 @@ vi.mock('@platform/scim', async (importOriginal) => {
   };
 });
 
+vi.mock('./riogentix-client.js', () => riogentixClientMocks);
+
 import { convergeAppInstance, type AppInstanceWithApp } from './app-sync-targets.js';
 
+// Generic connected-app fixture (NOT riogentix) — exercises the SCIM Groups
+// push path, which still applies unchanged to every app other than
+// Riogentix. Riogentix-specific behavior (native role assignments, no SCIM
+// group push) is covered in its own describe block below.
 const INSTANCE = {
   id: 'inst-1',
   tenantId: 'tenant-1',
-  appId: 'app-riogentix',
-  scimBaseUrl: 'http://riogentix.t-acme.svc/scim/v2',
+  appId: 'app-other',
+  scimBaseUrl: 'http://other-app.t-acme.svc/scim/v2',
   scimToken: 'token',
-  app: { slug: 'riogentix' },
+  app: { slug: 'other-app' },
 } as unknown as AppInstanceWithApp;
 
 const ALICE = {
@@ -156,7 +180,7 @@ describe('convergeAppInstance', () => {
       expect.objectContaining({
         where: {
           tenantId: 'tenant-1',
-          role: { OR: [{ appId: null }, { appId: 'app-riogentix' }] },
+          role: { OR: [{ appId: null }, { appId: 'app-other' }] },
         },
       }),
     );
@@ -173,5 +197,134 @@ describe('convergeAppInstance', () => {
     expect(scimMocks.createUser).not.toHaveBeenCalled();
     // Binding's user has no app identity — group still created but empty.
     expect(scimMocks.createGroup).not.toHaveBeenCalled();
+  });
+});
+
+describe('convergeAppInstance for riogentix', () => {
+  const RIOGENTIX_INSTANCE = {
+    id: 'inst-2',
+    tenantId: 'tenant-1',
+    appId: 'app-riogentix',
+    scimBaseUrl: 'http://riogentix.t-acme.svc/scim/v2',
+    scimToken: 'token',
+    app: { slug: 'riogentix' },
+  } as unknown as AppInstanceWithApp;
+
+  const NATIVE_ADMIN_BINDING = {
+    tenantId: 'tenant-1',
+    userId: 'saas-alice',
+    roleId: 'saas-role-admin',
+    role: {
+      id: 'saas-role-admin',
+      appId: 'app-riogentix',
+      name: 'admin',
+      isSystem: true,
+      permissions: [],
+    },
+  };
+
+  beforeEach(() => {
+    mockTenantFindUnique.mockResolvedValue({ branding: {} });
+    mockRoleFindFirst.mockResolvedValue({ id: 'saas-role-admin', name: 'admin' });
+    riogentixClientMocks.syncBranding.mockResolvedValue(undefined);
+    riogentixClientMocks.fetchRiogentixRoles.mockResolvedValue([
+      { id: 'native-admin-id', name: 'admin', isSystem: true, permissions: ['flow:read'] },
+    ]);
+    riogentixClientMocks.fetchRiogentixAssignments.mockResolvedValue([]);
+    riogentixClientMocks.createRiogentixAssignment.mockResolvedValue({ id: 'assignment-1' });
+    scimMocks.findUserByUserName.mockResolvedValue({
+      id: 'app-alice',
+      externalId: 'saas-alice',
+      active: true,
+    });
+  });
+
+  it('never pushes SCIM groups for riogentix', async () => {
+    mockRoleBindingFindMany.mockResolvedValue([NATIVE_ADMIN_BINDING]);
+
+    await convergeAppInstance(RIOGENTIX_INSTANCE);
+
+    expect(scimMocks.listGroups).not.toHaveBeenCalled();
+    expect(scimMocks.createGroup).not.toHaveBeenCalled();
+    expect(scimMocks.replaceGroup).not.toHaveBeenCalled();
+    expect(scimMocks.deleteGroup).not.toHaveBeenCalled();
+  });
+
+  it('creates a native assignment for a desired app-scoped role binding', async () => {
+    mockRoleBindingFindMany.mockResolvedValue([NATIVE_ADMIN_BINDING]);
+
+    await convergeAppInstance(RIOGENTIX_INSTANCE);
+
+    expect(riogentixClientMocks.createRiogentixAssignment).toHaveBeenCalledWith(
+      'tenant-1',
+      'app-alice',
+      'native-admin-id',
+    );
+  });
+
+  it('materializes a native role as an app-scoped SaaS Role row when missing', async () => {
+    mockRoleFindFirst.mockResolvedValue(null);
+    mockRoleBindingFindMany.mockResolvedValue([]);
+
+    await convergeAppInstance(RIOGENTIX_INSTANCE);
+
+    expect(mockRoleCreate).toHaveBeenCalledWith({
+      data: { tenantId: null, appId: 'app-riogentix', name: 'admin', isSystem: true },
+    });
+  });
+
+  it('does not re-create an assignment the user already holds', async () => {
+    mockRoleBindingFindMany.mockResolvedValue([NATIVE_ADMIN_BINDING]);
+    riogentixClientMocks.fetchRiogentixAssignments.mockResolvedValue([
+      {
+        id: 'existing',
+        userId: 'app-alice',
+        roleId: 'native-admin-id',
+        domainType: 'global',
+        domainId: null,
+      },
+    ]);
+
+    await convergeAppInstance(RIOGENTIX_INSTANCE);
+
+    expect(riogentixClientMocks.createRiogentixAssignment).not.toHaveBeenCalled();
+  });
+
+  it('never calls delete — additive only, does not revoke assignments it did not push', async () => {
+    mockRoleBindingFindMany.mockResolvedValue([]);
+    riogentixClientMocks.fetchRiogentixAssignments.mockResolvedValue([
+      {
+        id: 'bootstrap-grant',
+        userId: 'app-alice',
+        roleId: 'native-admin-id',
+        domainType: 'global',
+        domainId: null,
+      },
+    ]);
+
+    await convergeAppInstance(RIOGENTIX_INSTANCE);
+
+    expect(riogentixClientMocks.createRiogentixAssignment).not.toHaveBeenCalled();
+    // No delete client function exists to have been called — this test's real
+    // assertion is the one above: an assignment with no matching desired
+    // binding is left alone, not diffed away.
+  });
+
+  it('skips a binding whose role has no matching native role (catalog drift)', async () => {
+    mockRoleBindingFindMany.mockResolvedValue([
+      { ...NATIVE_ADMIN_BINDING, role: { ...NATIVE_ADMIN_BINDING.role, name: 'nonexistent-role' } },
+    ]);
+
+    await convergeAppInstance(RIOGENTIX_INSTANCE);
+
+    expect(riogentixClientMocks.createRiogentixAssignment).not.toHaveBeenCalled();
+  });
+
+  it('skips a binding for a user with no riogentix identity', async () => {
+    mockRoleBindingFindMany.mockResolvedValue([{ ...NATIVE_ADMIN_BINDING, userId: 'saas-bob' }]);
+
+    await convergeAppInstance(RIOGENTIX_INSTANCE);
+
+    expect(riogentixClientMocks.createRiogentixAssignment).not.toHaveBeenCalled();
   });
 });

@@ -121,3 +121,165 @@ export async function syncBranding(tenantId: string, branding: BrandingUpdate): 
   });
   logger.info({ tenantId }, 'Synced branding to riogentix');
 }
+
+// ─── Native RBAC (role catalog pull / assignment push) ────────────────────
+//
+// Unlike syncPlan/setUsageLock/syncBranding above (fire-and-forget PUTs),
+// these read a response body, so they go through fetch directly rather than
+// the void-returning callSaas() — same target resolution and auth header,
+// just needs the parsed JSON back.
+
+export interface RiogentixRole {
+  id: string;
+  name: string;
+  isSystem: boolean;
+  permissions: string[];
+}
+
+export interface RiogentixAssignment {
+  id: string;
+  userId: string;
+  roleId: string;
+  domainType: string;
+  domainId: string | null;
+}
+
+async function callSaasJson<T>(
+  tenantId: string,
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<T | null> {
+  const target = await saasTarget(tenantId);
+  if (!target) {
+    logger.debug({ path }, 'Riogentix integration not configured — skipping');
+    return null;
+  }
+
+  const res = await fetch(`${target.url}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Saas-Internal-Secret': target.secret,
+    },
+    ...(body !== undefined && { body: JSON.stringify(body) }),
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Riogentix API ${method} ${path} → ${String(res.status)}: ${text}`);
+  }
+  if (res.status === 204) return null;
+  return (await res.json()) as T;
+}
+
+/** Pull Riogentix's native role catalog, for materializing into app-scoped Role rows. */
+export async function fetchRiogentixRoles(tenantId: string): Promise<RiogentixRole[]> {
+  const roles = await callSaasJson<
+    { id: string; name: string; is_system: boolean; permissions: string[] }[]
+  >(tenantId, 'GET', `/api/v1/internal/saas/tenant/${tenantId}/authz/roles`);
+  if (!roles) return [];
+  return roles.map((r) => ({
+    id: r.id,
+    name: r.name,
+    isSystem: r.is_system,
+    permissions: r.permissions,
+  }));
+}
+
+/** List a Riogentix user's current native role assignments, to diff against desired state. */
+export async function fetchRiogentixAssignments(
+  tenantId: string,
+  riogentixUserId: string,
+): Promise<RiogentixAssignment[]> {
+  const assignments = await callSaasJson<
+    {
+      id: string;
+      user_id: string;
+      role_id: string;
+      domain_type: string;
+      domain_id: string | null;
+    }[]
+  >(
+    tenantId,
+    'GET',
+    `/api/v1/internal/saas/tenant/${tenantId}/authz/assignments?user_id=${encodeURIComponent(riogentixUserId)}`,
+  );
+  if (!assignments) return [];
+  return assignments.map((a) => ({
+    id: a.id,
+    userId: a.user_id,
+    roleId: a.role_id,
+    domainType: a.domain_type,
+    domainId: a.domain_id,
+  }));
+}
+
+/**
+ * Grant a native role to a Riogentix user. Additive — the caller must treat a
+ * 409 (already assigned) as success, not an error, since this is called on
+ * every convergence pass for every currently-desired binding.
+ */
+export async function createRiogentixAssignment(
+  tenantId: string,
+  riogentixUserId: string,
+  roleId: string,
+): Promise<{ id: string } | 'already-exists'> {
+  const target = await saasTarget(tenantId);
+  if (!target) return 'already-exists'; // integration not configured — nothing to do, don't error the caller
+
+  const res = await fetch(
+    `${target.url}/api/v1/internal/saas/tenant/${tenantId}/authz/assignments`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Saas-Internal-Secret': target.secret },
+      body: JSON.stringify({ user_id: riogentixUserId, role_id: roleId }),
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  if (res.status === 409) return 'already-exists';
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Riogentix API POST authz/assignments → ${String(res.status)}: ${text}`);
+  }
+  const body = (await res.json()) as { id: string };
+  return { id: body.id };
+}
+
+export async function deleteRiogentixAssignment(
+  tenantId: string,
+  assignmentId: string,
+): Promise<void> {
+  await callSaas(
+    tenantId,
+    'DELETE',
+    `/api/v1/internal/saas/tenant/${tenantId}/authz/assignments/${assignmentId}`,
+  );
+}
+
+/**
+ * Seed the tenant's first admin with a real native role assignment at
+ * provision time, instead of relying on SCIM group push to eventually land
+ * one. Safe to retry (Riogentix resolves-or-creates the user and treats an
+ * existing assignment as success).
+ */
+export async function bootstrapTenantAdmin(
+  tenantId: string,
+  email: string,
+  username: string | null,
+  roleName: string,
+): Promise<{ userId: string; roleId: string; assignmentId: string } | null> {
+  const body = await callSaasJson<{ user_id: string; role_id: string; assignment_id: string }>(
+    tenantId,
+    'POST',
+    `/api/v1/internal/saas/tenant/${tenantId}/authz/bootstrap-admin`,
+    { email, username, role_name: roleName },
+  );
+  if (!body) return null;
+  logger.info(
+    { tenantId, email, roleName },
+    'Bootstrapped tenant admin with native riogentix role',
+  );
+  return { userId: body.user_id, roleId: body.role_id, assignmentId: body.assignment_id };
+}

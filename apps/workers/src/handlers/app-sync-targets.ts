@@ -9,7 +9,12 @@ import {
   type ScimUserWrite,
 } from '@platform/scim';
 
-import { syncBranding } from './riogentix-client.js';
+import {
+  createRiogentixAssignment,
+  fetchRiogentixAssignments,
+  fetchRiogentixRoles,
+  syncBranding,
+} from './riogentix-client.js';
 
 export type AppInstanceWithApp = ConnectedAppInstance & { app: ConnectedApp };
 
@@ -56,6 +61,101 @@ async function convergeBranding(instance: AppInstanceWithApp): Promise<void> {
     loginTestimonial: branding.loginTestimonial,
     loginSsoLabel: branding.loginSsoLabel,
   });
+}
+
+/**
+ * Push the tenant's app-scoped role bindings for Riogentix as native
+ * AuthzRoleAssignment grants, instead of a full-replace SCIM Group push —
+ * the RBAC ownership reversal makes Riogentix's own AuthzRole catalog
+ * authoritative, so the SaaS side pushes assignment *deltas* against that
+ * catalog rather than pushing role *definitions* wholesale.
+ *
+ * Two things this deliberately does NOT do, both flagged for follow-up
+ * rather than guessed here:
+ *
+ * 1. It does not push SCIM Groups/permissions for Riogentix at all anymore
+ *    (see the branch in convergeAppInstance) — any groups from before this
+ *    cutover are left exactly as last synced, not actively deleted, since
+ *    enforce() already stopped reading the legacy SaasRole tables in an
+ *    earlier phase and there's no live behavior tied to removing them.
+ * 2. It only ever creates assignments, never deletes. Riogentix has no
+ *    "origin" marker distinguishing an assignment this worker pushed from
+ *    one granted via bootstrap-admin (tenant-provision.ts) or directly in
+ *    Riogentix's own native Roles & Permissions UI — diffing a user's full
+ *    assignment list against "currently SaaS-desired" and deleting the
+ *    difference would risk silently revoking access this worker never
+ *    granted, most notably the tenant's own bootstrap admin. Safe two-way
+ *    sync (including role-removal propagation) needs either a dedicated
+ *    domain_type/marker on the Riogentix side or SaaS-side persistence of
+ *    "what did we push" — both are product decisions, not mechanical ones.
+ */
+async function convergeRiogentixRoleAssignments(
+  instance: AppInstanceWithApp,
+  bindings: { userId: string; role: { appId: string | null; name: string } }[],
+  appUserIdBySaasId: Map<string, string>,
+): Promise<{ assignedCount: number }> {
+  const { tenantId, appId } = instance;
+
+  // Materialize the native catalog as app-scoped Role rows (tenantId: null,
+  // appId: this instance's app) — the exact shape POST
+  // /api/admin/connected-apps/[id]/roles already creates manually, so the
+  // existing team/roles picker and RoleBinding flow work for native
+  // Riogentix roles with zero new UI.
+  const nativeRoles = await fetchRiogentixRoles(tenantId);
+  const nativeRoleIdByName = new Map(nativeRoles.map((r) => [r.name, r.id]));
+
+  for (const native of nativeRoles) {
+    const existing = await adminDb.role.findFirst({
+      where: { tenantId: null, appId, name: native.name },
+    });
+    if (!existing) {
+      await adminDb.role.create({
+        data: { tenantId: null, appId, name: native.name, isSystem: true },
+      });
+    }
+  }
+
+  // Desired native-role bindings, grouped by Riogentix (not SaaS) user id.
+  const desiredByRiogentixUser = new Map<string, Set<string>>();
+  for (const binding of bindings) {
+    if (binding.role.appId !== appId) continue;
+    const nativeRoleId = nativeRoleIdByName.get(binding.role.name);
+    if (!nativeRoleId) {
+      logger.warn(
+        { tenantId, role: binding.role.name },
+        'SaaS role has no matching native Riogentix role — catalog drift, skipping',
+      );
+      continue;
+    }
+    const riogentixUserId = appUserIdBySaasId.get(binding.userId);
+    if (!riogentixUserId) {
+      logger.warn(
+        { tenantId, userId: binding.userId },
+        'Role binding for user with no Riogentix identity — skipping',
+      );
+      continue;
+    }
+    let roleIds = desiredByRiogentixUser.get(riogentixUserId);
+    if (!roleIds) {
+      roleIds = new Set();
+      desiredByRiogentixUser.set(riogentixUserId, roleIds);
+    }
+    roleIds.add(nativeRoleId);
+  }
+
+  let assignedCount = 0;
+  for (const [riogentixUserId, roleIds] of desiredByRiogentixUser) {
+    const current = await fetchRiogentixAssignments(tenantId, riogentixUserId);
+    const currentRoleIds = new Set(
+      current.filter((a) => a.domainType === 'global').map((a) => a.roleId),
+    );
+    for (const roleId of roleIds) {
+      if (currentRoleIds.has(roleId)) continue;
+      const result = await createRiogentixAssignment(tenantId, riogentixUserId, roleId);
+      if (result !== 'already-exists') assignedCount += 1;
+    }
+  }
+  return { assignedCount };
 }
 
 /**
@@ -113,6 +213,25 @@ export async function convergeAppInstance(instance: AppInstanceWithApp): Promise
       await client.replaceUser(appUser.id, desired);
     }
     appUserIdBySaasId.set(user.id, appUser.id);
+  }
+
+  // Riogentix owns its own native role/permission catalog now (the RBAC
+  // ownership reversal) — push assignment deltas against that catalog
+  // instead of full-replace SCIM Groups, and leave any pre-cutover groups
+  // untouched rather than deleting them (see convergeRiogentixRoleAssignments
+  // docstring). Users (step 1, above) still sync via SCIM unchanged — that
+  // part is identity, not roles, and is unrelated to this cutover.
+  if (instance.app.slug === 'riogentix') {
+    const { assignedCount } = await convergeRiogentixRoleAssignments(
+      instance,
+      bindings,
+      appUserIdBySaasId,
+    );
+    logger.info(
+      { tenantId, app: instance.app.slug, userCount: appUserIdBySaasId.size, assignedCount },
+      'Connected app instance converged (native role assignments, no SCIM group push)',
+    );
+    return;
   }
 
   // ── 2. Groups (roles with bindings) ────────────────────────────────────────
