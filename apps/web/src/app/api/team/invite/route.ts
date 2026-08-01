@@ -14,6 +14,12 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { decodeInviteToken } from '@/lib/invite-token';
 import { enqueueRoleSync } from '@/lib/role-sync';
 
+class SeatLimitError extends Error {
+  constructor(public readonly seatLimit: number) {
+    super(`Plan seat limit (${String(seatLimit)}) reached`);
+  }
+}
+
 /**
  * POST /api/team/invite
  * Body: { email: string; roleId: string }
@@ -63,6 +69,15 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
   });
   if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
+  // Enforce the plan's seat limit (mirrors the "N of M seats used" figure shown
+  // in /admin and /admin/billing, which was previously display-only).
+  const subscription = await adminDb.subscription.findUnique({
+    where: { tenantId: tenantCtx.tenantId },
+    include: { plan: true },
+  });
+  const planFeatures = (subscription?.plan.features ?? {}) as Record<string, unknown>;
+  const seatLimit = typeof planFeatures.maxSeats === 'number' ? planFeatures.maxSeats : null;
+
   // All writes use withPlatformAdmin to bypass FORCE ROW LEVEL SECURITY
   const user = await withPlatformAdmin(async (tx) => {
     // Resolve or create the invited user record
@@ -74,6 +89,20 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
         externalId: `pending-${crypto.randomUUID()}`,
       },
     });
+
+    // Only a brand-new tenant member consumes a seat — re-inviting an existing
+    // member/invitee is a no-op on seat count.
+    if (seatLimit !== null) {
+      const existingMembership = await tx.tenantUser.findUnique({
+        where: { tenantId_userId: { tenantId: tenantCtx.tenantId, userId: foundUser.id } },
+      });
+      if (!existingMembership) {
+        const currentSeats = await tx.tenantUser.count({ where: { tenantId: tenantCtx.tenantId } });
+        if (currentSeats >= seatLimit) {
+          throw new SeatLimitError(seatLimit);
+        }
+      }
+    }
 
     // Upsert TenantUser as INVITED
     await tx.tenantUser.upsert({
@@ -149,7 +178,19 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
     ]);
 
     return foundUser;
+  }).catch((err: unknown) => {
+    if (err instanceof SeatLimitError) return err;
+    throw err;
   });
+
+  if (user instanceof SeatLimitError) {
+    return NextResponse.json(
+      {
+        error: `Your plan allows up to ${String(user.seatLimit)} team members. Upgrade your plan to invite more.`,
+      },
+      { status: 402 },
+    );
+  }
 
   // Generate signed invite token (HMAC-SHA256 over userId:tenantId)
   const secret = process.env.INVITE_TOKEN_SECRET ?? 'dev-invite-secret';
