@@ -123,7 +123,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       );
     }
     const oldPlan = tenant.plan;
+    const planRow = await adminDb.plan.findUnique({ where: { code: newPlan } });
+    if (!planRow) {
+      return NextResponse.json({ error: `Unknown plan code: ${newPlan}` }, { status: 500 });
+    }
     await adminDb.tenant.update({ where: { id }, data: { plan: newPlan } });
+    // Keep the billing subscription's plan in sync — entitlement checks
+    // (hasEntitlement) and seat-limit enforcement read subscription.plan.features,
+    // not tenants.plan, so without this the admin override has no effect on
+    // in-app enforcement even though tenants.plan (and the Riogentix sync below)
+    // both reflect the new tier.
+    await adminDb.subscription.upsert({
+      where: { tenantId: id },
+      create: { tenantId: id, planId: planRow.id },
+      update: { planId: planRow.id },
+    });
     await adminDb.auditLog.create({
       data: {
         tenantId: id,
