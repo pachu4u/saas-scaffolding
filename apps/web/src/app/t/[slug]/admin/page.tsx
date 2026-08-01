@@ -1,4 +1,5 @@
 import { auth } from '@platform/auth';
+import type { PlanFeatures } from '@platform/billing';
 import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
 
@@ -125,8 +126,9 @@ export default async function DashboardPage() {
   }));
 
   const planName = subscription?.plan.name ?? tenantCtx.plan;
-  const planFeatures = (subscription?.plan.features ?? {}) as Record<string, unknown>;
-  const seatLimit = typeof planFeatures.maxSeats === 'number' ? planFeatures.maxSeats : null;
+  const planFeatures = (subscription?.plan.features ?? {}) as Partial<PlanFeatures>;
+  const seatLimit =
+    typeof planFeatures.users?.maxCount === 'number' ? planFeatures.users.maxCount : null;
   const periodEnd = subscription?.currentPeriodEnd;
 
   const chartStart = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000);

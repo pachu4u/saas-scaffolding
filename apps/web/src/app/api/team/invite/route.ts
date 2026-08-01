@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 
 import { PLATFORM_ROLE_NAMES, Permission, withAuthz } from '@platform/authz';
+import type { PlanFeatures } from '@platform/billing';
 import {
   adminDb,
   appendSyncOutbox,
@@ -75,8 +76,9 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
     where: { tenantId: tenantCtx.tenantId },
     include: { plan: true },
   });
-  const planFeatures = (subscription?.plan.features ?? {}) as Record<string, unknown>;
-  const seatLimit = typeof planFeatures.maxSeats === 'number' ? planFeatures.maxSeats : null;
+  const planFeatures = (subscription?.plan.features ?? {}) as Partial<PlanFeatures>;
+  const seatLimit =
+    typeof planFeatures.users?.maxCount === 'number' ? planFeatures.users.maxCount : null;
 
   // All writes use withPlatformAdmin to bypass FORCE ROW LEVEL SECURITY
   const user = await withPlatformAdmin(async (tx) => {

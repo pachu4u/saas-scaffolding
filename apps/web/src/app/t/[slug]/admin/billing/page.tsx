@@ -1,4 +1,5 @@
 import { auth } from '@platform/auth';
+import type { PlanFeatures } from '@platform/billing';
 import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
 
@@ -54,7 +55,9 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
   // Plan data
   const currentPlanId = subscription?.planId;
   const planFeatures = (subscription?.plan.features ?? {}) as Record<string, unknown>;
-  const seatLimit = typeof planFeatures.maxSeats === 'number' ? planFeatures.maxSeats : null;
+  const typedPlanFeatures = planFeatures as Partial<PlanFeatures>;
+  const seatLimit =
+    typeof typedPlanFeatures.users?.maxCount === 'number' ? typedPlanFeatures.users.maxCount : null;
   const seatPct = seatLimit ? Math.round((totalMembers / seatLimit) * 100) : 0;
 
   const periodEnd = subscription?.currentPeriodEnd;
