@@ -9,6 +9,7 @@ import { RolePermissionEditor } from './role-permission-editor';
 import { Badge } from '@/components/ui/badge';
 import { PERMISSION_CATALOG } from '@/lib/permission-catalog';
 import { getCurrentTenant } from '@/lib/server-tenant';
+import { getRoleLabel } from '@/lib/system-roles';
 
 export const metadata = { title: 'Edit Role' };
 
@@ -70,7 +71,8 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
   const memberCount = role._count.bindings;
   const totalPerms = PERMISSION_CATALOG.reduce((acc, g) => acc + g.permissions.length, 0);
   const grantedCount = grants.size;
-  const color = getRoleColor(role.name, role.isSystem);
+  const label = getRoleLabel(role.name);
+  const color = getRoleColor(label, role.isSystem);
 
   return (
     <div className="space-y-6">
@@ -84,7 +86,7 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
           Roles & Permissions
         </Link>
         <span>/</span>
-        <span style={{ color: 'var(--text-secondary)' }}>{role.name}</span>
+        <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-4">
@@ -102,7 +104,7 @@ export default async function RoleDetailPage({ params }: { params: Promise<{ id:
             <div className="flex-1">
               <div className="mb-1 flex items-center gap-2">
                 <h1 className="text-lg font-extrabold" style={{ color: 'var(--text-primary)' }}>
-                  {role.name}
+                  {label}
                 </h1>
                 <Badge variant={color}>{role.isSystem ? 'System role' : 'Custom role'}</Badge>
               </div>

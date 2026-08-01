@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import { SYSTEM_ROLE_META, SYSTEM_ROLE_ORDER } from './system-roles';
+
 export interface TenantRole {
   id: string;
   name: string;
@@ -17,22 +19,6 @@ export interface RoleOption {
   description: string;
   color: string;
 }
-
-export const SYSTEM_ROLE_META: Record<
-  string,
-  { label: string; description: string; color: string }
-> = {
-  tenant_admin: { label: 'Admin', description: 'Full workspace control', color: '#B06CFF' },
-  tenant_billing_admin: {
-    label: 'Billing Admin',
-    description: 'Billing management only',
-    color: 'var(--brand-primary)',
-  },
-  tenant_user: { label: 'Member', description: 'Standard access', color: 'var(--text-secondary)' },
-  tenant_viewer: { label: 'Viewer', description: 'Read-only access', color: 'var(--text-muted)' },
-};
-
-const SYSTEM_ROLE_ORDER = Object.keys(SYSTEM_ROLE_META);
 
 /** Static fallback so role pickers still render if /api/team/roles fails. */
 export const SYSTEM_ROLE_OPTIONS: RoleOption[] = Object.entries(SYSTEM_ROLE_META).map(

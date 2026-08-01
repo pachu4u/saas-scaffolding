@@ -9,6 +9,7 @@ import { CreateRoleButton } from './create-role-button';
 import { Badge } from '@/components/ui/badge';
 import { PERMISSION_CATALOG } from '@/lib/permission-catalog';
 import { getCurrentTenant } from '@/lib/server-tenant';
+import { getRoleLabel } from '@/lib/system-roles';
 
 export const metadata = { title: 'Roles & Permissions' };
 
@@ -67,7 +68,8 @@ export default async function RolesPage() {
       {/* Role cards */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {roles.map((role) => {
-          const color = getRoleColor(role.name, role.isSystem);
+          const label = getRoleLabel(role.name);
+          const color = getRoleColor(label, role.isSystem);
           const memberCount = role._count.bindings;
           const permCount = role.permissions.length;
           return (
@@ -84,7 +86,7 @@ export default async function RolesPage() {
               <div className="mb-2 flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
-                    {role.name}
+                    {label}
                   </span>
                   {role.isSystem && (
                     <span
@@ -145,15 +147,18 @@ export default async function RolesPage() {
                   >
                     Permission
                   </th>
-                  {roles.map((role) => (
-                    <th
-                      key={role.id}
-                      className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold"
-                      style={{ color: 'var(--text-secondary)' }}
-                    >
-                      <Badge variant={getRoleColor(role.name, role.isSystem)}>{role.name}</Badge>
-                    </th>
-                  ))}
+                  {roles.map((role) => {
+                    const label = getRoleLabel(role.name);
+                    return (
+                      <th
+                        key={role.id}
+                        className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold"
+                        style={{ color: 'var(--text-secondary)' }}
+                      >
+                        <Badge variant={getRoleColor(label, role.isSystem)}>{label}</Badge>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
