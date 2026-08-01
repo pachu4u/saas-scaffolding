@@ -181,14 +181,19 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
   // Propagate the new member's role binding to the tenant's Riogentix instance.
   await enqueueRoleSync(tenantCtx.tenantId);
 
-  // Send invite email
-  await sendEmail({
-    to: normalizedEmail,
-    subject: `You've been invited to join ${tenant.name} on riogentix`,
-    templateId: 'invite-user',
-    data: { tenantName: tenant.name, inviteUrl },
-    tenantId: tenantCtx.tenantId,
-  });
+  // Send invite email — the invite itself is already persisted above, so a
+  // delivery failure (e.g. Resend sandbox restrictions) must not fail the request.
+  try {
+    await sendEmail({
+      to: normalizedEmail,
+      subject: `You've been invited to join ${tenant.name} on riogentix`,
+      templateId: 'invite-user',
+      data: { tenantName: tenant.name, inviteUrl },
+      tenantId: tenantCtx.tenantId,
+    });
+  } catch (err) {
+    console.error('[team/invite] Failed to send invite email:', err);
+  }
 
   return NextResponse.json({ success: true, inviteUrl }, { status: 201 });
 });
