@@ -20,6 +20,7 @@ model Tenant {
   provisioningStatus ProvisioningStatus @default(PENDING) @map("provisioning_status")
   provisioningError  String?            @map("provisioning_error")
   plan          String   @default("free")
+  resourceLimits Json    @default("{}") @db.JsonB @map("resource_limits")
   customDomains String[] @default([]) @map("custom_domains")
   branding      Json     @default("{}") @db.JsonB
   createdAt     DateTime @default(now()) @map("created_at")

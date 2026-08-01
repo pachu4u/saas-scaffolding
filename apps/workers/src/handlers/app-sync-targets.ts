@@ -14,9 +14,17 @@ import {
   fetchRiogentixAssignments,
   fetchRiogentixRoles,
   syncBranding,
+  syncResourceLimits,
 } from './riogentix-client.js';
 
 export type AppInstanceWithApp = ConnectedAppInstance & { app: ConnectedApp };
+
+interface TenantResourceLimits {
+  flows?: number | null;
+  storageBytes?: number | null;
+  apiKeys?: number | null;
+  seats?: number | null;
+}
 
 interface TenantBranding {
   primaryColor?: string;
@@ -60,6 +68,30 @@ async function convergeBranding(instance: AppInstanceWithApp): Promise<void> {
     loginSubheading: branding.loginSubheading,
     loginTestimonial: branding.loginTestimonial,
     loginSsoLabel: branding.loginSsoLabel,
+  });
+}
+
+/**
+ * Push the tenant's current resource-limit overrides (flows/storage/api_keys/
+ * seats) to its Riogentix instance. Same rationale as convergeBranding: runs
+ * on every converge pass rather than only right after an admin edit, so a
+ * failed/stale push self-heals on the next identity sync.
+ */
+async function convergeResourceLimits(instance: AppInstanceWithApp): Promise<void> {
+  if (instance.app.slug !== 'riogentix') return;
+
+  const tenant = await adminDb.tenant.findUnique({
+    where: { id: instance.tenantId },
+    select: { resourceLimits: true },
+  });
+  if (!tenant) return;
+
+  const limits = tenant.resourceLimits as TenantResourceLimits;
+  await syncResourceLimits(instance.tenantId, {
+    flows: limits.flows,
+    storageBytes: limits.storageBytes,
+    apiKeys: limits.apiKeys,
+    seats: limits.seats,
   });
 }
 
@@ -177,6 +209,7 @@ async function convergeRiogentixRoleAssignments(
 export async function convergeAppInstance(instance: AppInstanceWithApp): Promise<void> {
   const { tenantId } = instance;
   await convergeBranding(instance);
+  await convergeResourceLimits(instance);
   const client = new ScimClient(instance.scimBaseUrl, instance.scimToken);
 
   const [memberships, bindings] = await Promise.all([

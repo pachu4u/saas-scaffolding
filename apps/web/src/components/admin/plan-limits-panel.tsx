@@ -72,7 +72,9 @@ export function PlanLimitsPanel({
         ? { ok: true, text: 'Plan updated and synced to Riogentix.' }
         : { ok: false, text: body.error ?? `Failed (${String(res.status)})` },
     );
-    startTransition(() => router.refresh());
+    startTransition(() => {
+      router.refresh();
+    });
   }
 
   async function saveLimits() {
@@ -99,7 +101,9 @@ export function PlanLimitsPanel({
         ? { ok: true, text: 'Limits saved; Riogentix sync queued.' }
         : { ok: false, text: body.error ?? `Failed (${String(res.status)})` },
     );
-    startTransition(() => router.refresh());
+    startTransition(() => {
+      router.refresh();
+    });
   }
 
   return (
@@ -133,7 +137,9 @@ export function PlanLimitsPanel({
             <select
               id="plan-select"
               value={plan}
-              onChange={(e) => setPlan(e.target.value as Plan)}
+              onChange={(e) => {
+                setPlan(e.target.value as Plan);
+              }}
               className="flex-1 rounded-lg border px-3 py-1.5 text-xs"
               style={{
                 borderColor: 'var(--border-default)',
@@ -179,7 +185,9 @@ export function PlanLimitsPanel({
                   type="number"
                   min={0}
                   value={limits[key]}
-                  onChange={(e) => setLimits((s) => ({ ...s, [key]: e.target.value }))}
+                  onChange={(e) => {
+                    setLimits((s) => ({ ...s, [key]: e.target.value }));
+                  }}
                   placeholder="tier default"
                   className="flex-1 rounded-lg border px-3 py-1 text-xs"
                   style={{

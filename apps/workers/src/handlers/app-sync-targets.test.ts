@@ -27,6 +27,7 @@ const scimMocks = vi.hoisted(() => ({
 
 const riogentixClientMocks = vi.hoisted(() => ({
   syncBranding: vi.fn(),
+  syncResourceLimits: vi.fn(),
   fetchRiogentixRoles: vi.fn(),
   fetchRiogentixAssignments: vi.fn(),
   createRiogentixAssignment: vi.fn(),
@@ -224,9 +225,10 @@ describe('convergeAppInstance for riogentix', () => {
   };
 
   beforeEach(() => {
-    mockTenantFindUnique.mockResolvedValue({ branding: {} });
+    mockTenantFindUnique.mockResolvedValue({ branding: {}, resourceLimits: {} });
     mockRoleFindFirst.mockResolvedValue({ id: 'saas-role-admin', name: 'admin' });
     riogentixClientMocks.syncBranding.mockResolvedValue(undefined);
+    riogentixClientMocks.syncResourceLimits.mockResolvedValue(undefined);
     riogentixClientMocks.fetchRiogentixRoles.mockResolvedValue([
       { id: 'native-admin-id', name: 'admin', isSystem: true, permissions: ['flow:read'] },
     ]);
@@ -248,6 +250,23 @@ describe('convergeAppInstance for riogentix', () => {
     expect(scimMocks.createGroup).not.toHaveBeenCalled();
     expect(scimMocks.replaceGroup).not.toHaveBeenCalled();
     expect(scimMocks.deleteGroup).not.toHaveBeenCalled();
+  });
+
+  it('pushes the tenant resource-limit overrides on every converge pass', async () => {
+    mockTenantFindUnique.mockResolvedValue({
+      branding: {},
+      resourceLimits: { flows: 10, seats: null },
+    });
+    mockRoleBindingFindMany.mockResolvedValue([NATIVE_ADMIN_BINDING]);
+
+    await convergeAppInstance(RIOGENTIX_INSTANCE);
+
+    expect(riogentixClientMocks.syncResourceLimits).toHaveBeenCalledWith('tenant-1', {
+      flows: 10,
+      storageBytes: undefined,
+      apiKeys: undefined,
+      seats: null,
+    });
   });
 
   it('creates a native assignment for a desired app-scoped role binding', async () => {

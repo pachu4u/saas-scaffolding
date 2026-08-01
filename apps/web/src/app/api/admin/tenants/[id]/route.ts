@@ -1,7 +1,28 @@
 import { auth } from '@platform/auth';
+import { PLAN_CODES } from '@platform/billing';
 import { adminDb } from '@platform/db';
-import { enqueue, tenantDeprovisionQueue } from '@platform/jobs';
+import { enqueue, planChangedQueue, tenantDeprovisionQueue } from '@platform/jobs';
 import { type NextRequest, NextResponse } from 'next/server';
+
+import { enqueueRoleSync } from '@/lib/role-sync';
+
+const RESOURCE_LIMIT_FIELDS = ['flows', 'storageBytes', 'apiKeys', 'seats'] as const;
+type ResourceLimitField = (typeof RESOURCE_LIMIT_FIELDS)[number];
+type ResourceLimitsPayload = Partial<Record<ResourceLimitField, number | null>>;
+
+function parseResourceLimits(input: unknown): ResourceLimitsPayload | null {
+  if (typeof input !== 'object' || input === null) return null;
+  const result: ResourceLimitsPayload = {};
+  for (const field of RESOURCE_LIMIT_FIELDS) {
+    const value = (input as Record<string, unknown>)[field];
+    if (value === undefined) continue;
+    if (value !== null && (typeof value !== 'number' || !Number.isFinite(value) || value < 0)) {
+      return null;
+    }
+    result[field] = value;
+  }
+  return result;
+}
 
 async function resolveActorUserId(externalId: string): Promise<string | null> {
   const user = await adminDb.user.findUnique({ where: { externalId }, select: { id: true } });
@@ -25,7 +46,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!isPlatformAdmin(session)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await params;
-  const body = (await req.json()) as { action?: string };
+  const body = (await req.json()) as {
+    action?: string;
+    plan?: string;
+    resourceLimits?: unknown;
+  };
   const { action } = body;
 
   if (!action) return NextResponse.json({ error: 'action is required' }, { status: 422 });
@@ -87,6 +112,63 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
     await enqueue(tenantDeprovisionQueue, { tenantId: id });
     return NextResponse.json({ ok: true, status: 'DELETED' });
+  }
+
+  if (action === 'update-plan') {
+    const newPlan = body.plan?.toLowerCase().trim();
+    if (!newPlan || !PLAN_CODES.includes(newPlan as (typeof PLAN_CODES)[number])) {
+      return NextResponse.json(
+        { error: `plan must be one of: ${PLAN_CODES.join(', ')}` },
+        { status: 422 },
+      );
+    }
+    const oldPlan = tenant.plan;
+    await adminDb.tenant.update({ where: { id }, data: { plan: newPlan } });
+    await adminDb.auditLog.create({
+      data: {
+        tenantId: id,
+        actorUserId,
+        action: 'tenant.plan_changed',
+        resourceType: 'Tenant',
+        resourceId: id,
+        before: { plan: oldPlan },
+        after: { plan: newPlan },
+      },
+    });
+    // Pushes the new plan to the tenant's Riogentix instance and lifts any
+    // stale usage-lock — same handler Stripe subscription webhooks trigger.
+    await enqueue(planChangedQueue, { tenantId: id, oldPlan, newPlan });
+    return NextResponse.json({ ok: true, plan: newPlan });
+  }
+
+  if (action === 'update-resource-limits') {
+    const limits = parseResourceLimits(body.resourceLimits);
+    if (!limits) {
+      return NextResponse.json(
+        {
+          error:
+            'resourceLimits must be an object of flows/storageBytes/apiKeys/seats, each a non-negative number or null',
+        },
+        { status: 422 },
+      );
+    }
+    const before = tenant.resourceLimits;
+    await adminDb.tenant.update({ where: { id }, data: { resourceLimits: limits } });
+    await adminDb.auditLog.create({
+      data: {
+        tenantId: id,
+        actorUserId,
+        action: 'tenant.resource_limits_changed',
+        resourceType: 'Tenant',
+        resourceId: id,
+        before: { resourceLimits: before },
+        after: { resourceLimits: limits },
+      },
+    });
+    // Riogentix instance re-reads resourceLimits on every converge pass
+    // (see convergeResourceLimits) — this just triggers the next one now.
+    await enqueueRoleSync(id);
+    return NextResponse.json({ ok: true, resourceLimits: limits });
   }
 
   return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 422 });

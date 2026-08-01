@@ -122,6 +122,33 @@ export async function syncBranding(tenantId: string, branding: BrandingUpdate): 
   logger.info({ tenantId }, 'Synced branding to riogentix');
 }
 
+export interface ResourceLimitsUpdate {
+  flows?: number | null | undefined;
+  storageBytes?: number | null | undefined;
+  apiKeys?: number | null | undefined;
+  seats?: number | null | undefined;
+}
+
+/**
+ * Push per-tenant quota overrides (flows/storage/api_keys/seats) to the
+ * tenant's Riogentix instance. A field left `undefined` is dropped by
+ * JSON.stringify and so stays untouched on the Riogentix side (still
+ * inherits the plan default); a field explicitly `null` forces "unlimited"
+ * — mirrors Riogentix's own exclude_unset merge semantics for this endpoint.
+ */
+export async function syncResourceLimits(
+  tenantId: string,
+  limits: ResourceLimitsUpdate,
+): Promise<void> {
+  await callSaas(tenantId, 'PUT', `/api/v1/internal/saas/tenant/${tenantId}/resource-limits`, {
+    flows: limits.flows,
+    storage_bytes: limits.storageBytes,
+    api_keys: limits.apiKeys,
+    seats: limits.seats,
+  });
+  logger.info({ tenantId, limits }, 'Synced resource limits to riogentix');
+}
+
 // ─── Native RBAC (role catalog pull / assignment push) ────────────────────
 //
 // Unlike syncPlan/setUsageLock/syncBranding above (fire-and-forget PUTs),
