@@ -4,18 +4,18 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { createPortal } from 'react-dom';
 
 import { useConnectedAppRoles } from '@/lib/use-connected-app-roles';
-import { useTenantRoles } from '@/lib/use-tenant-roles';
 
 interface InviteModalProps {
   onClose: () => void;
   tenantSlug: string;
 }
 
+/** Base tenant membership role — not shown as a picker; app roles (below) carry the real permissions. */
+const DEFAULT_TENANT_ROLE_ID = 'tenant_user';
+
 export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
-  const { roleOptions } = useTenantRoles(tenantSlug);
   const { appRoles } = useConnectedAppRoles(tenantSlug);
   const [email, setEmail] = useState('');
-  const [roleId, setRoleId] = useState('tenant_user');
   const [appRoleIds, setAppRoleIds] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<{ success?: boolean; error?: string } | null>(null);
@@ -46,7 +46,7 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
             'Content-Type': 'application/json',
             'x-tenant-slug': tenantSlug,
           },
-          body: JSON.stringify({ email, roleId, appRoleIds }),
+          body: JSON.stringify({ email, roleId: DEFAULT_TENANT_ROLE_ID, appRoleIds }),
         });
         const data = (await res.json()) as { success?: boolean; error?: string };
         setResult(data);
@@ -165,75 +165,7 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
                 />
               </div>
 
-              {/* Role */}
-              <div>
-                <label
-                  className="mb-1.5 block text-xs font-semibold"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  Role
-                </label>
-                <div className="space-y-2">
-                  {!roleOptions && (
-                    <p className="px-1 py-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-                      Loading roles…
-                    </p>
-                  )}
-                  {roleOptions?.map((role) => (
-                    <label
-                      key={role.id}
-                      className="flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all"
-                      style={
-                        roleId === role.id
-                          ? {
-                              borderColor: 'var(--brand-primary)',
-                              background: 'rgba(79,123,255,0.05)',
-                            }
-                          : { borderColor: 'var(--border-light)', background: 'var(--bg-main)' }
-                      }
-                    >
-                      <input
-                        type="radio"
-                        name="role"
-                        value={role.id}
-                        checked={roleId === role.id}
-                        onChange={() => {
-                          setRoleId(role.id);
-                        }}
-                        className="sr-only"
-                      />
-                      <div
-                        className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border-2"
-                        style={
-                          roleId === role.id
-                            ? { borderColor: 'var(--brand-primary)' }
-                            : { borderColor: 'var(--border-default)' }
-                        }
-                      >
-                        {roleId === role.id && (
-                          <div
-                            className="h-2 w-2 rounded-full"
-                            style={{ background: 'var(--brand-primary)' }}
-                          />
-                        )}
-                      </div>
-                      <div>
-                        <div
-                          className="text-sm font-semibold"
-                          style={{ color: 'var(--text-primary)' }}
-                        >
-                          {role.name}
-                        </div>
-                        <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                          {role.description}
-                        </div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Connected app roles — additive, on top of the tenant role above */}
+              {/* Connected app roles */}
               {appRoles && appRoles.length > 0 && (
                 <div>
                   <label
@@ -299,7 +231,7 @@ export function InviteModal({ onClose, tenantSlug }: InviteModalProps) {
               </button>
               <button
                 type="submit"
-                disabled={isPending || !email || !roleOptions}
+                disabled={isPending || !email}
                 className="brand-gradient rounded-xl px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
               >
                 {isPending ? 'Sending…' : 'Send invite'}
