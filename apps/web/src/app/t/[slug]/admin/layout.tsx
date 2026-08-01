@@ -1,7 +1,7 @@
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
-import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
