@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { redirect } from 'next/navigation';
 
+import { PlanLimitsPanel } from '@/components/admin/plan-limits-panel';
 import { ProvisioningPanel } from '@/components/admin/provisioning-panel';
 import { TenantDeleteButton } from '@/components/admin/tenant-status-button';
 import { Topbar } from '@/components/layout/topbar';
@@ -104,6 +105,12 @@ export default async function AdminTenantDetailPage({
           tenantId={id}
           initialStatus={tenant.provisioningStatus}
           initialEnvironments={tenant.environments}
+        />
+
+        <PlanLimitsPanel
+          tenantId={id}
+          currentPlan={tenant.plan}
+          currentLimits={(tenant.resourceLimits ?? {}) as Record<string, number | null>}
         />
 
         <div className="grid grid-cols-2 gap-6">
