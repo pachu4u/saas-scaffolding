@@ -37,6 +37,7 @@ const PUBLIC_PREFIXES = [
   '/api/auth/',
   '/api/billing/webhook',
   '/api/internal/usage-events',
+  '/api/internal/usage-snapshot',
   '/api/signup',
   '/api/tenant-authz',
   '/signup',

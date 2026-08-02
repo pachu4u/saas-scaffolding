@@ -31,6 +31,7 @@ model Tenant {
   roleBindings      RoleBinding[]
   subscription      Subscription?
   usageEvents       UsageEvent[]
+  usageSnapshots    UsageSnapshot[]
   scimTokens        ScimToken[]
   webhookEndpoints  WebhookEndpoint[]
   auditLogs         AuditLog[]
@@ -171,6 +172,19 @@ model UsageEvent {
 
   @@index([tenantId, kind, occurredAt])
   @@map("usage_events")
+}
+
+model UsageSnapshot {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  kind       String
+  value      Int
+  recordedAt DateTime @default(now()) @map("recorded_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, kind])
+  @@map("usage_snapshots")
 }
 
 // ─── SCIM ────────────────────────────────────────────────────────────────────
