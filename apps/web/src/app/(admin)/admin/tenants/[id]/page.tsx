@@ -110,7 +110,10 @@ export default async function AdminTenantDetailPage({
         <PlanLimitsPanel
           tenantId={id}
           currentPlan={tenant.plan}
-          currentLimits={(tenant.resourceLimits ?? {}) as Record<string, number | null>}
+          currentLimits={
+            ((tenant as unknown as { resourceLimits?: Record<string, number | null> | null })
+              .resourceLimits ?? {}) as Record<string, number | null>
+          }
         />
 
         <div className="grid grid-cols-2 gap-6">

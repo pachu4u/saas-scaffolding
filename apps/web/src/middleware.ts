@@ -36,6 +36,7 @@ const PUBLIC_PREFIXES = [
   '/auth/',
   '/api/auth/',
   '/api/billing/webhook',
+  '/api/internal/usage-events',
   '/api/signup',
   '/api/tenant-authz',
   '/signup',
@@ -223,9 +224,14 @@ export default auth(function middleware(req: NextRequest) {
       pathname === '/admin' || pathname.startsWith('/admin/')
         ? pathname
         : '/admin' + (pathname === '/' ? '' : pathname);
-    return NextResponse.rewrite(new URL(`/t/${slug}${adminPath}`, realOrigin), {
-      request: { headers },
-    });
+    // Rewrite against req.nextUrl (already normalized to AUTH_URL by NextAuth)
+    // so Next.js treats this as an internal rewrite, not an external proxy.
+    // Building from the Host header (realOrigin) would make Next.js proxy
+    // back out through Traefik, which breaks in dev with self-signed certs.
+    const rewriteUrl = req.nextUrl.clone();
+    rewriteUrl.pathname = `/t/${slug}${adminPath}`;
+    rewriteUrl.search = '';
+    return NextResponse.rewrite(rewriteUrl, { request: { headers } });
   }
 
   if (slug) {
@@ -243,19 +249,24 @@ export default auth(function middleware(req: NextRequest) {
 
     // Rewrite tenant subdomain requests into the /t/[slug] tree. (Legacy: these
     // hosts are normally routed to the tenants' Riogentix instances at the edge
-    // and never reach this app.)
+    // and never reach this app.) Same internal-rewrite pattern as admin hosts.
     if (pathname === '/') {
-      return NextResponse.rewrite(new URL(`/t/${slug}`, realOrigin), { request: { headers } });
+      const rewriteUrl = req.nextUrl.clone();
+      rewriteUrl.pathname = `/t/${slug}`;
+      rewriteUrl.search = '';
+      return NextResponse.rewrite(rewriteUrl, { request: { headers } });
     }
     if (pathname === '/admin' || pathname.startsWith('/admin/')) {
-      return NextResponse.rewrite(new URL(`/t/${slug}` + pathname, realOrigin), {
-        request: { headers },
-      });
+      const rewriteUrl = req.nextUrl.clone();
+      rewriteUrl.pathname = `/t/${slug}${pathname}`;
+      rewriteUrl.search = '';
+      return NextResponse.rewrite(rewriteUrl, { request: { headers } });
     }
     if (pathname === '/app' || pathname.startsWith('/app/')) {
-      return NextResponse.rewrite(new URL(`/t/${slug}` + pathname, realOrigin), {
-        request: { headers },
-      });
+      const rewriteUrl = req.nextUrl.clone();
+      rewriteUrl.pathname = `/t/${slug}${pathname}`;
+      rewriteUrl.search = '';
+      return NextResponse.rewrite(rewriteUrl, { request: { headers } });
     }
   }
 

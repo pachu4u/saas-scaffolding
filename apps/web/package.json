@@ -7,10 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
-    "@prisma/client": "^5.18.0",
     "@platform/auth": "workspace:*",
     "@platform/authz": "workspace:*",
     "@platform/billing": "workspace:*",
@@ -24,13 +24,16 @@
     "@platform/tenant": "workspace:*",
     "@platform/ui": "workspace:*",
     "@platform/vault": "workspace:*",
+    "@prisma/client": "^5.18.0",
     "next": "^15.0.0",
     "next-auth": "^5.0.0-beta.4",
+    "pg": "^8.22.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.19",

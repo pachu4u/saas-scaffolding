@@ -3,6 +3,7 @@ import type { PlanFeatures } from '@platform/billing';
 import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
 
+import { LiveActivityPanel } from '@/components/admin/live-activity-panel';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
@@ -93,7 +94,7 @@ export default async function DashboardPage() {
     adminDb.tenantUser.count({ where: { tenantId } }),
     adminDb.usageEvent.findMany({
       where: { tenantId, occurredAt: { gte: thirtyDaysAgo } },
-      select: { quantity: true, occurredAt: true },
+      select: { kind: true, quantity: true, occurredAt: true },
       orderBy: { occurredAt: 'asc' },
     }),
   ]);
@@ -113,6 +114,15 @@ export default async function DashboardPage() {
   const chartBars = chartData.map((v) => Math.max(4, Math.round((v / maxVal) * 90) + 4));
   const hasUsageData = usageEvents.length > 0;
   const totalUsage = usageEvents.reduce((s, e) => s + e.quantity, 0);
+
+  // Per-kind totals over the same 30-day window, to seed the Live Activity panel.
+  const kindTotals = new Map<string, number>();
+  for (const ev of usageEvents) {
+    kindTotals.set(ev.kind, (kindTotals.get(ev.kind) ?? 0) + ev.quantity);
+  }
+  const initialKindTotals = [...kindTotals.entries()]
+    .map(([kind, total]) => ({ kind, total }))
+    .sort((a, b) => b.total - a.total);
 
   const recentActivity = recentAuditLogs.map((log) => ({
     action: log.action
@@ -337,6 +347,9 @@ export default async function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Live activity (realtime usage events via SSE) */}
+        <LiveActivityPanel initialTotals={initialKindTotals} />
 
         {/* Recent activity */}
         <div
