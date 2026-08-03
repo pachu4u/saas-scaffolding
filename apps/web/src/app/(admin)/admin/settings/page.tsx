@@ -107,17 +107,17 @@ export default async function AdminSettingsPage() {
             <LinkCard
               title="Keycloak admin console"
               description="Manage realms, users, and identity providers."
-              href="https://auth.lvh.me/admin"
+              href="https://auth.techhanker.com/admin"
             />
             <LinkCard
               title="Grafana"
               description="Metrics, logs, and traces (Prometheus + Loki + Tempo)."
-              href="https://grafana.lvh.me"
+              href="https://grafana.techhanker.com"
             />
             <LinkCard
               title="Traefik dashboard"
               description="Reverse proxy routing and TLS status."
-              href="https://traefik.lvh.me"
+              href="https://traefik.techhanker.com"
             />
             <LinkCard
               title="Jobs & DLQ"
