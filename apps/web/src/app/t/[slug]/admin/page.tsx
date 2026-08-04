@@ -37,26 +37,77 @@ const quickActions = [
   {
     label: 'Invite member',
     href: '/admin/team',
-    icon: '👤',
+    color: 'var(--brand-primary)',
     description: 'Add someone to your workspace',
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.7}
+        className="h-4 w-4"
+      >
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M19 8v6M22 11h-6" strokeLinecap="round" />
+      </svg>
+    ),
   },
   {
     label: 'Manage subscription',
     href: '/admin/billing',
-    icon: '💳',
+    color: '#16A34A',
     description: 'View plans and usage',
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.7}
+        className="h-4 w-4"
+      >
+        <rect x="1" y="4" width="22" height="16" rx="2" />
+        <line x1="1" y1="10" x2="23" y2="10" />
+      </svg>
+    ),
   },
   {
     label: 'Configure SSO',
-    href: '/admin/settings',
-    icon: '🔐',
+    href: '/admin/settings/security',
+    color: 'var(--brand-accent)',
     description: 'Set up SAML or OIDC',
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.7}
+        className="h-4 w-4"
+      >
+        <rect x="3" y="11" width="18" height="11" rx="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </svg>
+    ),
   },
   {
     label: 'View audit log',
     href: '/admin/audit',
-    icon: '📋',
+    color: 'var(--brand-secondary)',
     description: 'Track all user actions',
+    icon: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.7}
+        className="h-4 w-4"
+      >
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+      </svg>
+    ),
   },
 ];
 
@@ -317,8 +368,8 @@ export default async function DashboardPage() {
                   style={{ borderColor: 'var(--border-light)', background: 'var(--bg-main)' }}
                 >
                   <span
-                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-base"
-                    style={{ background: 'var(--bg-subtle)' }}
+                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg"
+                    style={{ background: 'var(--bg-subtle)', color: action.color }}
                   >
                     {action.icon}
                   </span>
