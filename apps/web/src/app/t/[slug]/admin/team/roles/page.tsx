@@ -1,4 +1,5 @@
 import { auth } from '@platform/auth';
+import { can, Permission } from '@platform/authz';
 import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
 
@@ -17,6 +18,27 @@ export default async function RolesPage() {
   if (!tenantCtx) redirect('/');
 
   const { tenantId } = tenantCtx;
+
+  // Viewing/assigning roles requires the same permission the write APIs
+  // already enforce (USERS_UPDATE) — without this, any tenant member
+  // (including tenant_viewer) could load this page and see every member's
+  // email + role assignment, even though attempting a change would still be
+  // rejected server-side by the API.
+  const userRecord = await adminDb.user.findUnique({
+    where: { externalId: session.user.id },
+    select: { id: true, email: true },
+  });
+  if (!userRecord) redirect('/auth/signin');
+
+  const allowed = await can(
+    {
+      user: { id: userRecord.id, externalId: session.user.id, email: userRecord.email },
+      tenantId,
+      plan: tenantCtx.plan,
+    },
+    Permission.USERS_UPDATE,
+  );
+  if (!allowed) redirect('/admin/team');
 
   // Riogentix's native role catalog (viewer/developer/admin, plus any custom
   // roles a tenant admin has created directly in Riogentix) is a separate

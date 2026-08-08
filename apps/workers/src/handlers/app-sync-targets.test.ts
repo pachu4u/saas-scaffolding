@@ -346,4 +346,108 @@ describe('convergeAppInstance for riogentix', () => {
 
     expect(riogentixClientMocks.createRiogentixAssignment).not.toHaveBeenCalled();
   });
+
+  describe('platform-wide role bindings (appId: null)', () => {
+    const platformBinding = (permissions: string[]) => ({
+      tenantId: 'tenant-1',
+      userId: 'saas-carol',
+      roleId: 'saas-role-tenant_viewer',
+      role: {
+        id: 'saas-role-tenant_viewer',
+        appId: null,
+        name: 'tenant_viewer',
+        isSystem: true,
+        permissions: permissions.map((code) => ({ permission: { code } })),
+      },
+    });
+
+    beforeEach(() => {
+      mockTenantUserFindMany.mockResolvedValue([
+        {
+          tenantId: 'tenant-1',
+          userId: 'saas-carol',
+          status: 'ACTIVE',
+          user: { id: 'saas-carol', email: 'carol@acme.com', name: 'Carol', status: 'ACTIVE' },
+        },
+      ]);
+      riogentixClientMocks.fetchRiogentixRoles.mockResolvedValue([
+        { id: 'native-admin-id', name: 'admin', isSystem: true, permissions: ['flow:read'] },
+        { id: 'native-developer-id', name: 'developer', isSystem: true, permissions: [] },
+        { id: 'native-viewer-id', name: 'viewer', isSystem: true, permissions: [] },
+      ]);
+      scimMocks.findUserByUserName.mockResolvedValue({
+        id: 'app-carol',
+        externalId: 'saas-carol',
+        active: true,
+      });
+    });
+
+    it('maps a platform-wide viewer-tier role to the native viewer role, closing the stranded-user gap', async () => {
+      mockRoleBindingFindMany.mockResolvedValue([platformBinding(['notes:read', 'users:read'])]);
+
+      await convergeAppInstance(RIOGENTIX_INSTANCE);
+
+      expect(riogentixClientMocks.createRiogentixAssignment).toHaveBeenCalledWith(
+        'tenant-1',
+        'app-carol',
+        'native-viewer-id',
+      );
+    });
+
+    it('maps a platform-wide admin-tier role (notes:delete) to the native admin role', async () => {
+      mockRoleBindingFindMany.mockResolvedValue([
+        platformBinding(['notes:read', 'notes:create', 'notes:update', 'notes:delete']),
+      ]);
+
+      await convergeAppInstance(RIOGENTIX_INSTANCE);
+
+      expect(riogentixClientMocks.createRiogentixAssignment).toHaveBeenCalledWith(
+        'tenant-1',
+        'app-carol',
+        'native-admin-id',
+      );
+    });
+
+    it('maps a platform-wide developer-tier role (notes:create/update) to the native developer role', async () => {
+      mockRoleBindingFindMany.mockResolvedValue([
+        platformBinding(['notes:read', 'notes:create', 'notes:update']),
+      ]);
+
+      await convergeAppInstance(RIOGENTIX_INSTANCE);
+
+      expect(riogentixClientMocks.createRiogentixAssignment).toHaveBeenCalledWith(
+        'tenant-1',
+        'app-carol',
+        'native-developer-id',
+      );
+    });
+
+    it('falls back to viewer for a platform-wide role with no recognized tier permissions', async () => {
+      mockRoleBindingFindMany.mockResolvedValue([platformBinding(['billing:read'])]);
+
+      await convergeAppInstance(RIOGENTIX_INSTANCE);
+
+      expect(riogentixClientMocks.createRiogentixAssignment).toHaveBeenCalledWith(
+        'tenant-1',
+        'app-carol',
+        'native-viewer-id',
+      );
+    });
+
+    it('does not apply the platform-wide tier mapping when the user already has an explicit app-scoped role', async () => {
+      mockRoleBindingFindMany.mockResolvedValue([
+        { ...NATIVE_ADMIN_BINDING, userId: 'saas-carol' },
+        platformBinding(['notes:read']),
+      ]);
+
+      await convergeAppInstance(RIOGENTIX_INSTANCE);
+
+      expect(riogentixClientMocks.createRiogentixAssignment).toHaveBeenCalledTimes(1);
+      expect(riogentixClientMocks.createRiogentixAssignment).toHaveBeenCalledWith(
+        'tenant-1',
+        'app-carol',
+        'native-admin-id',
+      );
+    });
+  });
 });

@@ -120,10 +120,37 @@ async function convergeResourceLimits(instance: AppInstanceWithApp): Promise<voi
  *    sync (including role-removal propagation) needs either a dedicated
  *    domain_type/marker on the Riogentix side or SaaS-side persistence of
  *    "what did we push" — both are product decisions, not mechanical ones.
+ *
+ * Platform-wide bindings (Role.appId null — tenant_admin/tenant_user/
+ * tenant_viewer/tenant_billing_admin) are mapped onto the native catalog by
+ * capability tier rather than name, since those role names never match
+ * Riogentix's own viewer/developer/admin catalog. This mirrors
+ * scripts/backfill_native_role_assignments.py's tier mapping in the
+ * Riogentix repo. Without this, any member who only ever holds their
+ * platform-wide tenant role — i.e. everyone who wasn't the bootstrap admin
+ * at provisioning time and never got an explicit app-scoped role from the
+ * Roles & Permissions UI — has an empty native permission union and zero
+ * functional Riogentix access (confirmed live for carol@acme.test). Only
+ * applied when the user has no explicit app-scoped role for this instance,
+ * so it never overrides a role assigned directly through the UI.
  */
+function mapPlatformRoleToNativeTier(permissionCodes: string[]): string {
+  const perms = new Set(permissionCodes);
+  if (perms.has('platform:admin') || perms.has('notes:delete')) return 'admin';
+  if (perms.has('notes:update') || perms.has('notes:create')) return 'developer';
+  return 'viewer';
+}
+
 async function convergeRiogentixRoleAssignments(
   instance: AppInstanceWithApp,
-  bindings: { userId: string; role: { appId: string | null; name: string } }[],
+  bindings: {
+    userId: string;
+    role: {
+      appId: string | null;
+      name: string;
+      permissions: { permission: { code: string } }[];
+    };
+  }[],
   appUserIdBySaasId: Map<string, string>,
 ): Promise<{ assignedCount: number }> {
   const { tenantId, appId } = instance;
@@ -148,10 +175,27 @@ async function convergeRiogentixRoleAssignments(
   }
 
   // Desired native-role bindings, grouped by Riogentix (not SaaS) user id.
+  // App-scoped bindings (explicit roles assigned via the Roles & Permissions
+  // UI) are resolved first, by exact name match. Platform-wide bindings are
+  // only consulted for users with no app-scoped binding, so an explicit UI
+  // assignment always wins over the tier-mapped fallback.
+  const usersWithAppScopedRole = new Set(
+    bindings.filter((b) => b.role.appId === appId).map((b) => b.userId),
+  );
+
   const desiredByRiogentixUser = new Map<string, Set<string>>();
   for (const binding of bindings) {
-    if (binding.role.appId !== appId) continue;
-    const nativeRoleId = nativeRoleIdByName.get(binding.role.name);
+    let nativeRoleId: string | undefined;
+    if (binding.role.appId === appId) {
+      nativeRoleId = nativeRoleIdByName.get(binding.role.name);
+    } else if (binding.role.appId === null && !usersWithAppScopedRole.has(binding.userId)) {
+      const tier = mapPlatformRoleToNativeTier(
+        binding.role.permissions.map((rp) => rp.permission.code),
+      );
+      nativeRoleId = nativeRoleIdByName.get(tier);
+    } else {
+      continue;
+    }
     if (!nativeRoleId) {
       logger.warn(
         { tenantId, role: binding.role.name },
