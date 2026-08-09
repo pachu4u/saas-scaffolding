@@ -3,6 +3,8 @@ import { adminDb } from '@platform/db';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 
+import { buildBrandingStyle } from '@/lib/tenant-branding-style';
+
 export const metadata = { title: 'Sign in' };
 
 export default async function SignInPage({
@@ -30,17 +32,25 @@ export default async function SignInPage({
   // can't re-derive this from its own request headers).
   const isAdminHost = h.get('x-tenant-admin-host') === '1';
 
-  // Load the tenant's display name for branding. Fails gracefully (null) if the
+  // Load the tenant's display name + branding. Fails gracefully (null) if the
   // slug doesn't exist or we're on the root domain (no slug).
   const tenant = tenantSlug
-    ? await adminDb.tenant.findUnique({ where: { slug: tenantSlug }, select: { name: true } })
+    ? await adminDb.tenant.findUnique({
+        where: { slug: tenantSlug },
+        select: { name: true, branding: true },
+      })
     : null;
   // tenantSlug is '' (never null) on the root domain — || so the fallback fires
   const displayName = tenant?.name ?? (tenantSlug || 'Platform');
   const displayInitial = displayName[0]?.toUpperCase() ?? 'P';
+  // This page renders outside the /t/[slug] tree (it's the AUTH_URL origin,
+  // pre-login), so it doesn't inherit the tenant/admin layouts' branding
+  // override — apply it here too or the panel stays on the default palette.
+  const brandingCss = buildBrandingStyle(tenant?.branding);
 
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--bg-main)' }}>
+      {brandingCss && <style dangerouslySetInnerHTML={{ __html: brandingCss }} />}
       {/* Left panel */}
       <div className="brand-gradient relative hidden w-[480px] flex-col overflow-hidden p-12 lg:flex">
         <div
