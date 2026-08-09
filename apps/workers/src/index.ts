@@ -48,9 +48,13 @@ const workers = [
   makeWorker('webhook-outbound', (job) => handleWebhookOutbound(job as Job<WebhookOutboundJob>)),
   makeWorker('usage-rollup', (job) => handleUsageRollup(job as Job<UsageRollupJob>)),
   makeWorker('plan-changed', (job) => handlePlanChanged(job as Job<PlanChangedJob>)),
-  // Outbox drains are per-tenant converges — serialize them so two drains for
-  // the same tenant can't interleave SCIM writes.
-  makeWorker('app-sync', (job) => handleAppSync(job as Job<AppSyncJob>), 1),
+  ...(env.WORKER_ENABLE_APP_SYNC
+    ? [
+        // Outbox drains are per-tenant converges — serialize them so two
+        // drains for the same tenant can't interleave SCIM writes.
+        makeWorker('app-sync', (job) => handleAppSync(job as Job<AppSyncJob>), 1),
+      ]
+    : []),
   ...(env.WORKER_ENABLE_TENANT_PROVISIONING
     ? [
         // Provisioning waits on pod readiness (minutes, not ms) — keep

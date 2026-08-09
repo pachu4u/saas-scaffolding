@@ -103,6 +103,18 @@ const envSchema = z.object({
     .default('true')
     .transform((v) => v === 'true'),
 
+  // Same problem as WORKER_ENABLE_TENANT_PROVISIONING above, but for
+  // app-sync: only the in-cluster workers Deployment can resolve the
+  // in-cluster `riogentix` hostname, so the docker-compose `workers`
+  // process fails every app-sync job it picks up (DNS: EAI_AGAIN) and just
+  // burns BullMQ retries until the k8s worker grabs it instead. Set to
+  // 'false' there so app-sync is only ever consumed by the pod that can
+  // actually reach the app.
+  WORKER_ENABLE_APP_SYNC: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+
   // Keycloak admin (for user creation during signup)
   KEYCLOAK_INTERNAL_URL: z.string().url().optional(),
   KEYCLOAK_REALM: z.string().default('saas-platform'),
