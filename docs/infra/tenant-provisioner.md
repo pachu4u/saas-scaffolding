@@ -4,13 +4,13 @@ There are **two separate deployments of `apps/workers`** in this environment.
 Mixing them up cost several debugging sessions, so this doc exists to make
 the split obvious.
 
-| | docker-compose `workers` | k8s `saas-workers` |
-|---|---|---|
-| Where | `infra/compose/docker-compose.yml`, `workers` service | k3s namespace `saas-platform`, `Deployment/saas-workers` |
-| Manifest | `infra/compose/docker-compose.yml` | `infra/k8s/tenant-provisioner/` (this dir) |
-| `TENANT_STACK_DRIVER` | unset → falls back to the legacy "shared instance" driver | `kubernetes` → real per-tenant driver |
-| Cluster access | none | `ServiceAccount/saas-workers` bound to `ClusterRole/saas-tenant-provisioner` |
-| Job queue | same Redis/BullMQ queue as the k8s deployment | same Redis/BullMQ queue as the compose deployment |
+|                       | docker-compose `workers`                                  | k8s `saas-workers`                                                           |
+| --------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Where                 | `infra/compose/docker-compose.yml`, `workers` service     | k3s namespace `saas-platform`, `Deployment/saas-workers`                     |
+| Manifest              | `infra/compose/docker-compose.yml`                        | `infra/k8s/tenant-provisioner/` (this dir)                                   |
+| `TENANT_STACK_DRIVER` | unset → falls back to the legacy "shared instance" driver | `kubernetes` → real per-tenant driver                                        |
+| Cluster access        | none                                                      | `ServiceAccount/saas-workers` bound to `ClusterRole/saas-tenant-provisioner` |
+| Job queue             | same Redis/BullMQ queue as the k8s deployment             | same Redis/BullMQ queue as the compose deployment                            |
 
 Both processes poll the **same** BullMQ tenant-provisioning queue
 (`getTenantStackDriver()` in `apps/workers/src/provisioning/index.ts` picks
@@ -29,17 +29,35 @@ that was never adopted here; its `workers:` values block is aspirational and
 has no matching templates). k3s is used for exactly one thing: giving each
 tenant its own namespace/pod/ingress for their Riogentix instance
 (`apps/workers/src/provisioning/kubernetes-driver.ts`). Something has to run
-*inside* the cluster with permission to create/delete those tenant
+_inside_ the cluster with permission to create/delete those tenant
 namespaces — that's `saas-workers`.
 
 ## RBAC scope
 
-`ClusterRole/saas-tenant-provisioner` (see `rbac.yaml`) can `get/list/create/
-patch/update/delete` on `namespaces`, `secrets`, `services` (core), 
-`deployments` (apps), and `ingresses` (networking.k8s.io) — cluster-wide,
-because provisioning literally means creating a namespace. It cannot touch
-RBAC, nodes, CRDs, or any other resource kind. Namespace-scoping this role is
-not possible since `namespaces` itself is cluster-scoped.
+RBAC is split across two ClusterRoles (see `rbac.yaml`):
+
+- `ClusterRole/saas-tenant-provisioner` — bound cluster-wide via
+  `ClusterRoleBinding/saas-tenant-provisioner`. Can `get/list/create/patch/
+update/delete` on `namespaces` (necessarily cluster-scoped, since
+  provisioning means creating a `t-<slug>` namespace), plus `rolebindings`
+  and a `bind` grant scoped by `resourceName` to `saas-tenant-workload` only
+  — not a blanket `escalate`.
+- `ClusterRole/saas-tenant-workload` — never bound cluster-wide. Can
+  `get/list/create/patch/update/delete` on `secrets`, `services` (core),
+  `deployments` (apps), and `ingresses` (networking.k8s.io). The driver
+  (`apps/workers/src/provisioning/manifests.ts` → `renderRoleBinding`)
+  stamps a `RoleBinding` referencing it into each tenant's own namespace at
+  provision time, so `saas-workers` only holds those permissions inside the
+  one namespace it's actively provisioning — not cluster-wide, not in
+  `kube-system`.
+
+Either way, `saas-workers` cannot touch RBAC objects generally, nodes, CRDs,
+or any resource kind outside the ones listed above.
+
+Until 2026-08-09 `saas-tenant-provisioner` alone granted `secrets`/
+`services`/`deployments`/`ingresses` CRUD cluster-wide via a single
+ClusterRoleBinding — full read/write on every Secret in the cluster,
+including `kube-system`. This was the reason for the split above.
 
 ## History
 

@@ -1,8 +1,14 @@
-# Scope note: this grants create/delete on namespaces cluster-wide, which is
-# necessarily broad — provisioning a tenant means creating a new namespace,
-# and tearing one down means deleting it. It is NOT cluster-admin: it cannot
-# touch RBAC objects, nodes, CRDs, or any namespace's workloads beyond the
-# four resource kinds listed below. See docs/infra/tenant-provisioner.md.
+# Scope note: namespaces must stay cluster-scoped — provisioning a tenant
+# means creating a new t-<slug> namespace, and tearing one down means
+# deleting it. Everything else a tenant stack needs (secrets, services,
+# deployments, ingresses) is granted per-namespace instead of cluster-wide:
+# this ClusterRole can only create a RoleBinding that references the
+# saas-tenant-workload ClusterRole (via the scoped `bind` grant below), and
+# the driver stamps that RoleBinding into each tenant's own namespace at
+# provision time (apps/workers/src/provisioning/manifests.ts). Previously
+# this ClusterRole granted secrets/services/deployments/ingresses CRUD
+# cluster-wide (including kube-system) via a single ClusterRoleBinding — see
+# docs/infra/tenant-provisioner.md for the full history.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -11,15 +17,20 @@ metadata:
     app.kubernetes.io/name: saas-workers
     app.kubernetes.io/part-of: saas-platform
 rules:
-  - apiGroups: [""]
-    resources: ["namespaces", "secrets", "services"]
-    verbs: ["get", "list", "create", "patch", "update", "delete"]
-  - apiGroups: ["apps"]
-    resources: ["deployments"]
-    verbs: ["get", "list", "create", "patch", "update", "delete"]
-  - apiGroups: ["networking.k8s.io"]
-    resources: ["ingresses"]
-    verbs: ["get", "list", "create", "patch", "update", "delete"]
+  - apiGroups: ['']
+    resources: ['namespaces']
+    verbs: ['get', 'list', 'create', 'patch', 'update', 'delete']
+  - apiGroups: ['rbac.authorization.k8s.io']
+    resources: ['rolebindings']
+    verbs: ['get', 'list', 'create', 'patch', 'update', 'delete']
+  # `bind` lets this identity create a RoleBinding that references
+  # saas-tenant-workload without itself holding those permissions — scoped by
+  # resourceName so it cannot bind any other Role/ClusterRole (no blanket
+  # `escalate`, which would defeat the whole point of narrowing this role).
+  - apiGroups: ['rbac.authorization.k8s.io']
+    resources: ['clusterroles']
+    resourceNames: ['saas-tenant-workload']
+    verbs: ['bind']
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -36,3 +47,26 @@ subjects:
   - kind: ServiceAccount
     name: saas-workers
     namespace: saas-platform
+---
+# Workload permissions for a single tenant namespace. Never bound
+# cluster-wide — only referenced by the per-tenant RoleBinding the driver
+# creates inside each t-<slug> namespace, so a compromised saas-workers
+# identity can only touch the one tenant namespace it's currently
+# provisioning, not secrets/services/deployments/ingresses cluster-wide.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: saas-tenant-workload
+  labels:
+    app.kubernetes.io/name: saas-workers
+    app.kubernetes.io/part-of: saas-platform
+rules:
+  - apiGroups: ['']
+    resources: ['secrets', 'services']
+    verbs: ['get', 'list', 'create', 'patch', 'update', 'delete']
+  - apiGroups: ['apps']
+    resources: ['deployments']
+    verbs: ['get', 'list', 'create', 'patch', 'update', 'delete']
+  - apiGroups: ['networking.k8s.io']
+    resources: ['ingresses']
+    verbs: ['get', 'list', 'create', 'patch', 'update', 'delete']

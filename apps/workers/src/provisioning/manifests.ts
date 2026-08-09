@@ -2,6 +2,7 @@ import type {
   V1Deployment,
   V1Ingress,
   V1Namespace,
+  V1RoleBinding,
   V1Secret,
   V1Service,
 } from '@kubernetes/client-node';
@@ -20,6 +21,14 @@ export const DEPLOYMENT_NAME = 'riogentix';
 export const SERVICE_NAME = 'riogentix';
 export const SECRET_NAME = 'riogentix-env';
 export const TLS_SECRET_NAME = 'riogentix-tls';
+export const ROLE_BINDING_NAME = 'saas-tenant-workload';
+
+// Must match infra/k8s/tenant-provisioner/{serviceaccount,rbac}.yaml — the
+// identity every tenant's per-namespace RoleBinding grants workload access
+// to (see infra/k8s/tenant-provisioner/rbac.yaml for why this can't just be
+// a cluster-wide grant).
+const WORKER_SERVICE_ACCOUNT = 'saas-workers';
+const WORKER_NAMESPACE = 'saas-platform';
 
 function labels(spec: TenantStackSpec): Record<string, string> {
   return {
@@ -35,6 +44,30 @@ export function renderNamespace(spec: TenantStackSpec): V1Namespace {
     apiVersion: 'v1',
     kind: 'Namespace',
     metadata: { name: spec.namespace, labels: labels(spec) },
+  };
+}
+
+/**
+ * Grants saas-workers the saas-tenant-workload ClusterRole (secrets/services/
+ * deployments/ingresses CRUD) scoped to this tenant's namespace only — the
+ * per-namespace half of the RBAC split described in
+ * infra/k8s/tenant-provisioner/rbac.yaml. Must apply before the Secret/
+ * Deployment/Service/Ingress below, since the driver's own ServiceAccount
+ * needs this binding in place to create them.
+ */
+export function renderRoleBinding(spec: TenantStackSpec): V1RoleBinding {
+  return {
+    apiVersion: 'rbac.authorization.k8s.io/v1',
+    kind: 'RoleBinding',
+    metadata: { name: ROLE_BINDING_NAME, namespace: spec.namespace, labels: labels(spec) },
+    roleRef: {
+      apiGroup: 'rbac.authorization.k8s.io',
+      kind: 'ClusterRole',
+      name: ROLE_BINDING_NAME,
+    },
+    subjects: [
+      { kind: 'ServiceAccount', name: WORKER_SERVICE_ACCOUNT, namespace: WORKER_NAMESPACE },
+    ],
   };
 }
 
@@ -184,12 +217,16 @@ export function renderIngress(spec: TenantStackSpec): V1Ingress {
   };
 }
 
-/** All objects in apply order (namespace first). */
+/**
+ * All objects in apply order — namespace first, then the RoleBinding that
+ * grants saas-workers permission to create everything after it.
+ */
 export function renderTenantManifests(
   spec: TenantStackSpec,
-): [V1Namespace, V1Secret, V1Deployment, V1Service, V1Ingress] {
+): [V1Namespace, V1RoleBinding, V1Secret, V1Deployment, V1Service, V1Ingress] {
   return [
     renderNamespace(spec),
+    renderRoleBinding(spec),
     renderSecret(spec),
     renderDeployment(spec),
     renderService(spec),

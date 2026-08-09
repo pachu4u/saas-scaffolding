@@ -7,6 +7,7 @@ import {
   renderDeployment,
   renderIngress,
   renderNamespace,
+  renderRoleBinding,
   renderSecret,
   renderService,
   renderTenantManifests,
@@ -34,9 +35,16 @@ function spec(overrides?: Partial<TenantStackSpec>): TenantStackSpec {
 }
 
 describe('renderTenantManifests', () => {
-  it('renders the five stack objects in apply order (namespace first)', () => {
+  it('renders the six stack objects in apply order (namespace and RoleBinding first)', () => {
     const kinds = renderTenantManifests(spec()).map((m) => m.kind);
-    expect(kinds).toEqual(['Namespace', 'Secret', 'Deployment', 'Service', 'Ingress']);
+    expect(kinds).toEqual([
+      'Namespace',
+      'RoleBinding',
+      'Secret',
+      'Deployment',
+      'Service',
+      'Ingress',
+    ]);
   });
 
   it('is deterministic — same spec renders identical objects', () => {
@@ -53,6 +61,21 @@ describe('renderNamespace', () => {
       'saas.platform/tenant-slug': 'acme-co',
       'app.kubernetes.io/managed-by': 'saas-provisioner',
     });
+  });
+});
+
+describe('renderRoleBinding', () => {
+  it('grants saas-workers the saas-tenant-workload ClusterRole scoped to this namespace only', () => {
+    const rb = renderRoleBinding(spec());
+    expect(rb.metadata?.namespace).toBe('t-acme-co');
+    expect(rb.roleRef).toEqual({
+      apiGroup: 'rbac.authorization.k8s.io',
+      kind: 'ClusterRole',
+      name: 'saas-tenant-workload',
+    });
+    expect(rb.subjects).toEqual([
+      { kind: 'ServiceAccount', name: 'saas-workers', namespace: 'saas-platform' },
+    ]);
   });
 });
 
