@@ -61,6 +61,10 @@ export const roleSyncQueue = lazyQueue<RoleSyncJob>('role-sync');
 // app instance via SCIM. Coalesces naturally: each run processes all pending
 // events for the tenant, so back-to-back enqueues collapse into one converge.
 export const appSyncQueue = lazyQueue<AppSyncJob>('app-sync');
+// Repeatable-job trigger for the app-sync reconcile tick — see
+// apps/workers/src/handlers/app-sync-reconcile.ts. Carries no payload; each
+// tick queries current tenant state itself.
+export const appSyncReconcileQueue = lazyQueue<AppSyncReconcileJob>('app-sync-reconcile');
 
 export interface EmailJob {
   to: string;
@@ -111,6 +115,8 @@ export interface RoleSyncJob {
 export interface AppSyncJob {
   tenantId: string;
 }
+
+export type AppSyncReconcileJob = Record<string, never>;
 
 /**
  * Enqueue with idempotency protection.

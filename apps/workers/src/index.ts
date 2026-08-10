@@ -1,17 +1,19 @@
 import { env } from '@platform/config';
-import type {
-  EmailJob,
-  WebhookInboundJob,
-  WebhookOutboundJob,
-  UsageRollupJob,
-  PlanChangedJob,
-  TenantProvisionJob,
-  TenantDeprovisionJob,
-  AppSyncJob,
+import {
+  appSyncReconcileQueue,
+  type EmailJob,
+  type WebhookInboundJob,
+  type WebhookOutboundJob,
+  type UsageRollupJob,
+  type PlanChangedJob,
+  type TenantProvisionJob,
+  type TenantDeprovisionJob,
+  type AppSyncJob,
 } from '@platform/jobs';
 import { logger } from '@platform/logger';
 import { Worker, type Job } from 'bullmq';
 
+import { handleAppSyncReconcile } from './handlers/app-sync-reconcile.js';
 import { handleAppSync } from './handlers/app-sync.js';
 import { handleEmail } from './handlers/email.js';
 import { handlePlanChanged } from './handlers/plan-changed.js';
@@ -53,6 +55,13 @@ const workers = [
         // Outbox drains are per-tenant converges — serialize them so two
         // drains for the same tenant can't interleave SCIM writes.
         makeWorker('app-sync', (job) => handleAppSync(job as Job<AppSyncJob>), 1),
+        // Reconcile tick — see handlers/app-sync-reconcile.ts. Gated behind
+        // the same flag as app-sync itself since it just feeds that queue,
+        // and running it from every worker process would fire duplicate
+        // ticks (each pod schedules its own repeatable job under a distinct
+        // jobId by default in BullMQ >=5, so unguarded this would double up
+        // instead of coalescing).
+        makeWorker('app-sync-reconcile', () => handleAppSyncReconcile(), 1),
       ]
     : []),
   ...(env.WORKER_ENABLE_TENANT_PROVISIONING
@@ -73,6 +82,27 @@ const workers = [
       ]
     : []),
 ];
+
+if (env.WORKER_ENABLE_APP_SYNC) {
+  // Upserts the repeatable job — safe to call on every boot/restart, BullMQ
+  // keys repeatable jobs by name + repeat options so this doesn't create
+  // duplicates or reset the schedule.
+  void appSyncReconcileQueue
+    .add(
+      'app-sync-reconcile',
+      {},
+      { repeat: { every: env.APP_SYNC_RECONCILE_INTERVAL_MS }, jobId: 'app-sync-reconcile-tick' },
+    )
+    .then(() => {
+      logger.info(
+        { intervalMs: env.APP_SYNC_RECONCILE_INTERVAL_MS },
+        'App sync reconcile — repeatable job scheduled',
+      );
+    })
+    .catch((err: unknown) => {
+      logger.error({ err }, 'Failed to schedule app-sync reconcile');
+    });
+}
 
 logger.info('All workers registered. Listening for jobs...');
 

@@ -115,6 +115,15 @@ const envSchema = z.object({
     .default('true')
     .transform((v) => v === 'true'),
 
+  // App-sync is purely outbox-event-driven — a tenant with no admin activity
+  // never gets an event and drifts stale indefinitely (see 2026-08-10
+  // demo/globex incident: one tenant hadn't synced since before the RBAC
+  // ownership reversal). This ticks on an interval and re-enqueues every
+  // tenant with an ACTIVE connected app instance so idle tenants still
+  // converge. Gated behind the same in-cluster-only constraint as
+  // WORKER_ENABLE_APP_SYNC since it just feeds that queue.
+  APP_SYNC_RECONCILE_INTERVAL_MS: z.coerce.number().default(15 * 60 * 1000),
+
   // Keycloak admin (for user creation during signup)
   KEYCLOAK_INTERNAL_URL: z.string().url().optional(),
   KEYCLOAK_REALM: z.string().default('saas-platform'),

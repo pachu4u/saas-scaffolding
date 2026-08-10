@@ -8,6 +8,7 @@ export {
   tenantDeprovisionQueue,
   roleSyncQueue,
   appSyncQueue,
+  appSyncReconcileQueue,
   enqueue,
   type EmailJob,
   type WebhookInboundJob,
@@ -19,4 +20,5 @@ export {
   type TenantDeprovisionJob,
   type RoleSyncJob,
   type AppSyncJob,
+  type AppSyncReconcileJob,
 } from './queues.js';
