@@ -243,7 +243,10 @@ function buildTenantSections(base: string, connectedAppName?: string) {
   return [
     {
       label: 'OVERVIEW',
-      items: [{ label: 'Dashboard', href: `${base}/admin`, icon: Icon.layout }],
+      items: [
+        { label: 'Dashboard', href: `${base}/admin`, icon: Icon.layout },
+        { label: 'Open Riogentix App', href: '/api/riogentix-launch', icon: Icon.externalLink },
+      ],
     },
     {
       label: 'WORKSPACE',
@@ -339,8 +342,12 @@ interface SidebarProps {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+  // API routes (e.g. the Riogentix SSO launch endpoint) redirect rather than
+  // render a page, so a plain anchor avoids Next's Link prefetch silently
+  // hitting the endpoint (and burning its short-lived token) on scroll-into-view.
+  const Tag = item.href.startsWith('/api/') ? 'a' : Link;
   return (
-    <Link
+    <Tag
       href={item.href}
       className="group flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150"
       style={
@@ -379,7 +386,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
           style={{ background: 'var(--sidebar-accent)' }}
         />
       )}
-    </Link>
+    </Tag>
   );
 }
 
