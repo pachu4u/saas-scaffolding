@@ -40,10 +40,14 @@ export function NotificationsBell() {
   }, []);
 
   // Seed the unread count on mount so the dot reflects reality before the
-  // bell is ever clicked.
+  // bell is ever clicked. Skipped on platform-admin pages, which have no
+  // tenant to scope notifications to.
   useEffect(() => {
+    if (!tenantBase) return;
     void fetchNotifications();
-  }, [fetchNotifications]);
+  }, [tenantBase, fetchNotifications]);
+
+  if (!tenantBase) return null;
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
