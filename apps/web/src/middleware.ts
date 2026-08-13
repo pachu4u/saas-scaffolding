@@ -34,7 +34,8 @@ const PUBLIC_PREFIXES = [
   '/_health',
   '/_ready',
   '/auth/',
-  '/api/auth/',
+  // /api/auth/ itself is now excluded at the matcher level (see `config` below),
+  // so this entry would never be reached — kept off the list to avoid confusion.
   '/api/billing/webhook',
   '/api/internal/usage-events',
   '/api/internal/usage-snapshot',
@@ -310,5 +311,9 @@ export default auth(function middleware(req: NextRequest) {
 });
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // api/auth/* is excluded so NextAuth's auth() wrapper never runs its session-
+  // rolling refresh on those routes — it was racing keycloak-logout's own
+  // clearing Set-Cookie (both routes handle their own auth state directly and
+  // don't rely on anything this middleware injects).
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/auth).*)'],
 };

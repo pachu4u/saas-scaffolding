@@ -41,10 +41,19 @@ export async function GET() {
     }),
   ]);
 
+  const mode = keys?.secret_key
+    ? keys.secret_key.startsWith('sk_live_')
+      ? 'live'
+      : 'test'
+    : env.NODE_ENV === 'production'
+      ? 'live'
+      : 'test';
+
   return NextResponse.json({
     configured: Boolean(keys?.secret_key),
     publishableKey: keys?.publishable_key ? maskKey(keys.publishable_key) : null,
     webhookConfigured: Boolean(keys?.webhook_secret),
+    mode,
     plans,
   });
 }

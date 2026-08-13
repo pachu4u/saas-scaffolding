@@ -40,6 +40,11 @@ const envSchema = z.object({
   // Observability
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
   OTEL_SERVICE_NAME: z.string().default('saas-platform'),
+  // Public dashboards linked from the admin Settings page. Unset in
+  // deployments that don't expose these (e.g. no Grafana/Traefik ingress) —
+  // the corresponding link card is hidden rather than pointing at a dead URL.
+  GRAFANA_URL: z.string().url().optional(),
+  TRAEFIK_URL: z.string().url().optional(),
 
   // Internal
   PLATFORM_INTERNAL_SECRET: z.string().min(16),

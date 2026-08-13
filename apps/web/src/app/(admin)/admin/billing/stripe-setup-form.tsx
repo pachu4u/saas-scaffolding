@@ -12,6 +12,7 @@ interface StatusResponse {
   configured: boolean;
   publishableKey: string | null;
   webhookConfigured: boolean;
+  mode: 'live' | 'test';
   plans: PlanRow[];
 }
 
@@ -218,14 +219,14 @@ export function StripeSetupForm() {
             </div>
           </div>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Get test-mode keys from{' '}
+            Get {status?.mode === 'test' ? 'test-mode' : 'live'} keys from{' '}
             <a
-              href="https://dashboard.stripe.com/test/apikeys"
+              href={`https://dashboard.stripe.com/${status?.mode === 'test' ? 'test/' : ''}apikeys`}
               target="_blank"
               rel="noreferrer"
               className="underline"
             >
-              dashboard.stripe.com/test/apikeys
+              dashboard.stripe.com/{status?.mode === 'test' ? 'test/' : ''}apikeys
             </a>
             . Saving creates/updates a Stripe Product + Price for each plan priced above and stores
             everything in Vault — nothing is written to disk or logs.

@@ -107,18 +107,22 @@ export default async function AdminSettingsPage() {
             <LinkCard
               title="Keycloak admin console"
               description="Manage realms, users, and identity providers."
-              href="https://auth.lvh.me/admin"
+              href={`${new URL(env.KEYCLOAK_ISSUER).origin}/admin`}
             />
-            <LinkCard
-              title="Grafana"
-              description="Metrics, logs, and traces (Prometheus + Loki + Tempo)."
-              href="https://grafana.lvh.me"
-            />
-            <LinkCard
-              title="Traefik dashboard"
-              description="Reverse proxy routing and TLS status."
-              href="https://traefik.lvh.me"
-            />
+            {env.GRAFANA_URL && (
+              <LinkCard
+                title="Grafana"
+                description="Metrics, logs, and traces (Prometheus + Loki + Tempo)."
+                href={env.GRAFANA_URL}
+              />
+            )}
+            {env.TRAEFIK_URL && (
+              <LinkCard
+                title="Traefik dashboard"
+                description="Reverse proxy routing and TLS status."
+                href={env.TRAEFIK_URL}
+              />
+            )}
             <LinkCard
               title="Jobs & DLQ"
               description="Inspect queue depths and dead-letter jobs."
