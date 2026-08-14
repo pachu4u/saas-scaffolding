@@ -24,10 +24,10 @@ export const runtime = 'nodejs';
  *
  * Body:
  *   { "slug": "<slug>",
- *     "snapshot": { "flows": 3, "storage_bytes": 12345,
+ *     "snapshot": { "pipes": 3, "storage_bytes": 12345,
  *                   "api_keys": 2, "seats": 4 } }
  *
- * The snapshot keys are a fixed allowlist: flows, storage_bytes, api_keys,
+ * The snapshot keys are a fixed allowlist: pipes, storage_bytes, api_keys,
  * seats. Unknown keys and non-integer values are rejected with 400.
  *
  * Responses: 201 { upserted }, 400 bad payload, 401 bad secret,
