@@ -1,0 +1,25 @@
+# Second-level tenant subdomains for every tenant, e.g. app.acme.${domain_name}
+# and admin.acme.${domain_name}. Same rationale as the techhanker.com host's
+# tenant-app-admin-subdomains.yml: Cloudflare's free Universal SSL only
+# covers the apex + one wildcard level, so these need their own DNS-01 cert
+# via certResolver with no explicit `domains` (issued per-SNI on first
+# request, no per-tenant Traefik config needed).
+http:
+  routers:
+    app-tenant-subdomain:
+      rule: "HostRegexp(`^app\\.[a-z0-9-]+\\.${domain_regex}$`)"
+      service: k8s-ingress
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      priority: 10
+
+    admin-tenant-subdomain:
+      rule: "HostRegexp(`^admin\\.[a-z0-9-]+\\.${domain_regex}$`)"
+      service: web-service
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      priority: 10

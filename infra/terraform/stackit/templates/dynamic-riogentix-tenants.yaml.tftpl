@@ -1,0 +1,99 @@
+# Per-tenant Riogentix (k8s) -- {slug}.${domain_name}/app
+# Forwards to the k3s ingress-nginx NodePort (80:32365); the docker-compose
+# Traefik owns host ports 80/443, so k8s traffic must hop through it.
+# 172.18.0.1 is the "platform" docker network gateway (the host) -- same
+# convention as the techhanker.com host's riogentix-tenants.yml.
+# ingress-nginx routes by Host header, which Traefik passes through by default.
+#
+# See infra/compose/traefik/dynamic/riogentix-tenants.yml on the
+# techhanker.com host for the full rationale (SSO cookie flow, priority
+# layout). This is the same routing shape, just re-parameterized on
+# ${domain_name}; the "legacy two-level" router for the old
+# *.riogentix.techhanker.com DNS record is dropped since this is a fresh
+# environment with no such record.
+http:
+  routers:
+    riogentix-tenants-app:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.${domain_regex}$`) && PathPrefix(`/app`)"
+      service: k8s-ingress
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      priority: 12
+      middlewares:
+        - strip-app-prefix
+
+    riogentix-tenants-api:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.${domain_regex}$`) && PathPrefix(`/api/v1`)"
+      service: k8s-ingress
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      priority: 12
+
+    riogentix-tenants-assets:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.${domain_regex}$`) && (PathPrefix(`/assets`) || PathPrefix(`/icons`) || Path(`/favicon.ico`) || Path(`/manifest.json`))"
+      service: k8s-ingress
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      priority: 12
+
+    riogentix-health:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.${domain_regex}$`) && Path(`/health`)"
+      service: k8s-ingress
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      priority: 11
+
+    # Fixed callback host oauthproxy.${domain_name} matches this regex too
+    # ("oauthproxy" satisfies [a-z0-9-]+) -- no separate router needed.
+    tenant-oauth2:
+      rule: "HostRegexp(`^[a-z0-9-]+\\.${domain_regex}$`) && PathPrefix(`/oauth2/`)"
+      service: oauth2-proxy
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      priority: 15
+
+  middlewares:
+    strip-app-prefix:
+      stripPrefix:
+        prefixes:
+          - /app
+
+    tenant-auth:
+      forwardAuth:
+        address: 'http://oauth2-proxy:4180'
+        trustForwardHeader: true
+        authResponseHeaders:
+          - X-Auth-Request-User
+          - X-Auth-Request-Email
+          - X-Auth-Request-Groups
+
+    add-authz-secret:
+      headers:
+        customRequestHeaders:
+          X-Authz-Secret: '${platform_internal_secret}'
+
+    tenant-authz:
+      forwardAuth:
+        address: 'http://web:3000/api/tenant-authz'
+        trustForwardHeader: true
+
+  services:
+    k8s-ingress:
+      loadBalancer:
+        servers:
+          - url: 'http://172.18.0.1:32365'
+
+    oauth2-proxy:
+      loadBalancer:
+        servers:
+          - url: 'http://oauth2-proxy:4180'

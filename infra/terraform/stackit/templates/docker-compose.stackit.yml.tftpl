@@ -1,0 +1,110 @@
+# Rendered by Terraform (templates/docker-compose.stackit.yml.tftpl) and
+# copied into a fresh git checkout on the STACKIT VM as
+# infra/compose/docker-compose.stackit.yml. Loaded as an EXTRA -f layer on
+# top of the unmodified, git-tracked docker-compose.yml -- the techhanker.com
+# host's compose file is never edited, so this override can't affect it.
+#
+# No `labels:` overrides here on purpose: traefik.yml only enables the
+# `file` provider (see infra/compose/traefik/traefik.yml, "Use file provider
+# instead of Docker provider to avoid API version mismatch"), so every
+# `traefik.*` Docker label in the base compose file is dead config already
+# -- actual routing lives entirely in infra/compose/traefik/dynamic/*.yml,
+# which is rendered separately (see templates/dynamic-*.yaml.tftpl) and
+# copied over the base files by bootstrap.sh.
+#
+# Compose merges map-type keys (environment, build.args) per-key, so only
+# entries that actually differ from the base file need to be listed here.
+# `command` is replaced wholesale when present in an override, so it's
+# restated in full below (oauth2-proxy). `networks.<net>.aliases`, by
+# contrast, is *additive* -- verified with `docker compose config` against
+# this override -- so the resulting traefik container also answers to the
+# techhanker.com/lvh.me aliases from the base file. That's inert on this
+# domain (nothing here ever tries to resolve those names) but can't be
+# suppressed from an override file; if it ever bothers you, it's only
+# fixable by editing the base docker-compose.yml directly.
+services:
+  traefik:
+    networks:
+      platform:
+        aliases:
+          - auth.${domain_name}
+          - saas.${domain_name}
+
+  keycloak-db:
+    environment:
+      POSTGRES_PASSWORD: ${keycloak_db_password}
+
+  keycloak:
+    environment:
+      KC_DB_PASSWORD: ${keycloak_db_password}
+      KC_HOSTNAME_URL: https://auth.${domain_name}
+      KC_HOSTNAME_ADMIN_URL: https://auth.${domain_name}
+      KEYCLOAK_ADMIN: ${keycloak_admin_username}
+      KEYCLOAK_ADMIN_PASSWORD: ${keycloak_admin_password}
+
+  app-db:
+    environment:
+      POSTGRES_PASSWORD: ${app_db_password}
+
+  oauth2-proxy:
+    command:
+      - --http-address=0.0.0.0:4180
+      - --provider=oidc
+      - --provider-display-name=Keycloak
+      - --client-id=oauth2-proxy
+      - --client-secret=${oauth2_proxy_client_secret}
+      - --code-challenge-method=S256
+      - --oidc-issuer-url=https://auth.${domain_name}/realms/saas-platform
+      - --skip-oidc-discovery
+      - --login-url=https://auth.${domain_name}/realms/saas-platform/protocol/openid-connect/auth
+      - --redeem-url=http://keycloak:8080/realms/saas-platform/protocol/openid-connect/token
+      - --oidc-jwks-url=http://keycloak:8080/realms/saas-platform/protocol/openid-connect/certs
+      - --email-domain=*
+      - --redirect-url=https://oauthproxy.${domain_name}/oauth2/callback
+      - --whitelist-domain=.${domain_name}
+      - --cookie-secret=${oauth2_proxy_cookie_secret}
+      - --cookie-domain=.${domain_name}
+      - --cookie-secure=true
+      - --cookie-expire=12h
+      - --skip-provider-button=true
+      - --upstream=static://202
+      - --reverse-proxy=true
+      - --set-xauthrequest=true
+      - --skip-auth-route=GET=^/health$$
+
+  web:
+    build:
+      args:
+        - NEXT_PUBLIC_APP_URL=https://saas.${domain_name}
+        - DATABASE_URL=postgresql://postgres:${app_db_password}@app-db:5432/saas_platform
+        - DATABASE_URL_MIGRATOR=postgresql://postgres:${app_db_password}@app-db:5432/saas_platform
+        - KEYCLOAK_ISSUER=https://auth.${domain_name}/realms/saas-platform
+        - KEYCLOAK_CLIENT_SECRET=${keycloak_client_secret}
+        - AUTH_SECRET=${auth_secret}
+        - AUTH_URL=https://saas.${domain_name}
+        - PLATFORM_INTERNAL_SECRET=${platform_internal_secret}
+    # Base file mounts a mkcert root CA (self-signed, dev-only) and points
+    # NODE_EXTRA_CA_CERTS at it so Node trusts the local *.lvh.me cert. This
+    # environment uses real Cloudflare-issued ACME certs -- no CA override
+    # needed. Compose can't delete an override target, so the volume is
+    # redirected to /dev/null (always exists, mounts as an empty file) and
+    # NODE_EXTRA_CA_CERTS is cleared rather than left pointing at a path
+    # that won't exist on this VM.
+    volumes:
+      - /dev/null:/etc/ssl/certs/mkcert-rootCA.pem:ro
+    environment:
+      NODE_EXTRA_CA_CERTS: ''
+      DATABASE_URL: postgresql://postgres:${app_db_password}@app-db:5432/saas_platform
+      DATABASE_URL_MIGRATOR: postgresql://postgres:${app_db_password}@app-db:5432/saas_platform
+      KEYCLOAK_ISSUER: https://auth.${domain_name}/realms/saas-platform
+      AUTH_URL: https://saas.${domain_name}
+      NEXT_PUBLIC_APP_URL: https://saas.${domain_name}
+      KEYCLOAK_ADMIN: ${keycloak_admin_username}
+      KEYCLOAK_ADMIN_PASSWORD: ${keycloak_admin_password}
+      RIOGENTIX_PUBLIC_URL: https://riogentix.${domain_name}
+
+  workers:
+    environment:
+      DATABASE_URL: postgresql://postgres:${app_db_password}@app-db:5432/saas_platform
+      DATABASE_URL_MIGRATOR: postgresql://postgres:${app_db_password}@app-db:5432/saas_platform
+      KEYCLOAK_ISSUER: https://auth.${domain_name}/realms/saas-platform

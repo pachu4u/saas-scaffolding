@@ -1,0 +1,58 @@
+#cloud-config
+package_update: true
+packages:
+  - docker.io
+  - docker-compose-v2
+  - git
+  - ca-certificates
+  - curl
+
+write_files:
+  - path: /opt/saas-platform/deploy_key
+    permissions: '0600'
+    encoding: b64
+    content: ${deploy_key_b64}
+  - path: /opt/saas-platform/render/env
+    permissions: '0600'
+    encoding: b64
+    content: ${env_file_b64}
+  - path: /opt/saas-platform/render/docker-compose.stackit.yml
+    permissions: '0644'
+    encoding: b64
+    content: ${compose_override_b64}
+  - path: /opt/saas-platform/render/traefik.yaml
+    permissions: '0644'
+    encoding: b64
+    content: ${traefik_static_b64}
+  - path: /opt/saas-platform/render/dynamic-web.yaml
+    permissions: '0644'
+    encoding: b64
+    content: ${dynamic_web_b64}
+  - path: /opt/saas-platform/render/dynamic-keycloak.yaml
+    permissions: '0644'
+    encoding: b64
+    content: ${dynamic_keycloak_b64}
+  - path: /opt/saas-platform/render/dynamic-riogentix-tenants.yaml
+    permissions: '0644'
+    encoding: b64
+    content: ${dynamic_riogentix_tenants_b64}
+  - path: /opt/saas-platform/render/dynamic-tenant-app-admin-subdomains.yaml
+    permissions: '0644'
+    encoding: b64
+    content: ${dynamic_tenant_app_admin_b64}
+  - path: /opt/saas-platform/render/dynamic-tls.yaml
+    permissions: '0644'
+    encoding: b64
+    content: ${dynamic_tls_b64}
+  - path: /opt/saas-platform/render/tenant-provisioner-secret.env
+    permissions: '0600'
+    encoding: b64
+    content: ${tenant_provisioner_secret_b64}
+  - path: /opt/saas-platform/bootstrap.sh
+    permissions: '0755'
+    encoding: b64
+    content: ${bootstrap_script_b64}
+
+runcmd:
+  - systemctl enable --now docker
+  - /opt/saas-platform/bootstrap.sh

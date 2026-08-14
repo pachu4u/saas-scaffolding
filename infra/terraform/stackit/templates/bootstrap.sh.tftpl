@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -euo pipefail
+exec > >(tee -a /var/log/saas-platform-bootstrap.log) 2>&1
+
+REPO_DIR=/opt/saas-platform/repo
+RENDER_DIR=/opt/saas-platform/render
+
+echo "→ Cloning ${git_repo_url} @ ${git_ref}"
+export GIT_SSH_COMMAND="ssh -i /opt/saas-platform/deploy_key -o StrictHostKeyChecking=accept-new"
+if [[ ! -d "$REPO_DIR/.git" ]]; then
+  git clone --branch "${git_ref}" --depth 1 "${git_repo_url}" "$REPO_DIR"
+fi
+cd "$REPO_DIR"
+
+echo "→ Dropping techhanker.com dev-tenant Traefik artifacts (regenerated per-tenant on this domain once real tenants provision -- see docs/infra/tenant-provisioner.md)"
+rm -f infra/compose/traefik/dynamic/tenant-acme.yml \
+      infra/compose/traefik/dynamic/tenant-demo.yml \
+      infra/compose/traefik/dynamic/tenant-globex.yml
+
+echo "→ Overlaying rendered, domain-specific config"
+cp "$RENDER_DIR/env" "$REPO_DIR/.env"
+cp "$RENDER_DIR/docker-compose.stackit.yml" "$REPO_DIR/infra/compose/docker-compose.stackit.yml"
+cp "$RENDER_DIR/traefik.yaml" "$REPO_DIR/infra/compose/traefik/traefik.yml"
+cp "$RENDER_DIR/dynamic-web.yaml" "$REPO_DIR/infra/compose/traefik/dynamic/web.yml"
+cp "$RENDER_DIR/dynamic-keycloak.yaml" "$REPO_DIR/infra/compose/traefik/dynamic/keycloak.yml"
+cp "$RENDER_DIR/dynamic-riogentix-tenants.yaml" "$REPO_DIR/infra/compose/traefik/dynamic/riogentix-tenants.yml"
+cp "$RENDER_DIR/dynamic-tenant-app-admin-subdomains.yaml" "$REPO_DIR/infra/compose/traefik/dynamic/tenant-app-admin-subdomains.yml"
+cp "$RENDER_DIR/dynamic-tls.yaml" "$REPO_DIR/infra/compose/traefik/dynamic/tls.yml"
+mkdir -p "$REPO_DIR/infra/k8s/tenant-provisioner"
+cp "$RENDER_DIR/tenant-provisioner-secret.env" "$REPO_DIR/infra/k8s/tenant-provisioner/secret.env"
+mkdir -p "$REPO_DIR/infra/compose/traefik/acme" "$REPO_DIR/infra/compose/traefik/certs"
+
+echo "→ Installing Node 20 + pnpm (host-side Prisma migrate + keycloak sync -- same tools scripts/dev.sh uses locally)"
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt-get install -y nodejs
+corepack enable
+corepack prepare pnpm@9.6.0 --activate
+pnpm install --frozen-lockfile
+
+echo "→ Creating shared Docker network"
+docker network create platform 2>/dev/null || true
+
+echo "→ Building and starting the platform stack"
+set -a
+# shellcheck disable=SC1091
+source .env
+set +a
+docker compose \
+  -f infra/compose/docker-compose.yml \
+  -f infra/compose/docker-compose.observability.yml \
+  -f infra/compose/docker-compose.tools.yml \
+  -f infra/compose/docker-compose.stackit.yml \
+  up -d --build --wait
+
+echo "→ Waiting for app-db"
+until docker compose -f infra/compose/docker-compose.yml exec -T app-db pg_isready -U postgres -d saas_platform &>/dev/null; do
+  sleep 2
+done
+
+echo "→ Running DB migrations (no seed -- this is a real environment, not fixtures)"
+pnpm --filter @platform/db db:migrate
+
+echo "→ Pushing realm client config into Keycloak"
+node infra/keycloak/sync-realm.mjs
+
+echo "→ Installing k3s (tenant-provisioner cluster -- shares this host with docker-compose, see docs/infra/tenant-provisioner.md)"
+curl -sfL https://get.k3s.io | sh -
+until k3s kubectl get nodes &>/dev/null; do sleep 2; done
+mkdir -p ~/.kube
+cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+
+echo "→ Patching tenant-provisioner hostPath (deployment.yaml hardcodes the dev checkout path -- this VM's checkout lives at $REPO_DIR instead)"
+sed -i "s#/root/.openclaw/workspace/saas-scaffolding/infra/compose/traefik/dynamic#$REPO_DIR/infra/compose/traefik/dynamic#" \
+  "$REPO_DIR/infra/k8s/tenant-provisioner/deployment.yaml"
+
+echo "→ Deploying the saas-workers tenant-provisioner"
+cd "$REPO_DIR/infra/k8s/tenant-provisioner"
+./deploy.sh
+
+echo "✓ Bootstrap complete -- see /var/log/saas-platform-bootstrap.log for the full trace"
