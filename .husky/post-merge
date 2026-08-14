@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+
+# Some environments create new directories with a stray sticky bit set
+# (mode 3775 instead of 775). The sticky bit restricts unlink/rename inside
+# the directory to its owner, which breaks `git checkout`/`git merge` for
+# any other user (e.g. a second machine user working the same repo).
+# Self-heal after every checkout/merge instead of hunting the exact source.
+# Use sudo when available since offending dirs may be owned by a different
+# machine user than the one running this hook.
+if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+  CHMOD="sudo -n chmod"
+else
+  CHMOD="chmod"
+fi
+find . -type d -perm -1000 -not -path "./.git/*" -exec $CHMOD -t {} + 2>/dev/null
+
+exit 0
