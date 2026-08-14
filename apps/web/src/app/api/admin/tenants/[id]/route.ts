@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 
 import { enqueueRoleSync } from '@/lib/role-sync';
 
-const RESOURCE_LIMIT_FIELDS = ['flows', 'storageBytes', 'apiKeys', 'seats'] as const;
+const RESOURCE_LIMIT_FIELDS = ['pipes', 'storageBytes', 'apiKeys', 'seats'] as const;
 type ResourceLimitField = (typeof RESOURCE_LIMIT_FIELDS)[number];
 type ResourceLimitsPayload = Partial<Record<ResourceLimitField, number | null>>;
 
@@ -161,7 +161,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json(
         {
           error:
-            'resourceLimits must be an object of flows/storageBytes/apiKeys/seats, each a non-negative number or null',
+            'resourceLimits must be an object of pipes/storageBytes/apiKeys/seats, each a non-negative number or null',
         },
         { status: 422 },
       );

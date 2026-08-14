@@ -255,14 +255,14 @@ describe('convergeAppInstance for riogentix', () => {
   it('pushes the tenant resource-limit overrides on every converge pass', async () => {
     mockTenantFindUnique.mockResolvedValue({
       branding: {},
-      resourceLimits: { flows: 10, seats: null },
+      resourceLimits: { pipes: 10, seats: null },
     });
     mockRoleBindingFindMany.mockResolvedValue([NATIVE_ADMIN_BINDING]);
 
     await convergeAppInstance(RIOGENTIX_INSTANCE);
 
     expect(riogentixClientMocks.syncResourceLimits).toHaveBeenCalledWith('tenant-1', {
-      flows: 10,
+      pipes: 10,
       storageBytes: undefined,
       apiKeys: undefined,
       seats: null,

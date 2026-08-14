@@ -20,7 +20,7 @@ import {
 export type AppInstanceWithApp = ConnectedAppInstance & { app: ConnectedApp };
 
 interface TenantResourceLimits {
-  flows?: number | null;
+  pipes?: number | null;
   storageBytes?: number | null;
   apiKeys?: number | null;
   seats?: number | null;
@@ -72,7 +72,7 @@ async function convergeBranding(instance: AppInstanceWithApp): Promise<void> {
 }
 
 /**
- * Push the tenant's current resource-limit overrides (flows/storage/api_keys/
+ * Push the tenant's current resource-limit overrides (pipes/storage/api_keys/
  * seats) to its Riogentix instance. Same rationale as convergeBranding: runs
  * on every converge pass rather than only right after an admin edit, so a
  * failed/stale push self-heals on the next identity sync.
@@ -88,7 +88,7 @@ async function convergeResourceLimits(instance: AppInstanceWithApp): Promise<voi
 
   const limits = tenant.resourceLimits as TenantResourceLimits;
   await syncResourceLimits(instance.tenantId, {
-    flows: limits.flows,
+    pipes: limits.pipes,
     storageBytes: limits.storageBytes,
     apiKeys: limits.apiKeys,
     seats: limits.seats,

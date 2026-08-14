@@ -7,16 +7,16 @@ const PLANS = ['free', 'pro', 'enterprise'] as const;
 type Plan = (typeof PLANS)[number];
 
 interface ResourceLimits {
-  flows?: number | null;
+  pipes?: number | null;
   storageBytes?: number | null;
   apiKeys?: number | null;
   seats?: number | null;
 }
 
-type LimitField = 'flows' | 'storageBytes' | 'apiKeys' | 'seats';
+type LimitField = 'pipes' | 'storageBytes' | 'apiKeys' | 'seats';
 
 const LIMIT_FIELDS: { key: LimitField; label: string; hint: string }[] = [
-  { key: 'flows', label: 'Flows', hint: 'Max flows the tenant can create' },
+  { key: 'pipes', label: 'Pipes', hint: 'Max pipes the tenant can create' },
   { key: 'storageBytes', label: 'Storage (bytes)', hint: 'Max file-storage bytes' },
   { key: 'apiKeys', label: 'API keys', hint: 'Max API keys' },
   { key: 'seats', label: 'Seats', hint: 'Max members' },
@@ -48,7 +48,7 @@ export function PlanLimitsPanel({
     (PLANS as readonly string[]).includes(currentPlan) ? (currentPlan as Plan) : 'free',
   );
   const [limits, setLimits] = useState<Record<LimitField, string>>({
-    flows: toInput(currentLimits.flows),
+    pipes: toInput(currentLimits.pipes),
     storageBytes: toInput(currentLimits.storageBytes),
     apiKeys: toInput(currentLimits.apiKeys),
     seats: toInput(currentLimits.seats),

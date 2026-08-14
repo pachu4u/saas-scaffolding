@@ -123,14 +123,14 @@ export async function syncBranding(tenantId: string, branding: BrandingUpdate): 
 }
 
 export interface ResourceLimitsUpdate {
-  flows?: number | null | undefined;
+  pipes?: number | null | undefined;
   storageBytes?: number | null | undefined;
   apiKeys?: number | null | undefined;
   seats?: number | null | undefined;
 }
 
 /**
- * Push per-tenant quota overrides (flows/storage/api_keys/seats) to the
+ * Push per-tenant quota overrides (pipes/storage/api_keys/seats) to the
  * tenant's Riogentix instance. A field left `undefined` is dropped by
  * JSON.stringify and so stays untouched on the Riogentix side (still
  * inherits the plan default); a field explicitly `null` forces "unlimited"
@@ -141,7 +141,7 @@ export async function syncResourceLimits(
   limits: ResourceLimitsUpdate,
 ): Promise<void> {
   await callSaas(tenantId, 'PUT', `/api/v1/internal/saas/tenant/${tenantId}/resource-limits`, {
-    flows: limits.flows,
+    pipes: limits.pipes,
     storage_bytes: limits.storageBytes,
     api_keys: limits.apiKeys,
     seats: limits.seats,

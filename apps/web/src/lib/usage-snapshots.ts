@@ -10,7 +10,7 @@ import { adminDb } from '@platform/db';
  * The kind keys are a fixed allowlist matching the counters Riogentix
  * computes in `services/usage_counter.py`.
  */
-export const USAGE_SNAPSHOT_KINDS = ['flows', 'storage_bytes', 'api_keys', 'seats'] as const;
+export const USAGE_SNAPSHOT_KINDS = ['pipes', 'storage_bytes', 'api_keys', 'seats'] as const;
 
 export type UsageSnapshotKind = (typeof USAGE_SNAPSHOT_KINDS)[number];
 

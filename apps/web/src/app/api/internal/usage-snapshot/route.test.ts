@@ -30,7 +30,7 @@ function makeRequest(body: unknown, secret?: string): Request {
   });
 }
 
-const VALID_SNAPSHOT = { flows: 3, storage_bytes: 12345, api_keys: 2, seats: 4 };
+const VALID_SNAPSHOT = { pipes: 3, storage_bytes: 12345, api_keys: 2, seats: 4 };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -79,14 +79,14 @@ describe('POST /api/internal/usage-snapshot', () => {
 
   it('returns 400 for a negative value', async () => {
     const res = await POST(
-      makeRequest({ slug: 'acme', snapshot: { ...VALID_SNAPSHOT, flows: -1 } }, SECRET) as never,
+      makeRequest({ slug: 'acme', snapshot: { ...VALID_SNAPSHOT, pipes: -1 } }, SECRET) as never,
     );
     expect(res.status).toBe(400);
   });
 
   it('returns 400 for a non-integer value', async () => {
     const res = await POST(
-      makeRequest({ slug: 'acme', snapshot: { ...VALID_SNAPSHOT, flows: 1.5 } }, SECRET) as never,
+      makeRequest({ slug: 'acme', snapshot: { ...VALID_SNAPSHOT, pipes: 1.5 } }, SECRET) as never,
     );
     expect(res.status).toBe(400);
   });
@@ -119,19 +119,19 @@ describe('POST /api/internal/usage-snapshot', () => {
   it('upsert overwrites, never appends: second POST wins', async () => {
     // First sync
     await POST(makeRequest({ slug: 'acme', snapshot: VALID_SNAPSHOT }, SECRET) as never);
-    // Second sync with a LOWER flows value — must overwrite, not sum.
+    // Second sync with a LOWER pipes value — must overwrite, not sum.
     const res = await POST(
-      makeRequest({ slug: 'acme', snapshot: { ...VALID_SNAPSHOT, flows: 1 } }, SECRET) as never,
+      makeRequest({ slug: 'acme', snapshot: { ...VALID_SNAPSHOT, pipes: 1 } }, SECRET) as never,
     );
     expect(res.status).toBe(201);
 
-    const flowsCalls = mockUpsert.mock.calls.filter(
+    const pipesCalls = mockUpsert.mock.calls.filter(
       (c) =>
         (c[0] as { where: { tenantId_kind: { kind: string } } }).where.tenantId_kind.kind ===
-        'flows',
+        'pipes',
     );
-    expect(flowsCalls).toHaveLength(2);
-    const second = flowsCalls[1]?.[0] as {
+    expect(pipesCalls).toHaveLength(2);
+    const second = pipesCalls[1]?.[0] as {
       where: { tenantId_kind: { tenantId: string; kind: string } };
       create: { value: number };
       update: { value: number };
@@ -140,7 +140,7 @@ describe('POST /api/internal/usage-snapshot', () => {
     // never 3 + 1.
     expect(second.create.value).toBe(1);
     expect(second.update.value).toBe(1);
-    expect(second.where.tenantId_kind).toEqual({ tenantId: TENANT_ID, kind: 'flows' });
+    expect(second.where.tenantId_kind).toEqual({ tenantId: TENANT_ID, kind: 'pipes' });
   });
 
   it('still returns 201 when pg_notify fails', async () => {
