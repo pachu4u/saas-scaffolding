@@ -9,6 +9,14 @@ locals {
   # parse "\." as an (invalid) escape sequence and fail to load the file).
   domain_regex = replace(var.domain_name, ".", "\\\\.")
 
+  # STACKIT-managed Postgres Flex + Redis connection strings -- see
+  # database.tf. Unlike the self-hosted app-db container these are reachable
+  # from anywhere with network access (not just the platform Docker network),
+  # so the same DATABASE_URL now works for both host-side tools (Prisma
+  # CLI) and containers -- no more localhost:5434-vs-app-db:5432 split.
+  app_database_url = "postgresql://${stackit_postgresflex_user.app_db.username}:${urlencode(stackit_postgresflex_user.app_db.password)}@${stackit_postgresflex_instance.app_db.connection_info.write.host}:${stackit_postgresflex_instance.app_db.connection_info.write.port}/${stackit_postgresflex_database.app_db.name}?sslmode=require"
+  app_redis_url    = stackit_redis_credential.app_redis.uri
+
   common_template_vars = {
     domain_name      = var.domain_name
     domain_regex     = local.domain_regex
@@ -34,9 +42,11 @@ locals {
     oauth2_proxy_cookie_secret     = random_id.oauth2_proxy_cookie_secret.b64_std
     riogentix_saas_internal_secret = random_password.riogentix_saas_internal_secret.result
     riogentix_internal_secret      = random_password.riogentix_internal_secret.result
-    app_db_password                = random_password.app_db_password.result
     keycloak_db_password           = random_password.keycloak_db_password.result
-    redis_password                 = random_password.redis_password.result
+
+    database_url   = local.app_database_url
+    redis_url      = local.app_redis_url
+    redis_password = stackit_redis_credential.app_redis.password
   }
 
   env_file_content = templatefile("${path.module}/templates/env.tftpl", merge(local.common_template_vars, {

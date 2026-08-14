@@ -19,6 +19,15 @@ cloudflare_dns_api_token = "change-me" # Zone:DNS:Edit scope on the riogentix.co
 
 riogentix_image = "riogentixai/riogentix-backend:latest" # verify this is the correct/current tag before first apply
 
+# STACKIT-managed Redis plan -- no Terraform data source lists these, verify
+# with `stackit redis plans` (STACKIT CLI) or the Portal before first apply.
+redis_plan_name = "stackit-redis-1.2.10-single"
+
+# Extra CIDRs (in addition to network_ipv4_prefix) allowed to reach the
+# managed Postgres Flex/Redis instances -- likely needs the app VM's actual
+# NAT egress IP after first apply. See README "known gaps".
+managed_services_acl_cidrs = []
+
 # Leave these empty to launch without them (Stripe/email features disabled
 # until set) -- fill in for a real production cutover.
 stripe_secret_key      = ""

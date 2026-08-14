@@ -2,20 +2,26 @@
 
 Provisions a second, independent deployment of this platform on STACKIT
 Cloud, under its own domain (`riogentix.com` by default) — separate from
-the existing techhanker.com host. One Compute Engine VM runs the _entire_
+the existing techhanker.com host. One Compute Engine VM runs most of the
 stack via the same `infra/compose/` files already used locally: Traefik,
-oauth2-proxy, Keycloak+DB, app Postgres, Redis, Vault, Web, Workers, plus
-k3s (for the tenant-provisioner — see `docs/infra/tenant-provisioner.md`),
-fronted by a STACKIT Load Balancer.
+oauth2-proxy, Keycloak+DB, Vault, Web, Workers, plus k3s (for the
+tenant-provisioner — see `docs/infra/tenant-provisioner.md`), fronted by a
+STACKIT Load Balancer. The app's own Postgres database and Redis are
+STACKIT-managed services (Postgres Flex + Redis — see `database.tf`)
+instead of containers; keycloak-db stays self-hosted, unchanged.
 
 ```
 Internet --TLS(Traefik+Cloudflare DNS-01)--> STACKIT Load Balancer (L4 passthrough, 80/443)
                                                     |
                                           STACKIT Compute Engine VM
                                  docker compose: traefik, oauth2-proxy, keycloak(+db),
-                                 app-db, redis, vault, web, workers
+                                 vault, web, workers
                                  k3s: saas-workers (tenant-provisioner)
                                       -> stamps a Riogentix stack per tenant
+                                                    |
+                                  STACKIT-managed Postgres Flex + Redis
+                                       (app-db / redis containers from
+                                        docker-compose.yml scaled to 0)
 ```
 
 **Nothing here touches the techhanker.com host.** The existing
@@ -50,6 +56,13 @@ runs on first boot.
    stamps out per tenant.
 7. **Stripe/Resend keys** if you want billing/email live immediately —
    otherwise leave them blank and those features stay disabled until set.
+8. **A STACKIT Redis plan name** (`redis_plan_name`, e.g.
+   `stackit-redis-1.2.10-single`) — there's no Terraform data source for
+   these; list them with the STACKIT CLI (`stackit redis plans`) or the
+   Portal before first apply. Postgres Flex's flavor is resolved
+   automatically instead (see `postgres_min_cpu`/`postgres_min_memory_gb`
+   in `database.tf`), but verify `postgres_storage_class` is offered in
+   your project with `stackit postgresflex flavor describe FLAVOR_ID`.
 
 ## DNS records to create (after `apply`, pointed at the `load_balancer_ip` output)
 
@@ -62,18 +75,47 @@ runs on first boot.
 
 ## What this does NOT do / known gaps
 
-- **Not yet applied or tested end-to-end.** This was authored and validated
-  with `terraform validate`, `terraform fmt`, and by rendering every
-  template + diffing the merged `docker compose config` output against the
-  real base files — but never against a real STACKIT project (no
-  credentials available in the environment this was written in). **Run a
-  `terraform plan` and review it carefully, then treat the first `apply` as
-  a dry run you watch closely** (tail `/var/log/saas-platform-bootstrap.log`
-  over SSH while it boots).
-- **Self-hosted DB/Redis, not STACKIT managed.** Matches what's live on
-  techhanker.com today (lower complexity), but means no managed
-  backups/HA — back up the `app-db-data` / `keycloak-db-data` Docker volumes
-  yourself if that matters to you.
+- **Not yet applied or tested end-to-end, and the DB/Redis swap specifically
+  hasn't been run through `terraform validate`/`fmt`.** The original module
+  was validated that way; the STACKIT managed-Postgres/Redis change
+  (`database.tf` + the connection-string rewiring) was authored against the
+  provider's published docs/examples and manually reviewed instead, since no
+  `terraform` binary was available in the environment this was written in
+  either time. What _was_ verified for this change: the rendered
+  `docker-compose.stackit.yml` override merges cleanly against the real
+  `infra/compose/*.yml` files via `docker compose config`, and a local
+  `docker compose up --scale app-db=0 --scale redis=0 --wait` smoke test
+  confirms the `depends_on: required: false` overrides stop web/workers from
+  hanging on health checks for containers that never start. Still run
+  `terraform validate` yourself before `plan`, and **treat the first `apply`
+  as a dry run you watch closely** (tail
+  `/var/log/saas-platform-bootstrap.log` over SSH while it boots).
+- **App DB/Redis are STACKIT-managed (Postgres Flex + Redis); keycloak-db is
+  not.** Unlike techhanker.com's fully self-hosted stack, the app-db and
+  redis containers from the base compose file are scaled to 0 here and
+  replaced with managed services (`database.tf`) — you get managed
+  backups/HA for the app's own data, but keycloak's Postgres is still a
+  plain container, so back up the `keycloak-db-data` Docker volume yourself
+  if that matters to you.
+- **Postgres Flex/Redis network ACLs are a best guess, not verified.** Both
+  instances' ACLs default to `network_ipv4_prefix` (192.168.20.0/24) plus
+  `managed_services_acl_cidrs`. This project deliberately skips an org-level
+  Network Area (see `network.tf`), so if the app VM's actual connection to
+  these managed services goes out over a public NAT IP rather than the
+  private network, that default won't let it through. If `bootstrap.sh`
+  hangs at "Waiting for the managed Postgres Flex instance to accept
+  connections", SSH in, run `curl -s ifconfig.me`, add that IP to
+  `managed_services_acl_cidrs`, `terraform apply` again, then re-run the
+  rest of `bootstrap.sh` by hand (see the `rendered_*` outputs).
+- **Postgres Flex user role assumed to double as instance admin.**
+  `stackit_postgresflex_user.app_db` is created with `roles = ["login"]`
+  (the only role shown in STACKIT's own examples/docs) and is expected to
+  have implicit CREATEDB/CREATEROLE rights — needed both for Prisma
+  migrations and for the tenant-provisioner's per-tenant
+  `CREATE ROLE`/`CREATE DATABASE` calls (`apps/workers/src/provisioning/database.ts`).
+  This matches how most Postgres DBaaS "login" users behave, but hasn't
+  been confirmed against a real STACKIT project — if migrations fail with a
+  permissions error, this is the first thing to check.
 - **Images build on the VM from a git checkout**, not a registry — first
   boot is slow (pnpm install + full `docker compose build`, budget 15-20
   minutes) and every redeploy needs SSH access, not just a `docker pull`.
@@ -91,7 +133,9 @@ runs on first boot.
   `docker network inspect platform | grep Gateway` on the VM after first
   boot and update `infra/k8s/tenant-provisioner/secret.env` (then
   `kubectl -n saas-platform rollout restart deploy/saas-workers`) if it
-  differs.
+  differs. This only matters for Keycloak/Vault/OTEL now — the
+  tenant-provisioner's DB/Redis access no longer goes through this gateway
+  hack, since Postgres Flex/Redis are reachable directly (see above).
 - **Traefik dashboard is inert here on purpose.** `traefik.yml` on this
   deployment (like the techhanker.com host) only enables the `file`
   provider, so the `traefik.*` Docker labels in the base compose file

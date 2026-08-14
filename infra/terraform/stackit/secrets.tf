@@ -47,22 +47,12 @@ resource "random_password" "riogentix_internal_secret" {
   special = false
 }
 
-resource "random_password" "app_db_password" {
-  length  = 32
-  special = false
-}
-
 resource "random_password" "migrator_db_password" {
   length  = 32
   special = false
 }
 
 resource "random_password" "keycloak_db_password" {
-  length  = 32
-  special = false
-}
-
-resource "random_password" "redis_password" {
   length  = 32
   special = false
 }

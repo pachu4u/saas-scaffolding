@@ -42,10 +42,16 @@ services:
       KEYCLOAK_ADMIN: ${keycloak_admin_username}
       KEYCLOAK_ADMIN_PASSWORD: ${keycloak_admin_password}
 
-  app-db:
-    environment:
-      POSTGRES_PASSWORD: ${app_db_password}
-
+  # app-db and redis are STACKIT-managed here (see database.tf) -- both
+  # containers stay defined (untouched) in the base compose file, but
+  # bootstrap.sh starts the stack with `--scale app-db=0 --scale redis=0`
+  # so neither one actually runs. `deploy.replicas: 0` here instead of a
+  # CLI flag was tried and rejected: Compose then refuses `up --wait`
+  # outright with "missing dependency app-db" before even evaluating the
+  # depends_on override below -- verified against this exact file with
+  # `docker compose config` + `up --wait`. The depends_on overrides below
+  # are still required so web/workers don't block forever on a health
+  # check that can never succeed for a container that was never started.
   oauth2-proxy:
     command:
       - --http-address=0.0.0.0:4180
@@ -76,8 +82,9 @@ services:
     build:
       args:
         - NEXT_PUBLIC_APP_URL=https://saas.${domain_name}
-        - DATABASE_URL=postgresql://postgres:${app_db_password}@app-db:5432/saas_platform
-        - DATABASE_URL_MIGRATOR=postgresql://postgres:${app_db_password}@app-db:5432/saas_platform
+        - DATABASE_URL=${database_url}
+        - DATABASE_URL_MIGRATOR=${database_url}
+        - REDIS_URL=${redis_url}
         - KEYCLOAK_ISSUER=https://auth.${domain_name}/realms/saas-platform
         - KEYCLOAK_CLIENT_SECRET=${keycloak_client_secret}
         - AUTH_SECRET=${auth_secret}
@@ -92,10 +99,21 @@ services:
     # that won't exist on this VM.
     volumes:
       - /dev/null:/etc/ssl/certs/mkcert-rootCA.pem:ro
+    # app-db/redis are scaled to 0 (see comment above) -- `required: false`
+    # stops `up --wait` from blocking forever on a service_healthy check
+    # that can never succeed for a container that was never started.
+    depends_on:
+      app-db:
+        condition: service_started
+        required: false
+      redis:
+        condition: service_started
+        required: false
     environment:
       NODE_EXTRA_CA_CERTS: ''
-      DATABASE_URL: postgresql://postgres:${app_db_password}@app-db:5432/saas_platform
-      DATABASE_URL_MIGRATOR: postgresql://postgres:${app_db_password}@app-db:5432/saas_platform
+      DATABASE_URL: ${database_url}
+      DATABASE_URL_MIGRATOR: ${database_url}
+      REDIS_URL: ${redis_url}
       KEYCLOAK_ISSUER: https://auth.${domain_name}/realms/saas-platform
       AUTH_URL: https://saas.${domain_name}
       NEXT_PUBLIC_APP_URL: https://saas.${domain_name}
@@ -104,7 +122,15 @@ services:
       RIOGENTIX_PUBLIC_URL: https://riogentix.${domain_name}
 
   workers:
+    depends_on:
+      app-db:
+        condition: service_started
+        required: false
+      redis:
+        condition: service_started
+        required: false
     environment:
-      DATABASE_URL: postgresql://postgres:${app_db_password}@app-db:5432/saas_platform
-      DATABASE_URL_MIGRATOR: postgresql://postgres:${app_db_password}@app-db:5432/saas_platform
+      DATABASE_URL: ${database_url}
+      DATABASE_URL_MIGRATOR: ${database_url}
+      REDIS_URL: ${redis_url}
       KEYCLOAK_ISSUER: https://auth.${domain_name}/realms/saas-platform

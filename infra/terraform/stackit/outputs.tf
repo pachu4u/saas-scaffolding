@@ -25,7 +25,8 @@ output "app_vm_server_id" {
 #   scp /tmp/docker-compose.stackit.yml ubuntu@<app_vm_ssh_ip>:/opt/saas-platform/repo/infra/compose/
 #   ssh ubuntu@<app_vm_ssh_ip> 'cd /opt/saas-platform/repo && set -a && source .env && set +a && \
 #     docker compose -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.observability.yml \
-#     -f infra/compose/docker-compose.tools.yml -f infra/compose/docker-compose.stackit.yml up -d --build --wait'
+#     -f infra/compose/docker-compose.tools.yml -f infra/compose/docker-compose.stackit.yml \
+#     up -d --build --wait --scale app-db=0 --scale redis=0'
 output "rendered_env_file" {
   value     = local.env_file_content
   sensitive = true
@@ -33,7 +34,7 @@ output "rendered_env_file" {
 
 output "rendered_compose_override" {
   value     = local.compose_override_content
-  sensitive = true # embeds keycloak_client_secret / app_db_password / etc.
+  sensitive = true # embeds keycloak_client_secret / redis_password / etc.
 }
 
 output "rendered_tenant_provisioner_secret" {

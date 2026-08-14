@@ -1,9 +1,10 @@
 # Note: an org-level stackit_network_area (SNA) resource is deliberately
 # skipped here -- it requires org-level permissions beyond a project-scoped
 # "owner" role, and nothing else in this config references it. The
-# project-scoped network below is sufficient since everything (Postgres,
-# Redis, Vault, k3s) runs in containers/pods on the single app VM rather than
-# as separate STACKIT-managed services.
+# project-scoped network below is sufficient for Vault/k3s (containers/pods
+# on the single app VM), the load balancer, and SSH -- see database.tf's
+# comment on managed_services_acl_cidrs for how Postgres Flex/Redis access
+# control interacts (or doesn't) with this network in the absence of an SNA.
 resource "stackit_network" "main" {
   project_id  = var.project_id
   name        = "${var.name_prefix}-network"

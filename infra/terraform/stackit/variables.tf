@@ -161,3 +161,66 @@ variable "additional_secrets" {
   default     = {}
   sensitive   = true
 }
+
+# --- Managed data services (STACKIT Postgres Flex + Redis) -------------------
+# The app's own database and cache move to STACKIT-managed services on this
+# deployment (see database.tf) -- keycloak-db stays self-hosted in
+# docker-compose, unchanged, matching techhanker.com.
+
+variable "postgres_min_cpu" {
+  description = "Minimum vCPUs when resolving a Postgres Flex flavor for the app database via stackit_postgresflex_flavors (database.tf)."
+  type        = number
+  default     = 2
+}
+
+variable "postgres_min_memory_gb" {
+  description = "Minimum RAM (GiB) when resolving a Postgres Flex flavor."
+  type        = number
+  default     = 4
+}
+
+variable "postgres_storage_class" {
+  description = "Storage class for the Postgres Flex instance. List classes available for a flavor with `stackit postgresflex flavor describe FLAVOR_ID` (STACKIT CLI) before first apply -- there's no Terraform data source for this."
+  type        = string
+  default     = "premium-perf2-stackit"
+}
+
+variable "postgres_storage_size_gb" {
+  type    = number
+  default = 10
+}
+
+variable "postgres_backup_schedule" {
+  description = "Cron expression (numeric minute/hour) for the Postgres Flex daily backup."
+  type        = string
+  default     = "0 3 * * *"
+}
+
+variable "postgres_retention_days" {
+  description = "How long Postgres Flex backups are retained. Must be between 32 and 90."
+  type        = number
+  default     = 32
+}
+
+variable "postgres_version" {
+  description = "Matches the postgres:16-alpine image the self-hosted keycloak-db container still runs, for consistency."
+  type        = string
+  default     = "16"
+}
+
+variable "redis_plan_name" {
+  description = "STACKIT Redis plan name, e.g. 'stackit-redis-1.2.10-single'. No Terraform data source lists these -- verify with `stackit redis plans` (STACKIT CLI) or the Portal before first apply."
+  type        = string
+}
+
+variable "redis_version" {
+  description = "Matches the redis:7-alpine image the base compose file's redis container used before this swap."
+  type        = string
+  default     = "7"
+}
+
+variable "managed_services_acl_cidrs" {
+  description = "Extra CIDRs allowed to reach the managed Postgres Flex/Redis instances, in addition to network_ipv4_prefix. These ACLs filter on the connecting client's actual source IP -- since this project doesn't provision an org-level Network Area (see network.tf), that's the app VM's NAT egress IP, not its private IP, and isn't known until after first apply. Find it with `ssh ubuntu@<app_vm_ssh_ip> curl -s ifconfig.me` post-apply, add it here, and re-apply."
+  type        = list(string)
+  default     = []
+}
