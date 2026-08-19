@@ -29,6 +29,13 @@ cp "$RENDER_DIR/dynamic-tls.yaml" "$REPO_DIR/infra/compose/traefik/dynamic/tls.y
 mkdir -p "$REPO_DIR/infra/k8s/tenant-provisioner"
 cp "$RENDER_DIR/tenant-provisioner-secret.env" "$REPO_DIR/infra/k8s/tenant-provisioner/secret.env"
 mkdir -p "$REPO_DIR/infra/compose/traefik/acme" "$REPO_DIR/infra/compose/traefik/certs"
+# infra/docker/web.Dockerfile does a literal-path COPY of this file to trust
+# it as a Node.js CA (mkcert dev cert, see scripts/mkcert-setup.sh) -- it's
+# gitignored and only ever populated on a dev machine that ran that script,
+# so a fresh clone's docker build 404s without it. This deployment trusts
+# real ACME certs instead and never runs mkcert-setup.sh, so an empty file
+# is enough to satisfy the COPY; update-ca-certificates treats it as a no-op.
+touch "$REPO_DIR/infra/compose/traefik/certs/mkcert-rootCA.pem"
 
 echo "→ Installing Node 20 + pnpm (host-side Prisma migrate + keycloak sync -- same tools scripts/dev.sh uses locally)"
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
