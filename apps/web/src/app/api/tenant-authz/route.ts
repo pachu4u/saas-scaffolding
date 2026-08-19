@@ -5,7 +5,20 @@ export const dynamic = 'force-dynamic';
 
 // Fixed oauth2-proxy callback host (see docker-compose.yml); also the only
 // host registered in the oauth2-proxy client's post-logout redirect URIs.
-const OAUTH_PROXY_HOST = process.env.OAUTH_PROXY_HOST ?? 'oauthproxy.techhanker.com';
+// Defaults to oauthproxy.<root domain derived from AUTH_URL> so deployments
+// on other domains (e.g. riogentix.com) work without extra config; set
+// OAUTH_PROXY_HOST explicitly to override.
+const OAUTH_PROXY_HOST =
+  process.env.OAUTH_PROXY_HOST ??
+  (() => {
+    try {
+      const host = new URL(process.env.AUTH_URL ?? '').hostname;
+      const parts = host.split('.');
+      return parts.length > 2 ? `oauthproxy.${parts.slice(1).join('.')}` : 'oauthproxy.techhanker.com';
+    } catch {
+      return 'oauthproxy.techhanker.com';
+    }
+  })();
 
 function deny() {
   return new NextResponse(null, { status: 403 });

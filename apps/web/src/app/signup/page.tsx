@@ -11,6 +11,19 @@ const STEPS = [
 
 type StepId = (typeof STEPS)[number]['id'];
 
+// Tenant-facing root domain, derived from NEXT_PUBLIC_APP_URL (baked in at
+// build time, e.g. https://saas.riogentix.com → riogentix.com) so the signup
+// copy follows the deployment domain instead of hardcoding one.
+const rootDomain = (() => {
+  try {
+    const host = new URL(process.env.NEXT_PUBLIC_APP_URL ?? '').hostname;
+    const parts = host.split('.');
+    return parts.length > 2 ? parts.slice(1).join('.') : host;
+  } catch {
+    return '';
+  }
+})();
+
 interface SignupResult {
   tenantId: string;
   slug: string;
@@ -207,7 +220,7 @@ export default function SignupPage() {
               </h1>
               <p className="mb-6 text-sm" style={{ color: 'var(--text-secondary)' }}>
                 {step === 'company'
-                  ? 'Your workspace will be available at slug.techhanker.com'
+                  ? `Your workspace will be available at slug.${rootDomain}`
                   : "You'll use these credentials to sign in"}
               </p>
             </>
@@ -298,7 +311,7 @@ export default function SignupPage() {
                       color: 'var(--text-muted)',
                     }}
                   >
-                    *.techhanker.com/
+                    {`*.${rootDomain}/`}
                   </span>
                   <input
                     type="text"
