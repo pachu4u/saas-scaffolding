@@ -73,8 +73,9 @@ variable "vm_availability_zone" {
 }
 
 variable "vm_image_name_regex" {
-  type    = string
-  default = "^Ubuntu 24\\.04.*"
+  description = "Regex used to resolve the boot image for the app VM. Match exactly (not a loose prefix) -- STACKIT's arm64 build is named e.g. 'Ubuntu 24.04 ARM64', which a loose '.*' suffix also matches and can sort first, then 400s \"flavor and image architecture do not match\" against an x86_64 machine type."
+  type        = string
+  default     = "^Ubuntu 24\\.04$"
 }
 
 # --- Source checkout ---------------------------------------------------------

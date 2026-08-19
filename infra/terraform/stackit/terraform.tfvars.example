@@ -11,11 +11,15 @@ ssh_public_key_path = "~/.ssh/id_ed25519.pub"
 
 git_repo_url        = "git@github.com:pachu4u/saas-scaffolding.git"
 git_ref             = "main"
-git_deploy_key_path = "./stackit-deploy-key" # read-only GitHub deploy key, see README
+git_deploy_key_path = "./stackit-deploy-key" # read-only GitHub deploy key, see README -- only needed if the repo is private; a public repo can use an https:// git_repo_url and this file's contents go unused
 
-domain_name              = "riogentix.com"
-acme_email                = "platform@riogentix.com"
-cloudflare_dns_api_token = "change-me" # Zone:DNS:Edit scope on the riogentix.com zone
+domain_name = "riogentix.com"
+acme_email  = "platform@riogentix.com"
+# Zone:DNS:Edit scope on the domain_name zone. Optional -- leave unset to
+# deploy now and add later: Traefik falls back to a TLS-ALPN-01 resolver
+# (works immediately, no wildcard support) and tenant DNS automation no-ops
+# with a warning instead of failing. See locals.tf acme_cert_resolver.
+cloudflare_dns_api_token = ""
 
 riogentix_image = "riogentixai/riogentix-backend:latest" # verify this is the correct/current tag before first apply
 
