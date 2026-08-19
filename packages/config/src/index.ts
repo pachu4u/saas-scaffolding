@@ -150,7 +150,19 @@ const envSchema = z.object({
 type Env = z.infer<typeof envSchema>;
 
 function parseEnv(): Env {
-  const result = envSchema.safeParse(process.env);
+  // Optional vars with format validators (STRIPE_SECRET_KEY.startsWith('sk_'),
+  // EMAIL_FROM.email(), etc.) are documented as "leave empty to disable that
+  // feature" (see terraform.tfvars.example), but an empty string still fails
+  // those validators -- only `undefined` (the key absent) does not. Deploy
+  // templates render every declared var, blank or not (e.g.
+  // infra/terraform/stackit/templates/env.tftpl), so blank optional vars
+  // reach this parse as "" rather than being omitted. Treat "" as unset for
+  // every var so those deploys don't crash-loop workers/web on optional
+  // integrations nobody configured yet.
+  const env = Object.fromEntries(
+    Object.entries(process.env).map(([k, v]) => [k, v === '' ? undefined : v]),
+  );
+  const result = envSchema.safeParse(env);
   if (!result.success) {
     console.error('❌ Invalid environment variables:');
     console.error(result.error.flatten().fieldErrors);
