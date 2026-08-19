@@ -6,7 +6,7 @@ http:
       entryPoints:
         - websecure
       tls:
-        certResolver: cloudflare
+        certResolver: ${acme_cert_resolver}
       priority: 20
 
     # Tenant subdomains: root path serves the SaaS web tile page. /app and
@@ -18,7 +18,7 @@ http:
       entryPoints:
         - websecure
       tls:
-        certResolver: cloudflare
+        certResolver: ${acme_cert_resolver}
       priority: 5
 
   services:

@@ -1,8 +1,9 @@
 # No static certificates here (unlike the techhanker.com host's tls.yml,
 # which references mkcert/manually-issued cert files) -- every host on this
-# deployment gets a cert on-demand from the cloudflare DNS-01 resolver
-# (see traefik.yaml.tftpl and the per-router certResolver: cloudflare
-# entries in the other dynamic-*.yaml files).
+# deployment gets a cert on-demand from whichever resolver is selected (see
+# traefik.yaml.tftpl and locals.tf acme_cert_resolver, referenced by the
+# per-router certResolver: ${acme_cert_resolver} entries in the other
+# dynamic-*.yaml files).
 tls:
   options:
     default:

@@ -19,19 +19,36 @@ api:
   dashboard: true
   insecure: false
 
-# DNS-01 resolver: tenant subdomains are two levels deep (app.{slug}.${domain_name}),
-# which free Cloudflare Universal SSL doesn't cover -- Traefik itself must
-# present a publicly-trusted cert via DNS-01. CF_DNS_API_TOKEN comes from .env.
+# Two resolvers are always defined; every router picks one via
+# certResolver: ${acme_cert_resolver} (see locals.tf acme_cert_resolver),
+# selected at render time by whether cloudflare_dns_api_token was set.
+#
+# "cloudflare" -- DNS-01. Tenant subdomains are two levels deep
+# (app.{slug}.${domain_name}), which free Cloudflare Universal SSL doesn't
+# cover, so Traefik itself must present a publicly-trusted cert via DNS-01.
+# CF_DNS_API_TOKEN comes from .env. Supports wildcards; required for tenant
+# hosts to get real certs ahead of first request.
+#
+# "letsencrypt" -- TLS-ALPN-01. No DNS API needed, just A/CNAME records
+# pointed at the load balancer; issued per-SNI on first request to that
+# host. Fallback for when no DNS API token is available yet -- see
+# variables.tf cloudflare_dns_api_token.
 certificatesResolvers:
   cloudflare:
     acme:
       email: ${acme_email}
-      storage: /etc/traefik/acme/acme.json
+      storage: /etc/traefik/acme/acme-cloudflare.json
       dnsChallenge:
         provider: cloudflare
         resolvers:
           - '1.1.1.1:53'
           - '8.8.8.8:53'
+
+  letsencrypt:
+    acme:
+      email: ${acme_email}
+      storage: /etc/traefik/acme/acme-letsencrypt.json
+      tlsChallenge: {}
 
 entryPoints:
   web:

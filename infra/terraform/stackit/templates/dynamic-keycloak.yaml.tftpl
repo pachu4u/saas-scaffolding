@@ -5,7 +5,7 @@ http:
       entryPoints:
         - websecure
       tls:
-        certResolver: cloudflare
+        certResolver: ${acme_cert_resolver}
       service: keycloak
       priority: 100
 

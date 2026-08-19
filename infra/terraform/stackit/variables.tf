@@ -100,7 +100,7 @@ variable "git_deploy_key_path" {
 # --- Domain / TLS ------------------------------------------------------------
 
 variable "domain_name" {
-  description = "Base public domain for this deployment, e.g. 'riogentix.com'. The platform itself is served at saas.<domain_name> and auth.<domain_name>; tenant instances live at <slug>.<domain_name>, app.<slug>.<domain_name>, and admin.<slug>.<domain_name>. Must be a Cloudflare zone (DNS-01 wildcard issuance) -- see cloudflare_dns_api_token."
+  description = "Base public domain for this deployment, e.g. 'riogentix.com'. The platform itself is served at saas.<domain_name> and auth.<domain_name>; tenant instances live at <slug>.<domain_name>, app.<slug>.<domain_name>, and admin.<slug>.<domain_name>. A Cloudflare zone (see cloudflare_dns_api_token) enables DNS-01 wildcard issuance and automatic per-tenant DNS records; without it, certs fall back to per-SNI TLS-ALPN-01 (see acme_cert_resolver in locals.tf) and tenant DNS records must be created manually -- see README."
   type        = string
 }
 
@@ -110,9 +110,10 @@ variable "acme_email" {
 }
 
 variable "cloudflare_dns_api_token" {
-  description = "Cloudflare API token (Zone:DNS:Edit scope) for the domain_name zone. Used both by Traefik's DNS-01 resolver and by the tenant-provisioner (apps/workers/src/provisioning/cloudflare-dns.ts) to create each tenant's grey-cloud wildcard A record on provision."
+  description = "Cloudflare API token (Zone:DNS:Edit scope) for the domain_name zone. Used both by Traefik's DNS-01 resolver and by the tenant-provisioner (apps/workers/src/provisioning/cloudflare-dns.ts) to create each tenant's grey-cloud wildcard A record on provision. Optional: leave empty to deploy now and add later (see locals.tf acme_cert_resolver) -- Traefik falls back to TLS-ALPN-01 per-host certs, and the tenant-provisioner's DNS step no-ops with a warning instead of failing."
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 # --- Application secrets / integrations --------------------------------------

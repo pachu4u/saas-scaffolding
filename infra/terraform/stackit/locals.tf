@@ -9,6 +9,17 @@ locals {
   # parse "\." as an (invalid) escape sequence and fail to load the file).
   domain_regex = replace(var.domain_name, ".", "\\\\.")
 
+  # Traefik cert resolver name, selected by whether a DNS API token was
+  # provided. With a token: "cloudflare" (DNS-01), which supports wildcards
+  # and is required for two-level tenant hosts (app.{slug}.domain) -- see
+  # dynamic-riogentix-tenants.yaml.tftpl. Without one: "letsencrypt"
+  # (TLS-ALPN-01), issued per-SNI on first request -- works immediately with
+  # only A/CNAME records pointed at the load balancer, no DNS API needed, but
+  # can't mint a wildcard ahead of time and doesn't cover tenant DNS record
+  # creation (see cloudflare-dns.ts, which no-ops without the token). Add the
+  # token later and re-apply to switch every router over to DNS-01.
+  acme_cert_resolver = var.cloudflare_dns_api_token != "" ? "cloudflare" : "letsencrypt"
+
   # STACKIT-managed Postgres Flex + Redis connection strings -- see
   # database.tf. Unlike the self-hosted app-db container these are reachable
   # from anywhere with network access (not just the platform Docker network),
@@ -18,11 +29,12 @@ locals {
   app_redis_url    = stackit_redis_credential.app_redis.uri
 
   common_template_vars = {
-    domain_name      = var.domain_name
-    domain_regex     = local.domain_regex
-    acme_email       = var.acme_email
-    git_ref          = var.git_ref
-    load_balancer_ip = stackit_public_ip.lb.ip
+    domain_name        = var.domain_name
+    domain_regex       = local.domain_regex
+    acme_email         = var.acme_email
+    acme_cert_resolver = local.acme_cert_resolver
+    git_ref            = var.git_ref
+    load_balancer_ip   = stackit_public_ip.lb.ip
 
     keycloak_admin_username  = var.keycloak_admin_username
     riogentix_image          = var.riogentix_image

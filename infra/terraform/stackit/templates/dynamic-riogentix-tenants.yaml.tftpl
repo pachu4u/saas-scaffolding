@@ -19,7 +19,7 @@ http:
       entryPoints:
         - websecure
       tls:
-        certResolver: cloudflare
+        certResolver: ${acme_cert_resolver}
       priority: 12
       middlewares:
         - strip-app-prefix
@@ -30,7 +30,7 @@ http:
       entryPoints:
         - websecure
       tls:
-        certResolver: cloudflare
+        certResolver: ${acme_cert_resolver}
       priority: 12
 
     riogentix-tenants-assets:
@@ -39,7 +39,7 @@ http:
       entryPoints:
         - websecure
       tls:
-        certResolver: cloudflare
+        certResolver: ${acme_cert_resolver}
       priority: 12
 
     riogentix-health:
@@ -48,7 +48,7 @@ http:
       entryPoints:
         - websecure
       tls:
-        certResolver: cloudflare
+        certResolver: ${acme_cert_resolver}
       priority: 11
 
     # Fixed callback host oauthproxy.${domain_name} matches this regex too
@@ -59,7 +59,7 @@ http:
       entryPoints:
         - websecure
       tls:
-        certResolver: cloudflare
+        certResolver: ${acme_cert_resolver}
       priority: 15
 
   middlewares:
