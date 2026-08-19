@@ -89,10 +89,29 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // The user's native Riogentix role (viewer/developer/admin) — mirrored into
+  // app-scoped Role rows by the app-sync worker, see /admin/team/roles/page.tsx
+  // — travels in the SSO token so Riogentix's header can show it without a
+  // second round trip. Riogentix stashes it in optins.saas_role on login.
+  const userRecord = await adminDb.user.findUnique({
+    where: { externalId: session.user.id },
+    select: {
+      roleBindings: {
+        where: {
+          tenantId: tenant.tenantId,
+          role: { tenantId: null, appId: instance.appId, isSystem: true },
+        },
+        select: { role: { select: { name: true } } },
+      },
+    },
+  });
+  const role = userRecord?.roleBindings[0]?.role.name;
+
   const token = signSsoToken(instance.scimToken, {
     email: session.user.email,
     tenant_id: tenant.tenantId,
     username: session.user.name ?? undefined,
+    role,
     exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
   });
 
