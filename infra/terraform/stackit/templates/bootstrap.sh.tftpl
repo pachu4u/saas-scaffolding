@@ -47,6 +47,14 @@ pnpm install --frozen-lockfile
 echo "→ Creating shared Docker network"
 docker network create platform 2>/dev/null || true
 
+echo "→ Installing buildx (Ubuntu's docker.io package, unlike Docker CE, doesn't bundle it -- every Dockerfile here uses RUN --mount=type=cache, a BuildKit-only feature, so plain docker build/compose build 400s without it)"
+if ! docker buildx version &>/dev/null; then
+  mkdir -p ~/.docker/cli-plugins
+  curl -sSL -o ~/.docker/cli-plugins/docker-buildx \
+    https://github.com/docker/buildx/releases/download/v0.19.3/buildx-v0.19.3.linux-amd64
+  chmod +x ~/.docker/cli-plugins/docker-buildx
+fi
+
 echo "→ Building and starting the platform stack"
 set -a
 # shellcheck disable=SC1091
@@ -56,12 +64,24 @@ set +a
 # -- scaled to 0 here since docker-compose.stackit.yml can't remove a
 # service the base docker-compose.yml defines. See that override file's
 # comment for why `deploy.replicas: 0` doesn't work for this instead.
-docker compose \
+#
+# No --wait: docker-compose.tools.yml's stripe-cli container has no way to
+# succeed without a real Stripe key (its placeholder default isn't a valid
+# key, so it always exits 1) -- `up --wait` treats any non-running container
+# as a failure and aborts the whole script under set -e, killing every step
+# after it (migrations, keycloak sync, k3s, tenant-provisioner). Poll the
+# containers that actually matter instead.
+DOCKER_BUILDKIT=1 docker compose \
   -f infra/compose/docker-compose.yml \
   -f infra/compose/docker-compose.observability.yml \
   -f infra/compose/docker-compose.tools.yml \
   -f infra/compose/docker-compose.stackit.yml \
-  up -d --build --wait --scale app-db=0 --scale redis=0
+  up -d --build --scale app-db=0 --scale redis=0
+
+echo "→ Waiting for web to be healthy"
+until [ "$(docker inspect -f '{{.State.Health.Status}}' web 2>/dev/null)" = "healthy" ]; do
+  sleep 5
+done
 
 echo "→ Waiting for the managed Postgres Flex instance to accept connections"
 DB_HOSTPORT=$(echo "$DATABASE_URL" | sed -E 's#^[a-zA-Z]+://[^@]+@([^/?]+).*#\1#')
@@ -72,7 +92,13 @@ until (exec 3<>"/dev/tcp/$DB_HOST/$DB_PORT") 2>/dev/null; do
 done
 
 echo "→ Running DB migrations (no seed -- this is a real environment, not fixtures)"
-pnpm --filter @platform/db db:migrate
+# Not a plain `pnpm --filter @platform/db db:migrate`: STACKIT-managed
+# Postgres Flex doesn't grant the app's DB user CREATEROLE (nor expose any
+# superuser credential), and the earliest migrations CREATE ROLE
+# app/migrator/platform_admin -- see scripts/migrate-stackit.sh for the full
+# story and why 0001_init/0002_rls_grants are deliberately left unedited.
+command -v psql &>/dev/null || apt-get install -y -qq postgresql-client
+bash infra/terraform/stackit/scripts/migrate-stackit.sh
 
 echo "→ Pushing realm client config into Keycloak"
 node infra/keycloak/sync-realm.mjs

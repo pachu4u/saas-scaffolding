@@ -30,25 +30,32 @@ if (env.NODE_ENV !== 'production') {
 /**
  * Run a callback with RLS scoped to the given tenantId.
  * Every query inside `fn` is automatically filtered to that tenant.
+ *
+ * Bypass/scope is enforced via the app.bypass_rls / app.tenant_id session
+ * GUCs the RLS policies check directly (see migration
+ * 20260821000000_rls_bypass_via_guc_not_role), not via SET LOCAL ROLE --
+ * that required a Postgres superuser (works for the container-hosted
+ * `postgres` user local dev/techhanker.com connect as) or CREATEROLE on the
+ * app's own DB user to create the app/migrator/platform_admin roles, neither
+ * of which STACKIT's managed Postgres Flex grants.
  */
 export async function withTenant<T>(
   tenantId: string,
   fn: (tx: PrismaClient) => Promise<T>,
 ): Promise<T> {
   return db.$transaction(async (tx) => {
-    await tx.$executeRaw`SET LOCAL ROLE app`;
     await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
     return fn(tx as unknown as PrismaClient);
   });
 }
 
 /**
- * Run a callback as platform_admin (bypasses RLS).
+ * Run a callback as platform admin (bypasses RLS).
  * Only use for platform-level operations.
  */
 export async function withPlatformAdmin<T>(fn: (tx: PrismaClient) => Promise<T>): Promise<T> {
   return adminDb.$transaction(async (tx) => {
-    await tx.$executeRaw`SET LOCAL ROLE platform_admin`;
+    await tx.$executeRaw`SELECT set_config('app.bypass_rls', 'true', true)`;
     return fn(tx as unknown as PrismaClient);
   });
 }

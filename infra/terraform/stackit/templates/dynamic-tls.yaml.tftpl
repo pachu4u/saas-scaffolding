@@ -4,6 +4,32 @@
 # traefik.yaml.tftpl and locals.tf acme_cert_resolver, referenced by the
 # per-router certResolver: ${acme_cert_resolver} entries in the other
 # dynamic-*.yaml files).
+#
+# KNOWN ISSUE (investigated 2026-08-21, unresolved): on this deployment,
+# Traefik's DNS-01 resolver (ionos) correctly registers with Let's Encrypt
+# and successfully issues real certs -- confirmed by extracting and
+# `openssl x509`-verifying the stored cert for saas.riogentix.com directly
+# from acme-ionos.json (valid Let's Encrypt cert, correct SANs). DEBUG logs
+# also confirm the cert is loaded into Traefik's runtime certificate store
+# ("Adding certificate for domain(s) saas.riogentix.com",
+# "No ACME certificate generation required for domains"). Despite that,
+# every live TLS handshake -- tested from the VM's own loopback with native
+# openssl s_client, ruling out the STACKIT load balancer or any external
+# network path -- still receives the static self-signed "TRAEFIK DEFAULT
+# CERT" that ships baked into the Traefik binary. Ruled out: TLS store
+# naming, custom tls.options vs. none at all, Traefik v3.1.7 vs. v3.5.6,
+# stale/duplicate containers on port 443 (confirmed single docker-proxy
+# listener), acme.json file permissions (600, root-owned, as required).
+# Tried and also failed: explicit tls.stores.default.defaultGeneratedCert
+# pointing at the ionos resolver (the documented fix for the general
+# "no default certificate" class of Traefik issue) -- it either 500s with
+# "unable to find certificate for domains" against a cert that
+# demonstrably exists with matching main+sans, or silently has no effect.
+# This matches multiple long-standing, still-open upstream Traefik
+# community threads about ACME certs being obtained but not served over
+# TLS in v2 and v3 alike. Needs either an upstream Traefik bug report or a
+# deeper runtime trace (pprof/strace) to pin down further -- next person
+# picking this up should start there rather than re-deriving the above.
 tls:
   options:
     default:
