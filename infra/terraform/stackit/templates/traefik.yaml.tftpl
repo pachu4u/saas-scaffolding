@@ -19,20 +19,22 @@ api:
   dashboard: true
   insecure: false
 
-# Two resolvers are always defined; every router picks one via
+# Three resolvers are always defined; every router picks one via
 # certResolver: ${acme_cert_resolver} (see locals.tf acme_cert_resolver),
-# selected at render time by whether cloudflare_dns_api_token was set.
+# selected at render time by whichever DNS API token was set
+# (cloudflare_dns_api_token / ionos_api_key are mutually exclusive).
 #
-# "cloudflare" -- DNS-01. Tenant subdomains are two levels deep
-# (app.{slug}.${domain_name}), which free Cloudflare Universal SSL doesn't
-# cover, so Traefik itself must present a publicly-trusted cert via DNS-01.
-# CF_DNS_API_TOKEN comes from .env. Supports wildcards; required for tenant
-# hosts to get real certs ahead of first request.
+# "cloudflare"/"ionos" -- DNS-01. Tenant subdomains are two levels deep
+# (app.{slug}.${domain_name}), which free Cloudflare/IONOS wildcard certs
+# don't cover, so Traefik itself must present a publicly-trusted cert via
+# DNS-01. Credentials come from .env (CF_DNS_API_TOKEN / IONOS_API_KEY).
+# Supports wildcards; required for tenant hosts to get real certs ahead of
+# first request.
 #
 # "letsencrypt" -- TLS-ALPN-01. No DNS API needed, just A/CNAME records
 # pointed at the load balancer; issued per-SNI on first request to that
 # host. Fallback for when no DNS API token is available yet -- see
-# variables.tf cloudflare_dns_api_token.
+# variables.tf cloudflare_dns_api_token / ionos_api_key.
 certificatesResolvers:
   cloudflare:
     acme:
@@ -40,6 +42,16 @@ certificatesResolvers:
       storage: /etc/traefik/acme/acme-cloudflare.json
       dnsChallenge:
         provider: cloudflare
+        resolvers:
+          - '1.1.1.1:53'
+          - '8.8.8.8:53'
+
+  ionos:
+    acme:
+      email: ${acme_email}
+      storage: /etc/traefik/acme/acme-ionos.json
+      dnsChallenge:
+        provider: ionos
         resolvers:
           - '1.1.1.1:53'
           - '8.8.8.8:53'

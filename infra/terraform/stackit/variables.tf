@@ -111,7 +111,14 @@ variable "acme_email" {
 }
 
 variable "cloudflare_dns_api_token" {
-  description = "Cloudflare API token (Zone:DNS:Edit scope) for the domain_name zone. Used both by Traefik's DNS-01 resolver and by the tenant-provisioner (apps/workers/src/provisioning/cloudflare-dns.ts) to create each tenant's grey-cloud wildcard A record on provision. Optional: leave empty to deploy now and add later (see locals.tf acme_cert_resolver) -- Traefik falls back to TLS-ALPN-01 per-host certs, and the tenant-provisioner's DNS step no-ops with a warning instead of failing."
+  description = "Cloudflare API token (Zone:DNS:Edit scope) for the domain_name zone. Used both by Traefik's DNS-01 resolver and by the tenant-provisioner (apps/workers/src/provisioning/cloudflare-dns.ts) to create each tenant's grey-cloud wildcard A record on provision. Mutually exclusive with ionos_api_key -- set whichever matches domain_name's actual DNS host. Optional: leave both empty to deploy now and add one later (see locals.tf acme_cert_resolver) -- Traefik falls back to TLS-ALPN-01 per-host certs, and the tenant-provisioner's DNS step no-ops with a warning instead of failing."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "ionos_api_key" {
+  description = "IONOS Web Hosting DNS API key (api.hosting.ionos.com/dns/v1), format 'publicPrefix.secret' -- generated at my.ionos.com (Web Hosting/Domains account, NOT cloud.ionos.com, which is a separate product with its own unrelated DNS zones). Alternative to cloudflare_dns_api_token for domain_name zones hosted on IONOS (nameservers ns*.ui-dns.*) rather than Cloudflare. Mutually exclusive with cloudflare_dns_api_token. Same optional/fallback behavior."
   type        = string
   sensitive   = true
   default     = ""

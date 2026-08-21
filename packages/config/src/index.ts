@@ -75,7 +75,16 @@ const envSchema = z.object({
   // Used here to create the per-tenant grey-cloud wildcard record described
   // below on every provision, so a new tenant's app./admin. subdomains work
   // without a manual DNS step (see 2026-07-23 glass/globex incident).
+  // Mutually exclusive with IONOS_API_KEY below — set whichever matches
+  // TENANT_BASE_DOMAIN's actual registrar/DNS host.
   CF_DNS_API_TOKEN: z.string().optional(),
+  // IONOS Web Hosting DNS API key (api.hosting.ionos.com/dns/v1), format
+  // "publicPrefix.secret" — same credential Traefik's lego IONOS DNS-01
+  // provider reads directly from the container env (see traefik.yaml.tftpl).
+  // Alternative to CF_DNS_API_TOKEN for domains hosted on IONOS rather than
+  // Cloudflare (e.g. riogentix.com, whose nameservers are IONOS ui-dns.*,
+  // not Cloudflare — see chat 2026-08-20).
+  IONOS_API_KEY: z.string().optional(),
   // Origin IP that *.{slug}.TENANT_BASE_DOMAIN grey-cloud records point to.
   // Cloudflare's free Universal SSL only covers the apex + one wildcard
   // level, so two-level tenant hosts (app.{slug}.domain) need their own

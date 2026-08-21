@@ -5,10 +5,10 @@ import * as k8s from '@kubernetes/client-node';
 import { env } from '@platform/config';
 import { logger } from '@platform/logger';
 
-import { ensureTenantWildcardDns } from './cloudflare-dns.js';
 import { ensureTenantDatabase, tenantDatabaseUrl } from './database.js';
 import { registerTenantWithKeycloak } from './keycloak-sync.js';
 import { DEPLOYMENT_NAME, SECRET_NAME, SERVICE_NAME, renderTenantManifests } from './manifests.js';
+import { ensureTenantWildcardDns } from './tenant-dns.js';
 import { ensureTenantTraefikRouter } from './traefik-router.js';
 import type { ProvisionOutcome, TenantRef, TenantStackDriver, TenantStackSpec } from './types.js';
 

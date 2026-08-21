@@ -9,16 +9,22 @@ locals {
   # parse "\." as an (invalid) escape sequence and fail to load the file).
   domain_regex = replace(var.domain_name, ".", "\\\\.")
 
-  # Traefik cert resolver name, selected by whether a DNS API token was
-  # provided. With a token: "cloudflare" (DNS-01), which supports wildcards
-  # and is required for two-level tenant hosts (app.{slug}.domain) -- see
-  # dynamic-riogentix-tenants.yaml.tftpl. Without one: "letsencrypt"
+  # Traefik cert resolver name, selected by whichever DNS API token was
+  # provided (cloudflare_dns_api_token and ionos_api_key are mutually
+  # exclusive -- set the one matching domain_name's actual DNS host).
+  # "cloudflare"/"ionos" (DNS-01): supports wildcards, required for
+  # two-level tenant hosts (app.{slug}.domain) -- see
+  # dynamic-riogentix-tenants.yaml.tftpl. Without either: "letsencrypt"
   # (TLS-ALPN-01), issued per-SNI on first request -- works immediately with
   # only A/CNAME records pointed at the load balancer, no DNS API needed, but
   # can't mint a wildcard ahead of time and doesn't cover tenant DNS record
-  # creation (see cloudflare-dns.ts, which no-ops without the token). Add the
-  # token later and re-apply to switch every router over to DNS-01.
-  acme_cert_resolver = var.cloudflare_dns_api_token != "" ? "cloudflare" : "letsencrypt"
+  # creation (see cloudflare-dns.ts/ionos-dns.ts, which no-op without their
+  # token). Add a token later and re-apply to switch every router to DNS-01.
+  acme_cert_resolver = (
+    var.cloudflare_dns_api_token != "" ? "cloudflare" :
+    var.ionos_api_key != "" ? "ionos" :
+    "letsencrypt"
+  )
 
   # STACKIT-managed Postgres Flex + Redis connection strings -- see
   # database.tf. Unlike the self-hosted app-db container these are reachable
@@ -39,6 +45,7 @@ locals {
     keycloak_admin_username  = var.keycloak_admin_username
     riogentix_image          = var.riogentix_image
     cloudflare_dns_api_token = var.cloudflare_dns_api_token
+    ionos_api_key            = var.ionos_api_key
 
     stripe_secret_key      = var.stripe_secret_key
     stripe_webhook_secret  = var.stripe_webhook_secret
