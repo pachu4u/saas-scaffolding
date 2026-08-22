@@ -1,7 +1,22 @@
 import { env } from '@platform/config';
 import { Queue, type JobsOptions } from 'bullmq';
 
-const connection = { url: env.REDIS_URL };
+const redisUrl = new URL(env.REDIS_URL);
+
+// Built from the parsed URL rather than passed as { url: env.REDIS_URL }:
+// BullMQ forwards its `connection` option straight to ioredis's options-object
+// constructor, which -- unlike ioredis's URL-string constructor -- has no
+// special handling for a `url` key at all (it's just an unrecognized option),
+// so `{ url: ... }` silently connects nowhere useful. Explicit `tls.servername`
+// is needed too -- some managed Redis providers front their instances with an
+// SNI-routing gateway that drops connections without it (see packages/db/src/redis.ts).
+const connection = {
+  host: redisUrl.hostname,
+  port: Number(redisUrl.port),
+  username: redisUrl.username || undefined,
+  password: redisUrl.password || undefined,
+  ...(redisUrl.protocol === 'rediss:' ? { tls: { servername: redisUrl.hostname } } : {}),
+};
 
 const DEFAULT_OPTS: JobsOptions = {
   attempts: 5,
