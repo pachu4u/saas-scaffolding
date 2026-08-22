@@ -1,5 +1,17 @@
 {
 	email ${acme_email}
+	# Scoped to the *.${domain_name} site block below via its own host match --
+	# Caddy only ever attempts on-demand issuance for a request that already
+	# matched a server block, so this can't be used to mint certs for
+	# arbitrary/unrelated domains even without an `ask` callback. It CAN still
+	# be used to burn Let's Encrypt rate limits with made-up
+	# *.${domain_name} subdomains (no check that a tenant with that slug
+	# actually exists) -- add an `ask` endpoint backed by a real tenant-lookup
+	# if that becomes a problem.
+	on_demand_tls {
+		interval 2m
+		burst 5
+	}
 }
 
 # TLS termination + automatic HTTPS live here now, not in Traefik -- see
@@ -19,5 +31,28 @@ auth.${domain_name} {
 }
 
 oauthproxy.${domain_name} {
+	reverse_proxy traefik:80
+}
+
+# Per-tenant root hosts, e.g. {slug}.${domain_name} -- Traefik already has
+# correct routers for these (dynamic-riogentix-tenants.yaml.tftpl,
+# tenant-subdomain-root etc.), but without a Caddy site block matching them,
+# Caddy silently serves its own empty default response for any unmatched
+# host instead of ever forwarding to Traefik (found 2026-08-22, testing a
+# real tenant: DNS and Traefik were both fine, nothing reached Traefik at
+# all). on_demand issues a normal Let's Encrypt cert per-hostname on first
+# visit, same mechanism as the named hosts above, just deferred to request
+# time instead of a fixed name list.
+#
+# KNOWN GAP: does NOT cover the two-level app.{slug}.${domain_name} /
+# admin.{slug}.${domain_name} hosts (see
+# dynamic-tenant-app-admin-subdomains.yaml.tftpl) -- a single `*.` host
+# match/cert only ever covers one subdomain level. Add a second on-demand
+# site block for those before any tenant needs its app./admin. subdomains
+# working.
+*.${domain_name} {
+	tls {
+		on_demand
+	}
 	reverse_proxy traefik:80
 }
