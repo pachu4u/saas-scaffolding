@@ -1,5 +1,5 @@
 import { Permission, withAuthz } from '@platform/authz';
-import { adminDb } from '@platform/db';
+import { adminDb, withPlatformAdmin } from '@platform/db';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -34,19 +34,21 @@ export const PATCH = withAuthz({ permission: Permission.SCIM_MANAGE }, async (re
     },
   });
 
-  await adminDb.auditLog.create({
-    data: {
-      tenantId: authz.tenantId,
-      actorUserId: authz.user.id,
-      action: 'connected_app_instance.updated',
-      resourceType: 'ConnectedAppInstance',
-      resourceId: instance.id,
-      before: { scimBaseUrl: existing.scimBaseUrl },
-      after: {
-        scimBaseUrl: instance.scimBaseUrl,
-        scimTokenRotated: Boolean(body.scimToken?.trim()),
+  await withPlatformAdmin(async (tx) => {
+    await tx.auditLog.create({
+      data: {
+        tenantId: authz.tenantId,
+        actorUserId: authz.user.id,
+        action: 'connected_app_instance.updated',
+        resourceType: 'ConnectedAppInstance',
+        resourceId: instance.id,
+        before: { scimBaseUrl: existing.scimBaseUrl },
+        after: {
+          scimBaseUrl: instance.scimBaseUrl,
+          scimTokenRotated: Boolean(body.scimToken?.trim()),
+        },
       },
-    },
+    });
   });
 
   return NextResponse.json({

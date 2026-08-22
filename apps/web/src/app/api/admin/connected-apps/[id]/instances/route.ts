@@ -1,5 +1,5 @@
 import { auth } from '@platform/auth';
-import { adminDb } from '@platform/db';
+import { adminDb, withPlatformAdmin } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -62,14 +62,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
     });
 
-    await adminDb.auditLog.create({
-      data: {
-        tenantId,
-        action: 'connected_app_instance.created',
-        resourceType: 'ConnectedAppInstance',
-        resourceId: instance.id,
-        after: { appId, appSlug: app.slug, scimBaseUrl: instance.scimBaseUrl },
-      },
+    await withPlatformAdmin(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          action: 'connected_app_instance.created',
+          resourceType: 'ConnectedAppInstance',
+          resourceId: instance.id,
+          after: { appId, appSlug: app.slug, scimBaseUrl: instance.scimBaseUrl },
+        },
+      });
     });
 
     return NextResponse.json(

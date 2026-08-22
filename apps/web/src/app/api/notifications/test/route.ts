@@ -1,5 +1,5 @@
 import { auth } from '@platform/auth';
-import { adminDb } from '@platform/db';
+import { adminDb, withPlatformAdmin } from '@platform/db';
 import { sendEmail } from '@platform/notifications';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -40,14 +40,16 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  await adminDb.auditLog.create({
-    data: {
-      tenantId: tenantCtx.tenantId,
-      actorUserId: session.user.id,
-      action: 'settings.branding.test_email_sent',
-      resourceType: 'Tenant',
-      resourceId: tenantCtx.tenantId,
-    },
+  await withPlatformAdmin(async (tx) => {
+    await tx.auditLog.create({
+      data: {
+        tenantId: tenantCtx.tenantId,
+        actorUserId: session.user.id,
+        action: 'settings.branding.test_email_sent',
+        resourceType: 'Tenant',
+        resourceId: tenantCtx.tenantId,
+      },
+    });
   });
 
   return NextResponse.json({ ok: true });

@@ -1,6 +1,6 @@
 import { Permission, withAuthz } from '@platform/authz';
 import type { Prisma } from '@platform/db';
-import { adminDb } from '@platform/db';
+import { adminDb, withPlatformAdmin } from '@platform/db';
 import { invalidateTenantCache } from '@platform/tenant';
 import { NextResponse } from 'next/server';
 
@@ -111,14 +111,16 @@ export const PATCH = withAuthz(
     // loop identity changes use — see convergeBranding in app-sync-targets.ts.
     await enqueueRoleSync(tenantCtx.tenantId);
 
-    await adminDb.auditLog.create({
-      data: {
-        tenantId: tenantCtx.tenantId,
-        action: `settings.branding.${body.section}`,
-        resourceType: 'Tenant',
-        resourceId: tenantCtx.tenantId,
-        after: merged as Prisma.InputJsonValue,
-      },
+    await withPlatformAdmin(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          tenantId: tenantCtx.tenantId,
+          action: `settings.branding.${body.section}`,
+          resourceType: 'Tenant',
+          resourceId: tenantCtx.tenantId,
+          after: merged as Prisma.InputJsonValue,
+        },
+      });
     });
 
     return NextResponse.json({ ok: true, branding: tenant.branding });

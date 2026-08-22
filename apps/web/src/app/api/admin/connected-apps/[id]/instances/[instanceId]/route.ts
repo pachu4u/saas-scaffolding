@@ -1,5 +1,5 @@
 import { auth } from '@platform/auth';
-import { adminDb } from '@platform/db';
+import { adminDb, withPlatformAdmin } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -56,19 +56,21 @@ export async function PATCH(
     },
   });
 
-  await adminDb.auditLog.create({
-    data: {
-      tenantId: existing.tenantId,
-      action: 'connected_app_instance.updated',
-      resourceType: 'ConnectedAppInstance',
-      resourceId: instanceId,
-      before: { scimBaseUrl: existing.scimBaseUrl, status: existing.status },
-      after: {
-        scimBaseUrl: instance.scimBaseUrl,
-        status: instance.status,
-        scimTokenRotated: Boolean(body.scimToken?.trim()),
+  await withPlatformAdmin(async (tx) => {
+    await tx.auditLog.create({
+      data: {
+        tenantId: existing.tenantId,
+        action: 'connected_app_instance.updated',
+        resourceType: 'ConnectedAppInstance',
+        resourceId: instanceId,
+        before: { scimBaseUrl: existing.scimBaseUrl, status: existing.status },
+        after: {
+          scimBaseUrl: instance.scimBaseUrl,
+          status: instance.status,
+          scimTokenRotated: Boolean(body.scimToken?.trim()),
+        },
       },
-    },
+    });
   });
 
   return NextResponse.json({
@@ -100,14 +102,16 @@ export async function DELETE(
 
   await adminDb.connectedAppInstance.delete({ where: { id: instanceId } });
 
-  await adminDb.auditLog.create({
-    data: {
-      tenantId: existing.tenantId,
-      action: 'connected_app_instance.deleted',
-      resourceType: 'ConnectedAppInstance',
-      resourceId: instanceId,
-      before: { scimBaseUrl: existing.scimBaseUrl },
-    },
+  await withPlatformAdmin(async (tx) => {
+    await tx.auditLog.create({
+      data: {
+        tenantId: existing.tenantId,
+        action: 'connected_app_instance.deleted',
+        resourceType: 'ConnectedAppInstance',
+        resourceId: instanceId,
+        before: { scimBaseUrl: existing.scimBaseUrl },
+      },
+    });
   });
 
   return new NextResponse(null, { status: 204 });

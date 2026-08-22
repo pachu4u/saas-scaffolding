@@ -1,5 +1,5 @@
 import { auth } from '@platform/auth';
-import { adminDb } from '@platform/db';
+import { adminDb, withPlatformAdmin } from '@platform/db';
 import { enqueue, tenantProvisionQueue, type TenantEnvironmentType } from '@platform/jobs';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -98,15 +98,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     select: { id: true },
   });
 
-  await adminDb.auditLog.create({
-    data: {
-      tenantId: tenant.id,
-      actorUserId: actor?.id ?? null,
-      action: 'tenant.provisioning_triggered',
-      resourceType: 'Tenant',
-      resourceId: tenant.id,
-      after: { environments: envTypes },
-    },
+  await withPlatformAdmin(async (tx) => {
+    await tx.auditLog.create({
+      data: {
+        tenantId: tenant.id,
+        actorUserId: actor?.id ?? null,
+        action: 'tenant.provisioning_triggered',
+        resourceType: 'Tenant',
+        resourceId: tenant.id,
+        after: { environments: envTypes },
+      },
+    });
   });
 
   return NextResponse.json({ ok: true, provisioningStatus: 'IN_PROGRESS', environments: envTypes });

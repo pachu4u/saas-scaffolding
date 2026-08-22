@@ -1,7 +1,7 @@
 import { auth } from '@platform/auth';
 import { getStripeClient } from '@platform/billing';
 import { env } from '@platform/config';
-import { adminDb } from '@platform/db';
+import { adminDb, withPlatformAdmin } from '@platform/db';
 import { logger } from '@platform/logger';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -75,14 +75,16 @@ export async function POST(req: NextRequest) {
       'Stripe Checkout session created',
     );
 
-    await adminDb.auditLog.create({
-      data: {
-        tenantId: tenant.tenantId,
-        action: 'billing.checkout_started',
-        resourceType: 'Subscription',
-        resourceId: tenant.tenantId,
-        after: { planCode, sessionId: checkoutSession.id },
-      },
+    await withPlatformAdmin(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          tenantId: tenant.tenantId,
+          action: 'billing.checkout_started',
+          resourceType: 'Subscription',
+          resourceId: tenant.tenantId,
+          after: { planCode, sessionId: checkoutSession.id },
+        },
+      });
     });
 
     return NextResponse.json({ url: checkoutSession.url });

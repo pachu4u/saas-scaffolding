@@ -1,5 +1,5 @@
 import { auth } from '@platform/auth';
-import { adminDb } from '@platform/db';
+import { adminDb, withPlatformAdmin } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { getTenantFromRequest } from '../../../../../lib/server-tenant';
@@ -65,14 +65,16 @@ export async function GET(req: NextRequest) {
     })),
   };
 
-  await adminDb.auditLog.create({
-    data: {
-      tenantId,
-      actorUserId: session.user.id,
-      action: 'compliance.data_exported',
-      resourceType: 'Tenant',
-      resourceId: tenantId,
-    },
+  await withPlatformAdmin(async (tx) => {
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        actorUserId: session.user.id,
+        action: 'compliance.data_exported',
+        resourceType: 'Tenant',
+        resourceId: tenantId,
+      },
+    });
   });
 
   const filename = `${tenant.slug}-export-${new Date().toISOString().slice(0, 10)}.json`;

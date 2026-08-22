@@ -125,15 +125,19 @@ export async function POST(req: NextRequest) {
       select: { id: true },
     });
 
-    await adminDb.auditLog.create({
-      data: {
-        tenantId: tenant.id,
-        actorUserId: actor?.id ?? null,
-        action: 'tenant.created',
-        resourceType: 'Tenant',
-        resourceId: tenant.id,
-        after: { name: tenant.name, slug: tenant.slug, plan: tenant.plan },
-      },
+    // audit_log has row-level security -- a plain adminDb write (no tenant_id
+    // session var, bypass_rls unset) 42501s. Must go through withPlatformAdmin.
+    await withPlatformAdmin(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          tenantId: tenant.id,
+          actorUserId: actor?.id ?? null,
+          action: 'tenant.created',
+          resourceType: 'Tenant',
+          resourceId: tenant.id,
+          after: { name: tenant.name, slug: tenant.slug, plan: tenant.plan },
+        },
+      });
     });
 
     return NextResponse.json(tenant, { status: 201 });

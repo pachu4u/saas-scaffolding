@@ -1,6 +1,6 @@
 import { auth } from '@platform/auth';
 import { PLAN_CODES } from '@platform/billing';
-import { adminDb } from '@platform/db';
+import { adminDb, withPlatformAdmin } from '@platform/db';
 import { enqueue, planChangedQueue, tenantDeprovisionQueue } from '@platform/jobs';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -62,31 +62,35 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (action === 'suspend') {
     await adminDb.tenant.update({ where: { id }, data: { status: 'SUSPENDED' } });
-    await adminDb.auditLog.create({
-      data: {
-        tenantId: id,
-        actorUserId,
-        action: 'tenant.suspended',
-        resourceType: 'Tenant',
-        resourceId: id,
-        before: { status: tenant.status },
-        after: { status: 'SUSPENDED' },
-      },
+    await withPlatformAdmin(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          tenantId: id,
+          actorUserId,
+          action: 'tenant.suspended',
+          resourceType: 'Tenant',
+          resourceId: id,
+          before: { status: tenant.status },
+          after: { status: 'SUSPENDED' },
+        },
+      });
     });
     return NextResponse.json({ ok: true, status: 'SUSPENDED' });
   }
   if (action === 'reinstate') {
     await adminDb.tenant.update({ where: { id }, data: { status: 'ACTIVE' } });
-    await adminDb.auditLog.create({
-      data: {
-        tenantId: id,
-        actorUserId,
-        action: 'tenant.reinstated',
-        resourceType: 'Tenant',
-        resourceId: id,
-        before: { status: tenant.status },
-        after: { status: 'ACTIVE' },
-      },
+    await withPlatformAdmin(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          tenantId: id,
+          actorUserId,
+          action: 'tenant.reinstated',
+          resourceType: 'Tenant',
+          resourceId: id,
+          before: { status: tenant.status },
+          after: { status: 'ACTIVE' },
+        },
+      });
     });
     return NextResponse.json({ ok: true, status: 'ACTIVE' });
   }
@@ -99,16 +103,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // (kubernetes driver: deletes its namespace; shared driver: no-op) —
     // same job the "Deprovision" flow already used, just triggered here too.
     await adminDb.tenant.update({ where: { id }, data: { status: 'DELETED' } });
-    await adminDb.auditLog.create({
-      data: {
-        tenantId: id,
-        actorUserId,
-        action: 'tenant.deleted',
-        resourceType: 'Tenant',
-        resourceId: id,
-        before: { status: tenant.status },
-        after: { status: 'DELETED' },
-      },
+    await withPlatformAdmin(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          tenantId: id,
+          actorUserId,
+          action: 'tenant.deleted',
+          resourceType: 'Tenant',
+          resourceId: id,
+          before: { status: tenant.status },
+          after: { status: 'DELETED' },
+        },
+      });
     });
     await enqueue(tenantDeprovisionQueue, { tenantId: id });
     return NextResponse.json({ ok: true, status: 'DELETED' });
@@ -138,16 +144,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       create: { tenantId: id, planId: planRow.id },
       update: { planId: planRow.id },
     });
-    await adminDb.auditLog.create({
-      data: {
-        tenantId: id,
-        actorUserId,
-        action: 'tenant.plan_changed',
-        resourceType: 'Tenant',
-        resourceId: id,
-        before: { plan: oldPlan },
-        after: { plan: newPlan },
-      },
+    await withPlatformAdmin(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          tenantId: id,
+          actorUserId,
+          action: 'tenant.plan_changed',
+          resourceType: 'Tenant',
+          resourceId: id,
+          before: { plan: oldPlan },
+          after: { plan: newPlan },
+        },
+      });
     });
     // Pushes the new plan to the tenant's Riogentix instance and lifts any
     // stale usage-lock — same handler Stripe subscription webhooks trigger.
@@ -168,16 +176,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     const before = tenant.resourceLimits;
     await adminDb.tenant.update({ where: { id }, data: { resourceLimits: limits } });
-    await adminDb.auditLog.create({
-      data: {
-        tenantId: id,
-        actorUserId,
-        action: 'tenant.resource_limits_changed',
-        resourceType: 'Tenant',
-        resourceId: id,
-        before: { resourceLimits: before },
-        after: { resourceLimits: limits },
-      },
+    await withPlatformAdmin(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          tenantId: id,
+          actorUserId,
+          action: 'tenant.resource_limits_changed',
+          resourceType: 'Tenant',
+          resourceId: id,
+          before: { resourceLimits: before },
+          after: { resourceLimits: limits },
+        },
+      });
     });
     // Riogentix instance re-reads resourceLimits on every converge pass
     // (see convergeResourceLimits) — this just triggers the next one now.

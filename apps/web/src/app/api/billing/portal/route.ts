@@ -1,7 +1,7 @@
 import { auth } from '@platform/auth';
 import { getStripeClient } from '@platform/billing';
 import { env } from '@platform/config';
-import { adminDb } from '@platform/db';
+import { adminDb, withPlatformAdmin } from '@platform/db';
 import { logger } from '@platform/logger';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -41,13 +41,15 @@ export async function POST(req: NextRequest) {
       'Stripe Customer Portal session created',
     );
 
-    await adminDb.auditLog.create({
-      data: {
-        tenantId: tenant.tenantId,
-        action: 'billing.portal_opened',
-        resourceType: 'Subscription',
-        resourceId: tenant.tenantId,
-      },
+    await withPlatformAdmin(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          tenantId: tenant.tenantId,
+          action: 'billing.portal_opened',
+          resourceType: 'Subscription',
+          resourceId: tenant.tenantId,
+        },
+      });
     });
 
     return NextResponse.json({ url: portalSession.url });

@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
 import { auth } from '@platform/auth';
-import { adminDb, checkRateLimit, rateLimitHeaders } from '@platform/db';
+import { adminDb, checkRateLimit, rateLimitHeaders, withPlatformAdmin } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { getTenantFromRequest } from '../../../lib/server-tenant';
@@ -108,14 +108,16 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  await adminDb.auditLog.create({
-    data: {
-      tenantId: tenantCtx.tenantId,
-      action: 'webhook_endpoint.created',
-      resourceType: 'WebhookEndpoint',
-      resourceId: endpoint.id,
-      after: { url: body.url, events: body.events },
-    },
+  await withPlatformAdmin(async (tx) => {
+    await tx.auditLog.create({
+      data: {
+        tenantId: tenantCtx.tenantId,
+        action: 'webhook_endpoint.created',
+        resourceType: 'WebhookEndpoint',
+        resourceId: endpoint.id,
+        after: { url: body.url, events: body.events },
+      },
+    });
   });
 
   // Return secret only at creation time

@@ -1,5 +1,5 @@
 import { auth } from '@platform/auth';
-import { adminDb } from '@platform/db';
+import { adminDb, withPlatformAdmin } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { getTenantFromRequest } from '../../../../../lib/server-tenant';
@@ -21,14 +21,16 @@ export async function POST(req: NextRequest) {
   const tenantCtx = await getTenantFromRequest(req);
   if (!tenantCtx) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
-  await adminDb.auditLog.create({
-    data: {
-      tenantId: tenantCtx.tenantId,
-      actorUserId: session.user.id,
-      action: 'compliance.deletion_requested',
-      resourceType: 'Tenant',
-      resourceId: tenantCtx.tenantId,
-    },
+  await withPlatformAdmin(async (tx) => {
+    await tx.auditLog.create({
+      data: {
+        tenantId: tenantCtx.tenantId,
+        actorUserId: session.user.id,
+        action: 'compliance.deletion_requested',
+        resourceType: 'Tenant',
+        resourceId: tenantCtx.tenantId,
+      },
+    });
   });
 
   return NextResponse.json({ ok: true });

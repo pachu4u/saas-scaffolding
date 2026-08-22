@@ -1,5 +1,5 @@
 import { auth } from '@platform/auth';
-import { adminDb } from '@platform/db';
+import { adminDb, withPlatformAdmin } from '@platform/db';
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { getTenantFromRequest } from '../../../../lib/server-tenant';
@@ -60,15 +60,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     },
   });
 
-  await adminDb.auditLog.create({
-    data: {
-      tenantId: resolved.tenantCtx.tenantId,
-      action: 'webhook_endpoint.updated',
-      resourceType: 'WebhookEndpoint',
-      resourceId: id,
-      before: { url: resolved.endpoint.url, events: resolved.endpoint.events },
-      after: { url: updated.url, events: updated.events, status: updated.status },
-    },
+  await withPlatformAdmin(async (tx) => {
+    await tx.auditLog.create({
+      data: {
+        tenantId: resolved.tenantCtx.tenantId,
+        action: 'webhook_endpoint.updated',
+        resourceType: 'WebhookEndpoint',
+        resourceId: id,
+        before: { url: resolved.endpoint.url, events: resolved.endpoint.events },
+        after: { url: updated.url, events: updated.events, status: updated.status },
+      },
+    });
   });
 
   return NextResponse.json(updated);
@@ -88,14 +90,16 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     data: { status: 'DELETED' },
   });
 
-  await adminDb.auditLog.create({
-    data: {
-      tenantId: resolved.tenantCtx.tenantId,
-      action: 'webhook_endpoint.deleted',
-      resourceType: 'WebhookEndpoint',
-      resourceId: id,
-      before: { url: resolved.endpoint.url },
-    },
+  await withPlatformAdmin(async (tx) => {
+    await tx.auditLog.create({
+      data: {
+        tenantId: resolved.tenantCtx.tenantId,
+        action: 'webhook_endpoint.deleted',
+        resourceType: 'WebhookEndpoint',
+        resourceId: id,
+        before: { url: resolved.endpoint.url },
+      },
+    });
   });
 
   return new NextResponse(null, { status: 204 });

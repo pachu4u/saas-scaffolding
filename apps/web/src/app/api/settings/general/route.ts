@@ -1,7 +1,7 @@
 import { auth } from '@platform/auth';
 import { Permission, withAuthz } from '@platform/authz';
 import type { Prisma } from '@platform/db';
-import { adminDb } from '@platform/db';
+import { adminDb, withPlatformAdmin } from '@platform/db';
 import { invalidateTenantCache } from '@platform/tenant';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -108,14 +108,16 @@ export const PATCH = withAuthz(
     if (currentSlug) await invalidateTenantCache(currentSlug);
     if (slug && slug !== currentSlug) await invalidateTenantCache(slug);
 
-    await adminDb.auditLog.create({
-      data: {
-        tenantId: tenantCtx.tenantId,
-        action: 'settings.general.update',
-        resourceType: 'Tenant',
-        resourceId: tenantCtx.tenantId,
-        after: updateData as Prisma.InputJsonValue,
-      },
+    await withPlatformAdmin(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          tenantId: tenantCtx.tenantId,
+          action: 'settings.general.update',
+          resourceType: 'Tenant',
+          resourceId: tenantCtx.tenantId,
+          after: updateData as Prisma.InputJsonValue,
+        },
+      });
     });
 
     return NextResponse.json({ ok: true, tenant });

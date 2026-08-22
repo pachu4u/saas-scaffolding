@@ -1,6 +1,6 @@
 import { Permission, withAuthz } from '@platform/authz';
 import type { Prisma } from '@platform/db';
-import { adminDb } from '@platform/db';
+import { adminDb, withPlatformAdmin } from '@platform/db';
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -62,16 +62,18 @@ export const PATCH = withAuthz(
       select: { id: true, branding: true },
     });
 
-    await adminDb.auditLog.create({
-      data: {
-        tenantId: tenantCtx.tenantId,
-        action: `settings.security.${body.section}`,
-        resourceType: 'Tenant',
-        resourceId: tenantCtx.tenantId,
-        after: (body.section === 'sso'
-          ? { sso: merged.sso }
-          : { sessionPolicy: merged.sessionPolicy }) as Prisma.InputJsonValue,
-      },
+    await withPlatformAdmin(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          tenantId: tenantCtx.tenantId,
+          action: `settings.security.${body.section}`,
+          resourceType: 'Tenant',
+          resourceId: tenantCtx.tenantId,
+          after: (body.section === 'sso'
+            ? { sso: merged.sso }
+            : { sessionPolicy: merged.sessionPolicy }) as Prisma.InputJsonValue,
+        },
+      });
     });
 
     return NextResponse.json({ ok: true, branding: tenant.branding });
