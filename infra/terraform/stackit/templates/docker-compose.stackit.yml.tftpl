@@ -34,21 +34,26 @@
 # routing, reached by Caddy over the internal docker network (container
 # port 80, no host publish needed). See dynamic-*.yaml.tftpl and
 # traefik.yaml.tftpl for the corresponding router/entrypoint changes.
+# The auth./saas. aliases live on caddy, not traefik: server-side OIDC
+# discovery/token-exchange calls from the web container hit
+# https://auth.${domain_name}/... directly (see docker-compose.yml's base
+# comment on this pattern), and since Caddy is what actually terminates TLS
+# now, the alias has to resolve to Caddy's container IP -- pointing it at
+# Traefik (which only serves plain HTTP now) would connection-refuse on
+# 443 and break sign-in with a NextAuth "Configuration" error.
 services:
   traefik:
     ports: !override []
-    networks:
-      platform:
-        aliases:
-          - auth.${domain_name}
-          - saas.${domain_name}
 
   caddy:
     image: caddy:2
     container_name: caddy
     restart: unless-stopped
     networks:
-      - platform
+      platform:
+        aliases:
+          - auth.${domain_name}
+          - saas.${domain_name}
     ports:
       - '80:80'
       - '443:443'
