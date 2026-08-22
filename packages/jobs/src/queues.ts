@@ -10,7 +10,10 @@ const redisUrl = new URL(env.REDIS_URL);
 // so `{ url: ... }` silently connects nowhere useful. Explicit `tls.servername`
 // is needed too -- some managed Redis providers front their instances with an
 // SNI-routing gateway that drops connections without it (see packages/db/src/redis.ts).
-const connection = {
+// Exported so apps/workers/src/index.ts's BullMQ Worker instances (the
+// consumer side -- this file only ever constructs Queue producers) use the
+// same correct connection config instead of re-deriving it.
+export const connection = {
   host: redisUrl.hostname,
   port: Number(redisUrl.port),
   username: redisUrl.username || undefined,

@@ -1,4 +1,5 @@
 export {
+  connection,
   emailQueue,
   webhookInboundQueue,
   webhookOutboundQueue,

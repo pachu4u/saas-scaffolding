@@ -1,6 +1,7 @@
 import { env } from '@platform/config';
 import {
   appSyncReconcileQueue,
+  connection,
   type EmailJob,
   type WebhookInboundJob,
   type WebhookOutboundJob,
@@ -21,8 +22,6 @@ import { handleTenantDeprovision, handleTenantProvision } from './handlers/tenan
 import { handleUsageRollup } from './handlers/usage-rollup.js';
 import { handleWebhookInbound } from './handlers/webhook-inbound.js';
 import { handleWebhookOutbound } from './handlers/webhook-outbound.js';
-
-const connection = { url: env.REDIS_URL };
 
 type AnyJobHandler = (job: Job) => Promise<void>;
 
