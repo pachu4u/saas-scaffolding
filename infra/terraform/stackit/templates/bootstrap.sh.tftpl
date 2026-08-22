@@ -28,6 +28,10 @@ cp "$RENDER_DIR/dynamic-tenant-app-admin-subdomains.yaml" "$REPO_DIR/infra/compo
 cp "$RENDER_DIR/dynamic-tls.yaml" "$REPO_DIR/infra/compose/traefik/dynamic/tls.yml"
 mkdir -p "$REPO_DIR/infra/compose/caddy"
 cp "$RENDER_DIR/Caddyfile" "$REPO_DIR/infra/compose/caddy/Caddyfile"
+# Overwrites the git-tracked default (hardcoded to techhanker.com redirect
+# URIs/secrets) before Keycloak's first boot -- see locals.tf
+# realm_export_content for why.
+cp "$RENDER_DIR/realm-export.json" "$REPO_DIR/infra/keycloak/realm-export.json"
 mkdir -p "$REPO_DIR/infra/k8s/tenant-provisioner"
 cp "$RENDER_DIR/tenant-provisioner-secret.env" "$REPO_DIR/infra/k8s/tenant-provisioner/secret.env"
 mkdir -p "$REPO_DIR/infra/compose/traefik/acme" "$REPO_DIR/infra/compose/traefik/certs"

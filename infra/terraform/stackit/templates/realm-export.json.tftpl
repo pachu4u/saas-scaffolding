@@ -1,0 +1,306 @@
+{
+  "realm": "saas-platform",
+  "enabled": true,
+  "displayName": "SaaS Platform",
+  "loginTheme": "platform",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "accessTokenLifespan": 300,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "roles": {
+    "realm": [
+      {
+        "name": "platform_super_admin",
+        "description": "Full platform access"
+      },
+      {
+        "name": "platform_support",
+        "description": "Read-only platform support access"
+      }
+    ]
+  },
+  "groups": [
+    {
+      "name": "acme",
+      "attributes": {
+        "tenant_slug": ["acme"]
+      }
+    },
+    {
+      "name": "globex",
+      "attributes": {
+        "tenant_slug": ["globex"]
+      }
+    },
+    {
+      "name": "platform_super_admin"
+    },
+    {
+      "name": "platform_support"
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "web",
+      "name": "SaaS Platform Web",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${keycloak_client_secret}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+      "redirectUris": [
+        "https://app.lvh.me/*",
+        "https://*.lvh.me/*",
+        "http://localhost:3000/*",
+        "https://saas.${domain_name}/*",
+        "https://*.${domain_name}/*"
+      ],
+      "webOrigins": [
+        "https://app.lvh.me",
+        "https://*.lvh.me",
+        "http://localhost:3000",
+        "https://saas.${domain_name}",
+        "https://*.${domain_name}"
+      ],
+      "protocol": "openid-connect",
+      "attributes": {
+        "access.token.lifespan": "300",
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://saas.${domain_name}/auth/signin##https://saas.${domain_name}/*##https://*.${domain_name}/*##https://app.lvh.me/*##https://*.lvh.me/*##http://localhost:3000/*",
+        "brandingApiPath": "/api/v1/internal/saas/branding"
+      },
+      "protocolMappers": [
+        {
+          "name": "tenant_ids",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups",
+            "jsonType.label": "String",
+            "multivalued": "true"
+          }
+        },
+        {
+          "name": "audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "web",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "saas_plan",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "saas_plan",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "saas_plan",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "saas_role",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "saas_role",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "saas_role",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "saas_tenant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "saas_tenant_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "saas_tenant_id",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "usage_locked",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "usage_locked",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "usage_locked",
+            "jsonType.label": "boolean"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "oauth2-proxy",
+      "name": "Tenant Subdomain Auth Gate (oauth2-proxy)",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${oauth2_proxy_client_secret}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "redirectUris": ["https://oauthproxy.${domain_name}/oauth2/callback"],
+      "webOrigins": ["https://oauthproxy.${domain_name}"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://oauthproxy.${domain_name}/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups",
+            "jsonType.label": "String",
+            "multivalued": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "platform-admin-cli",
+      "name": "Platform Admin CLI",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "change-me-admin-cli-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "email": "alice@acme.test",
+      "firstName": "Alice",
+      "lastName": "Acme",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "alice123",
+          "temporary": false
+        }
+      ],
+      "groups": ["acme"],
+      "realmRoles": [],
+      "attributes": {
+        "saas_plan": ["pro"],
+        "saas_role": ["admin"],
+        "saas_tenant_id": ["acme"],
+        "usage_locked": ["false"]
+      }
+    },
+    {
+      "username": "bob",
+      "email": "bob@globex.test",
+      "firstName": "Bob",
+      "lastName": "Globex",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "bob123",
+          "temporary": false
+        }
+      ],
+      "groups": ["globex"],
+      "realmRoles": [],
+      "attributes": {
+        "saas_plan": ["free"],
+        "saas_role": ["developer"],
+        "saas_tenant_id": ["globex"],
+        "usage_locked": ["false"]
+      }
+    },
+    {
+      "username": "platform-admin",
+      "email": "admin@platform.test",
+      "firstName": "Platform",
+      "lastName": "Admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "platform123",
+          "temporary": false
+        }
+      ],
+      "groups": ["platform_super_admin"],
+      "realmRoles": ["platform_super_admin"]
+    }
+  ],
+  "scopeMappings": [],
+  "clientScopeMappings": {},
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "noreply@platform.test",
+    "fromDisplayName": "SaaS Platform"
+  },
+  "eventsEnabled": true,
+  "eventsListeners": ["jboss-logging"],
+  "enabledEventTypes": [
+    "LOGIN",
+    "LOGOUT",
+    "LOGIN_ERROR",
+    "REGISTER",
+    "REGISTER_ERROR",
+    "UPDATE_PASSWORD",
+    "UPDATE_PASSWORD_ERROR",
+    "UPDATE_PROFILE"
+  ],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true
+}

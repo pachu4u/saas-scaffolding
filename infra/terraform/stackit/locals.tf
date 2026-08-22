@@ -65,6 +65,16 @@ locals {
 
   caddyfile_content = templatefile("${path.module}/templates/Caddyfile.tftpl", local.common_template_vars)
 
+  # Overwrites infra/keycloak/realm-export.json before the compose stack's
+  # first boot -- that static, git-tracked file hardcodes techhanker.com
+  # redirect URIs and static client secrets that don't match this
+  # deployment's domain or terraform-generated secrets (Keycloak's
+  # --import-realm only reads it once, on the realm's first creation, so a
+  # stale file here breaks sign-in with "Invalid parameter: redirect_uri"
+  # then, once that's fixed, an invalid_client token-exchange failure --
+  # found and root-caused against a real deployment, 2026-08-22).
+  realm_export_content = templatefile("${path.module}/templates/realm-export.json.tftpl", local.common_template_vars)
+
   tenant_provisioner_secret_content = templatefile("${path.module}/templates/tenant-provisioner-secret.env.tftpl", local.common_template_vars)
 
   bootstrap_script_content = templatefile("${path.module}/templates/bootstrap.sh.tftpl", {
@@ -83,6 +93,7 @@ locals {
     dynamic_tenant_app_admin_b64  = base64encode(local.dynamic_tenant_app_admin_content)
     dynamic_tls_b64               = base64encode(local.dynamic_tls_content)
     caddyfile_b64                 = base64encode(local.caddyfile_content)
+    realm_export_b64              = base64encode(local.realm_export_content)
     tenant_provisioner_secret_b64 = base64encode(local.tenant_provisioner_secret_content)
     bootstrap_script_b64          = base64encode(local.bootstrap_script_content)
   })

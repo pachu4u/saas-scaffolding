@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Pushes client config (redirectUris, webOrigins, attributes) from
+ * Pushes client config (secret, redirectUris, webOrigins, attributes) from
  * realm-export.json into an already-running Keycloak realm.
  *
  * Keycloak's `--import-realm` only imports a realm the FIRST time its data
@@ -73,6 +73,7 @@ for (const client of realm.clients ?? []) {
   }
   const id = existing[0].id;
   const sets = [];
+  if (client.secret) sets.push('-s', `secret=${client.secret}`);
   if (client.redirectUris) sets.push('-s', `redirectUris=${JSON.stringify(client.redirectUris)}`);
   if (client.webOrigins) sets.push('-s', `webOrigins=${JSON.stringify(client.webOrigins)}`);
   for (const [key, value] of Object.entries(client.attributes ?? {})) {
