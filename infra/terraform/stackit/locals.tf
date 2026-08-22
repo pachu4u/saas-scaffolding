@@ -9,23 +9,6 @@ locals {
   # parse "\." as an (invalid) escape sequence and fail to load the file).
   domain_regex = replace(var.domain_name, ".", "\\\\.")
 
-  # Traefik cert resolver name, selected by whichever DNS API token was
-  # provided (cloudflare_dns_api_token and ionos_api_key are mutually
-  # exclusive -- set the one matching domain_name's actual DNS host).
-  # "cloudflare"/"ionos" (DNS-01): supports wildcards, required for
-  # two-level tenant hosts (app.{slug}.domain) -- see
-  # dynamic-riogentix-tenants.yaml.tftpl. Without either: "letsencrypt"
-  # (TLS-ALPN-01), issued per-SNI on first request -- works immediately with
-  # only A/CNAME records pointed at the load balancer, no DNS API needed, but
-  # can't mint a wildcard ahead of time and doesn't cover tenant DNS record
-  # creation (see cloudflare-dns.ts/ionos-dns.ts, which no-op without their
-  # token). Add a token later and re-apply to switch every router to DNS-01.
-  acme_cert_resolver = (
-    var.cloudflare_dns_api_token != "" ? "cloudflare" :
-    var.ionos_api_key != "" ? "ionos" :
-    "letsencrypt"
-  )
-
   # STACKIT-managed Postgres Flex + Redis connection strings -- see
   # database.tf. Unlike the self-hosted app-db container these are reachable
   # from anywhere with network access (not just the platform Docker network),
@@ -38,7 +21,6 @@ locals {
     domain_name        = var.domain_name
     domain_regex       = local.domain_regex
     acme_email         = var.acme_email
-    acme_cert_resolver = local.acme_cert_resolver
     git_ref            = var.git_ref
     load_balancer_ip   = stackit_public_ip.lb.ip
 
@@ -81,6 +63,8 @@ locals {
   dynamic_tenant_app_admin_content  = templatefile("${path.module}/templates/dynamic-tenant-app-admin-subdomains.yaml.tftpl", local.common_template_vars)
   dynamic_tls_content               = templatefile("${path.module}/templates/dynamic-tls.yaml.tftpl", local.common_template_vars)
 
+  caddyfile_content = templatefile("${path.module}/templates/Caddyfile.tftpl", local.common_template_vars)
+
   tenant_provisioner_secret_content = templatefile("${path.module}/templates/tenant-provisioner-secret.env.tftpl", local.common_template_vars)
 
   bootstrap_script_content = templatefile("${path.module}/templates/bootstrap.sh.tftpl", {
@@ -98,6 +82,7 @@ locals {
     dynamic_riogentix_tenants_b64 = base64encode(local.dynamic_riogentix_tenants_content)
     dynamic_tenant_app_admin_b64  = base64encode(local.dynamic_tenant_app_admin_content)
     dynamic_tls_b64               = base64encode(local.dynamic_tls_content)
+    caddyfile_b64                 = base64encode(local.caddyfile_content)
     tenant_provisioner_secret_b64 = base64encode(local.tenant_provisioner_secret_content)
     bootstrap_script_b64          = base64encode(local.bootstrap_script_content)
   })

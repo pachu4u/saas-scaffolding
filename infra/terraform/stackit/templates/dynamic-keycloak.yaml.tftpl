@@ -3,9 +3,7 @@ http:
     keycloak:
       rule: 'Host(`auth.${domain_name}`)'
       entryPoints:
-        - websecure
-      tls:
-        certResolver: ${acme_cert_resolver}
+        - web
       service: keycloak
       priority: 100
 

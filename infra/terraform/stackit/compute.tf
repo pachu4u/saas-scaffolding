@@ -2,6 +2,18 @@ resource "stackit_network_interface" "app" {
   project_id         = var.project_id
   network_id         = stackit_network.main.network_id
   security_group_ids = [stackit_security_group.app.security_group_id]
+
+  # The load balancer service auto-attaches its own backend security group
+  # (loadbalancer.tf's stackit_loadbalancer.app -- visible as
+  # targetSecurityGroup in `stackit load-balancer describe`) to this NIC
+  # out-of-band once it's registered as a target, the same way
+  # stackit_public_ip.lb's network_interface_id gets set out-of-band below.
+  # Without ignoring it, `terraform apply` would revert security_group_ids
+  # to just the single group above and silently strip whatever rule lets
+  # the load balancer's traffic reach this VM.
+  lifecycle {
+    ignore_changes = [security_group_ids]
+  }
 }
 
 # Created without network_interface_id so the load balancer service can

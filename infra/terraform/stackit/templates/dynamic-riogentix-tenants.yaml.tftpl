@@ -1,6 +1,7 @@
 # Per-tenant Riogentix (k8s) -- {slug}.${domain_name}/app
-# Forwards to the k3s ingress-nginx NodePort (80:32365); the docker-compose
-# Traefik owns host ports 80/443, so k8s traffic must hop through it.
+# Forwards to the k3s ingress-nginx NodePort (80:32365); Caddy owns host
+# ports 80/443 (TLS termination + automatic HTTPS), Traefik just routes
+# plain HTTP internally -- see Caddyfile.tftpl and traefik.yaml.tftpl.
 # 172.18.0.1 is the "platform" docker network gateway (the host) -- same
 # convention as the techhanker.com host's riogentix-tenants.yml.
 # ingress-nginx routes by Host header, which Traefik passes through by default.
@@ -17,9 +18,7 @@ http:
       rule: "HostRegexp(`^[a-z0-9-]+\\.${domain_regex}$`) && PathPrefix(`/app`)"
       service: k8s-ingress
       entryPoints:
-        - websecure
-      tls:
-        certResolver: ${acme_cert_resolver}
+        - web
       priority: 12
       middlewares:
         - strip-app-prefix
@@ -28,27 +27,21 @@ http:
       rule: "HostRegexp(`^[a-z0-9-]+\\.${domain_regex}$`) && PathPrefix(`/api/v1`)"
       service: k8s-ingress
       entryPoints:
-        - websecure
-      tls:
-        certResolver: ${acme_cert_resolver}
+        - web
       priority: 12
 
     riogentix-tenants-assets:
       rule: "HostRegexp(`^[a-z0-9-]+\\.${domain_regex}$`) && (PathPrefix(`/assets`) || PathPrefix(`/icons`) || Path(`/favicon.ico`) || Path(`/manifest.json`))"
       service: k8s-ingress
       entryPoints:
-        - websecure
-      tls:
-        certResolver: ${acme_cert_resolver}
+        - web
       priority: 12
 
     riogentix-health:
       rule: "HostRegexp(`^[a-z0-9-]+\\.${domain_regex}$`) && Path(`/health`)"
       service: k8s-ingress
       entryPoints:
-        - websecure
-      tls:
-        certResolver: ${acme_cert_resolver}
+        - web
       priority: 11
 
     # Fixed callback host oauthproxy.${domain_name} matches this regex too
@@ -57,9 +50,7 @@ http:
       rule: "HostRegexp(`^[a-z0-9-]+\\.${domain_regex}$`) && PathPrefix(`/oauth2/`)"
       service: oauth2-proxy
       entryPoints:
-        - websecure
-      tls:
-        certResolver: ${acme_cert_resolver}
+        - web
       priority: 15
 
   middlewares:

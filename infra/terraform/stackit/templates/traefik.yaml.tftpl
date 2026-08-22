@@ -19,63 +19,24 @@ api:
   dashboard: true
   insecure: false
 
-# Three resolvers are always defined; every router picks one via
-# certResolver: ${acme_cert_resolver} (see locals.tf acme_cert_resolver),
-# selected at render time by whichever DNS API token was set
-# (cloudflare_dns_api_token / ionos_api_key are mutually exclusive).
+# TLS termination + automatic HTTPS moved to Caddy (infra/compose/caddy/,
+# see Caddyfile.tftpl) -- Traefik's own ACME-obtained certs were never
+# actually served on the wire despite being genuinely, successfully issued
+# and added to its cert store (confirmed via internal debug logs), a
+# reproducible defect isolated across per-host and wildcard certs,
+# freshly-issued and store-loaded certs, static (non-ACME) file-provider
+# certs, and Traefik v3.1.7 and v3.5.6 -- 2026-08-22. (Root-caused
+# separately: k3s's own default Traefik ingress was also intercepting
+# ports 80/443 via ServiceLB the whole time -- see bootstrap.sh.tftpl's
+# `--disable=traefik` k3s install flag -- but Caddy replacing Traefik's
+# ACME/TLS layer here stands on its own regardless.)
 #
-# "cloudflare"/"ionos" -- DNS-01. Tenant subdomains are two levels deep
-# (app.{slug}.${domain_name}), which free Cloudflare/IONOS wildcard certs
-# don't cover, so Traefik itself must present a publicly-trusted cert via
-# DNS-01. Credentials come from .env (CF_DNS_API_TOKEN / IONOS_API_KEY).
-# Supports wildcards; required for tenant hosts to get real certs ahead of
-# first request.
-#
-# "letsencrypt" -- TLS-ALPN-01. No DNS API needed, just A/CNAME records
-# pointed at the load balancer; issued per-SNI on first request to that
-# host. Fallback for when no DNS API token is available yet -- see
-# variables.tf cloudflare_dns_api_token / ionos_api_key.
-certificatesResolvers:
-  cloudflare:
-    acme:
-      email: ${acme_email}
-      storage: /etc/traefik/acme/acme-cloudflare.json
-      dnsChallenge:
-        provider: cloudflare
-        resolvers:
-          - '1.1.1.1:53'
-          - '8.8.8.8:53'
-
-  ionos:
-    acme:
-      email: ${acme_email}
-      storage: /etc/traefik/acme/acme-ionos.json
-      dnsChallenge:
-        provider: ionos
-        resolvers:
-          - '1.1.1.1:53'
-          - '8.8.8.8:53'
-
-  letsencrypt:
-    acme:
-      email: ${acme_email}
-      storage: /etc/traefik/acme/acme-letsencrypt.json
-      tlsChallenge: {}
-
+# Traefik now only does plain-HTTP routing on the "web" entrypoint, reached
+# over the internal docker network (no host port publish -- see
+# docker-compose.stackit.yml.tftpl's traefik.ports: !override []).
 entryPoints:
   web:
     address: ':80'
-    http:
-      redirections:
-        entryPoint:
-          to: websecure
-          scheme: https
-          permanent: true
-
-  websecure:
-    address: ':443'
-    http:
-      tls: {}
 
 providers:
   # File provider only -- see infra/compose/traefik/traefik.yml on the

@@ -1,25 +1,27 @@
 # Second-level tenant subdomains for every tenant, e.g. app.acme.${domain_name}
-# and admin.acme.${domain_name}. Same rationale as the techhanker.com host's
-# tenant-app-admin-subdomains.yml: Cloudflare's free Universal SSL only
-# covers the apex + one wildcard level, so these need their own DNS-01 cert
-# via certResolver with no explicit `domains` (issued per-SNI on first
-# request, no per-tenant Traefik config needed).
+# and admin.acme.${domain_name}. Caddy owns TLS (see Caddyfile.tftpl);
+# Traefik just routes plain HTTP internally.
+#
+# KNOWN GAP: Caddy's Caddyfile here only declares static site blocks for the
+# fixed hostnames (saas/auth/oauthproxy) -- it does not yet get real certs
+# for arbitrary per-tenant hosts like app.{slug}.${domain_name}. Caddy's
+# on-demand TLS (obtains a cert per-hostname on first request, matching
+# this HostRegexp shape well) would need its own `ask` endpoint to prevent
+# abuse before wiring it up; no tenants are provisioned yet on this
+# deployment, so it hasn't been needed so far. Add before real tenant
+# traffic depends on these two routers.
 http:
   routers:
     app-tenant-subdomain:
       rule: "HostRegexp(`^app\\.[a-z0-9-]+\\.${domain_regex}$`)"
       service: k8s-ingress
       entryPoints:
-        - websecure
-      tls:
-        certResolver: ${acme_cert_resolver}
+        - web
       priority: 10
 
     admin-tenant-subdomain:
       rule: "HostRegexp(`^admin\\.[a-z0-9-]+\\.${domain_regex}$`)"
       service: web-service
       entryPoints:
-        - websecure
-      tls:
-        certResolver: ${acme_cert_resolver}
+        - web
       priority: 10

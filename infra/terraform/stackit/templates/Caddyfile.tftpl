@@ -1,0 +1,23 @@
+{
+	email ${acme_email}
+}
+
+# TLS termination + automatic HTTPS live here now, not in Traefik -- see
+# docker-compose.stackit.yml.tftpl (traefik.ports override) and
+# traefik.yaml.tftpl for why. Caddy gets each cert via ACME HTTP-01 on first
+# request to that host (needs only an A/CNAME record pointed at the load
+# balancer, no DNS API token) and auto-renews forever after -- no ongoing
+# action needed. Traefik still does all the actual HTTP-layer routing
+# (Host/path rules, middlewares, oauth2-proxy forwarding); Caddy just
+# terminates TLS and reverse-proxies the decrypted request to it.
+saas.${domain_name} {
+	reverse_proxy traefik:80
+}
+
+auth.${domain_name} {
+	reverse_proxy traefik:80
+}
+
+oauthproxy.${domain_name} {
+	reverse_proxy traefik:80
+}

@@ -4,9 +4,7 @@ http:
       rule: 'Host(`saas.${domain_name}`)'
       service: web-service
       entryPoints:
-        - websecure
-      tls:
-        certResolver: ${acme_cert_resolver}
+        - web
       priority: 20
 
     # Tenant subdomains: root path serves the SaaS web tile page. /app and
@@ -16,9 +14,7 @@ http:
       rule: "HostRegexp(`^[a-z0-9-]+\\.${domain_regex}$`) && PathPrefix(`/`)"
       service: web-service
       entryPoints:
-        - websecure
-      tls:
-        certResolver: ${acme_cert_resolver}
+        - web
       priority: 5
 
   services:

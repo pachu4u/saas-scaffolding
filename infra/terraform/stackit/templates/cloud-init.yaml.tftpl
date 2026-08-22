@@ -44,6 +44,10 @@ write_files:
     permissions: '0644'
     encoding: b64
     content: ${dynamic_tls_b64}
+  - path: /opt/saas-platform/render/Caddyfile
+    permissions: '0644'
+    encoding: b64
+    content: ${caddyfile_b64}
   - path: /opt/saas-platform/render/tenant-provisioner-secret.env
     permissions: '0600'
     encoding: b64

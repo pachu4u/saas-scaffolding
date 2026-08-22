@@ -26,6 +26,8 @@ cp "$RENDER_DIR/dynamic-keycloak.yaml" "$REPO_DIR/infra/compose/traefik/dynamic/
 cp "$RENDER_DIR/dynamic-riogentix-tenants.yaml" "$REPO_DIR/infra/compose/traefik/dynamic/riogentix-tenants.yml"
 cp "$RENDER_DIR/dynamic-tenant-app-admin-subdomains.yaml" "$REPO_DIR/infra/compose/traefik/dynamic/tenant-app-admin-subdomains.yml"
 cp "$RENDER_DIR/dynamic-tls.yaml" "$REPO_DIR/infra/compose/traefik/dynamic/tls.yml"
+mkdir -p "$REPO_DIR/infra/compose/caddy"
+cp "$RENDER_DIR/Caddyfile" "$REPO_DIR/infra/compose/caddy/Caddyfile"
 mkdir -p "$REPO_DIR/infra/k8s/tenant-provisioner"
 cp "$RENDER_DIR/tenant-provisioner-secret.env" "$REPO_DIR/infra/k8s/tenant-provisioner/secret.env"
 mkdir -p "$REPO_DIR/infra/compose/traefik/acme" "$REPO_DIR/infra/compose/traefik/certs"
@@ -104,7 +106,18 @@ echo "→ Pushing realm client config into Keycloak"
 node infra/keycloak/sync-realm.mjs
 
 echo "→ Installing k3s (tenant-provisioner cluster -- shares this host with docker-compose, see docs/infra/tenant-provisioner.md)"
-curl -sfL https://get.k3s.io | sh -
+# --disable=traefik: k3s ships its own Traefik ingress controller enabled by
+# default, whose ServiceLB component binds host ports 80/443 directly via
+# iptables rules that take priority over Docker's own port publishing. Left
+# enabled, it silently intercepts ALL traffic to those ports -- including
+# from the VM's own loopback -- ahead of the docker-compose Traefik/Caddy
+# stack being deployed above, with no error or obvious symptom beyond every
+# TLS handshake mysteriously returning a default self-signed cert. This isn't
+# used for anything here (the tenant-provisioner's own k8s ingress is a
+# separate NodePort service, not this default LoadBalancer one) -- confirmed
+# and root-caused 2026-08-22 after an extensive, otherwise-inconclusive TLS
+# investigation (see dynamic-tls.yaml.tftpl).
+curl -sfL https://get.k3s.io | sh -s - --disable=traefik
 until k3s kubectl get nodes &>/dev/null; do sleep 2; done
 mkdir -p ~/.kube
 cp /etc/rancher/k3s/k3s.yaml ~/.kube/config

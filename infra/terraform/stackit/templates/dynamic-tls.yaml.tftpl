@@ -1,43 +1,31 @@
-# No static certificates here (unlike the techhanker.com host's tls.yml,
-# which references mkcert/manually-issued cert files) -- every host on this
-# deployment gets a cert on-demand from whichever resolver is selected (see
-# traefik.yaml.tftpl and locals.tf acme_cert_resolver, referenced by the
-# per-router certResolver: ${acme_cert_resolver} entries in the other
-# dynamic-*.yaml files).
+# Traefik no longer terminates TLS at all (see traefik.yaml.tftpl) -- Caddy
+# handles TLS/ACME entirely now (Caddyfile.tftpl), so there's no `tls:`
+# stanza needed here any more.
 #
-# KNOWN ISSUE (investigated 2026-08-21, unresolved): on this deployment,
-# Traefik's DNS-01 resolver (ionos) correctly registers with Let's Encrypt
-# and successfully issues real certs -- confirmed by extracting and
-# `openssl x509`-verifying the stored cert for saas.riogentix.com directly
-# from acme-ionos.json (valid Let's Encrypt cert, correct SANs). DEBUG logs
-# also confirm the cert is loaded into Traefik's runtime certificate store
-# ("Adding certificate for domain(s) saas.riogentix.com",
-# "No ACME certificate generation required for domains"). Despite that,
-# every live TLS handshake -- tested from the VM's own loopback with native
-# openssl s_client, ruling out the STACKIT load balancer or any external
-# network path -- still receives the static self-signed "TRAEFIK DEFAULT
-# CERT" that ships baked into the Traefik binary. Ruled out: TLS store
-# naming, custom tls.options vs. none at all, Traefik v3.1.7 vs. v3.5.6,
-# stale/duplicate containers on port 443 (confirmed single docker-proxy
-# listener), acme.json file permissions (600, root-owned, as required).
-# Tried and also failed: explicit tls.stores.default.defaultGeneratedCert
-# pointing at the ionos resolver (the documented fix for the general
-# "no default certificate" class of Traefik issue) -- it either 500s with
-# "unable to find certificate for domains" against a cert that
-# demonstrably exists with matching main+sans, or silently has no effect.
-# This matches multiple long-standing, still-open upstream Traefik
-# community threads about ACME certs being obtained but not served over
-# TLS in v2 and v3 alike. Needs either an upstream Traefik bug report or a
-# deeper runtime trace (pprof/strace) to pin down further -- next person
-# picking this up should start there rather than re-deriving the above.
-tls:
-  options:
-    default:
-      minVersion: VersionTLS12
-      cipherSuites:
-        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
-        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
-        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
-        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
-        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
+# RESOLVED 2026-08-22 (was "KNOWN ISSUE" here before): the investigation
+# into "Traefik obtains a real cert but never serves it" (extensive --
+# ruled out TLS store naming, tls.options, Traefik v3.1.7 vs v3.5.6,
+# stale/duplicate port-443 listeners, acme.json permissions,
+# defaultGeneratedCert) turned out to have two separate root causes, not
+# one Traefik bug:
+#   1. k3s ships its own default Traefik ingress controller, enabled by
+#      default (`curl -sfL https://get.k3s.io | sh -` with no flags). Its
+#      ServiceLB component binds host ports 80/443 directly via iptables
+#      rules that take priority over Docker's own port publishing -- so
+#      every test this whole investigation, including ones from the VM's
+#      own loopback, was actually hitting that separate k3s-internal
+#      Traefik pod (self-signed default cert) rather than the
+#      docker-compose Traefik being debugged. Fixed by adding
+#      `--disable=traefik` to the k3s install command in bootstrap.sh.tftpl.
+#   2. Independent of (1): Traefik's own ACME-obtained certs, even once
+#      genuinely reachable, still never made it from its cert store into
+#      the actual TLS listener (confirmed via internal debug logs showing
+#      successful "Adding certificate for domain(s)..." with no errors,
+#      yet every live handshake still returned the internal self-signed
+#      default cert) -- reproduced across per-host/wildcard,
+#      freshly-issued/store-loaded, and ACME/static certs, on both
+#      Traefik v3.1.7 and v3.5.6. This looks like a genuine Traefik defect;
+#      not pursued further given (1) alone would have explained the
+#      original symptom. Worked around by moving TLS termination to Caddy
+#      entirely (see Caddyfile.tftpl) rather than filing/chasing an
+#      upstream Traefik bug report.

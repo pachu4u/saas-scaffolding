@@ -15,12 +15,13 @@ git_deploy_key_path = "./stackit-deploy-key" # read-only GitHub deploy key, see 
 
 domain_name = "riogentix.com"
 acme_email  = "platform@riogentix.com"
-# Set exactly one of these two, matching domain_name's actual DNS host (check
-# with `dig NS <domain_name>` -- Cloudflare nameservers vs IONOS ns*.ui-dns.*).
-# Both optional -- leave both unset to deploy now and add one later: Traefik
-# falls back to a TLS-ALPN-01 resolver (works immediately, no wildcard
-# support) and tenant DNS automation no-ops with a warning instead of
-# failing. See locals.tf acme_cert_resolver.
+# TLS is Caddy's automatic HTTPS (ACME HTTP-01 per host) -- just needs
+# A/CNAME records pointed at the load balancer, no DNS API token required.
+# Set at most one of these two, matching domain_name's actual DNS host
+# (check with `dig NS <domain_name>` -- Cloudflare nameservers vs IONOS
+# ns*.ui-dns.*), to enable automatic per-tenant DNS record creation on
+# provision. Both optional -- leave both unset and tenant DNS automation
+# no-ops with a warning instead of failing (create records manually instead).
 cloudflare_dns_api_token = "" # Zone:DNS:Edit scope token, from the Cloudflare dashboard
 ionos_api_key            = "" # "publicPrefix.secret" format, from my.ionos.com (Web Hosting/Domains account) API Keys -- NOT cloud.ionos.com, a separate product with unrelated DNS zones
 

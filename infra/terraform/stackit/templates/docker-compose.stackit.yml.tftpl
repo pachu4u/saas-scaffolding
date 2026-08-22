@@ -22,13 +22,40 @@
 # domain (nothing here ever tries to resolve those names) but can't be
 # suppressed from an override file; if it ever bothers you, it's only
 # fixable by editing the base docker-compose.yml directly.
+#
+# traefik.ports uses the `!override` merge tag (Compose 2.24+) to replace
+# rather than append the base file's ['80:80', '443:443'] -- Caddy now owns
+# those host ports (see the caddy service below). Traefik's own ACME never
+# actually got wired into its live TLS listener (certs were genuinely
+# obtained and stored, confirmed via internal debug logs, but never served
+# on the wire -- reproduced across per-host/wildcard, fresh/store-loaded,
+# and ACME/static certs, on Traefik v3.1.7 and v3.5.6). Caddy's automatic
+# HTTPS replaces Traefik's ACME entirely; Traefik now only does plain-HTTP
+# routing, reached by Caddy over the internal docker network (container
+# port 80, no host publish needed). See dynamic-*.yaml.tftpl and
+# traefik.yaml.tftpl for the corresponding router/entrypoint changes.
 services:
   traefik:
+    ports: !override []
     networks:
       platform:
         aliases:
           - auth.${domain_name}
           - saas.${domain_name}
+
+  caddy:
+    image: caddy:2
+    container_name: caddy
+    restart: unless-stopped
+    networks:
+      - platform
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
 
   keycloak-db:
     environment:
@@ -134,3 +161,7 @@ services:
       DATABASE_URL_MIGRATOR: ${database_url}
       REDIS_URL: ${redis_url}
       KEYCLOAK_ISSUER: https://auth.${domain_name}/realms/saas-platform
+
+volumes:
+  caddy-data:
+  caddy-config:
