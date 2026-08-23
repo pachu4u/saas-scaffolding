@@ -104,6 +104,8 @@ async function buildSpec(tenant: TenantRef): Promise<TenantStackSpec> {
     existing?.RIOGENTIX_INTERNAL_SECRET ?? randomBytes(24).toString('base64url');
   const saasSecret =
     existing?.RIOGENTIX_SAAS_INTERNAL_SECRET ?? randomBytes(24).toString('base64url');
+  const superuserPassword =
+    existing?.RIOGENTIX_SUPERUSER_PASSWORD ?? randomBytes(24).toString('base64url');
 
   await ensureTenantDatabase(pgAdminUrl, tenant.slug);
 
@@ -150,6 +152,12 @@ async function buildSpec(tenant: TenantRef): Promise<TenantStackSpec> {
       // hit in as Riogentix's built-in default superuser (username/password
       // "riogentix"). SSO is the only supported login path for tenant pods.
       RIOGENTIX_AUTO_LOGIN: 'false',
+      // setup_superuser() runs unconditionally at startup regardless of
+      // RIOGENTIX_AUTO_LOGIN and crashes the pod ("Username and password
+      // must be set") if these aren't present -- the account itself is
+      // never used for login since AUTO_LOGIN is off.
+      RIOGENTIX_SUPERUSER: 'riogentix',
+      RIOGENTIX_SUPERUSER_PASSWORD: superuserPassword,
       SAAS_TENANT_ID: tenant.id,
       SAAS_TENANT_SLUG: tenant.slug,
       SAAS_PLAN: tenant.plan,
