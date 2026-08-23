@@ -132,8 +132,26 @@ variable "keycloak_admin_username" {
 }
 
 variable "riogentix_image" {
-  description = "Container image reference stamped out per tenant by the kubernetes provisioning driver, e.g. 'riogentixai/riogentix-backend:1.4.2'. Required for TENANT_STACK_DRIVER=kubernetes -- see apps/workers/src/provisioning/kubernetes-driver.ts."
+  description = "Container image reference stamped out per tenant by the kubernetes provisioning driver, e.g. 'registry.onstackit.cloud/riogentix/riogentix-backend:latest'. Required for TENANT_STACK_DRIVER=kubernetes -- see apps/workers/src/provisioning/kubernetes-driver.ts. If it's on a private registry, also set riogentix_image_registry/_pull_username/_pull_password below -- otherwise every tenant provision ImagePullBackOffs (found the hard way, 2026-08-23: this had defaulted to a Docker Hub path -- riogentixai/riogentix-backend -- that was never actually reachable; the real image lives on STACKIT's own Harbor instance)."
   type        = string
+}
+
+variable "riogentix_image_registry" {
+  description = "Registry host riogentix_image is on, e.g. 'registry.onstackit.cloud' -- used as the key in the per-tenant imagePullSecret's .dockerconfigjson (must match the registry portion of riogentix_image exactly, or Kubernetes won't apply the credential to that pull). Leave unset (with the two vars below) for a public image -- no imagePullSecret gets created at all."
+  type        = string
+  default     = ""
+}
+
+variable "riogentix_image_pull_username" {
+  description = "Username for riogentix_image_registry -- a dedicated Harbor robot account (Administration > Robot Accounts, read-only, scoped to the one project) is a better fit than a personal login, but any account with pull access works."
+  type        = string
+  default     = ""
+}
+
+variable "riogentix_image_pull_password" {
+  type      = string
+  sensitive = true
+  default   = ""
 }
 
 variable "stripe_secret_key" {

@@ -22,6 +22,7 @@ export const SERVICE_NAME = 'riogentix';
 export const SECRET_NAME = 'riogentix-env';
 export const TLS_SECRET_NAME = 'riogentix-tls';
 export const ROLE_BINDING_NAME = 'saas-tenant-workload';
+export const IMAGE_PULL_SECRET_NAME = 'riogentix-image-pull';
 
 // Must match infra/k8s/tenant-provisioner/{serviceaccount,rbac}.yaml — the
 // identity every tenant's per-namespace RoleBinding grants workload access
@@ -81,6 +82,33 @@ export function renderSecret(spec: TenantStackSpec): V1Secret {
   };
 }
 
+/**
+ * Pull credentials for `spec.image`'s registry, when private (e.g. STACKIT's
+ * Harbor instance) — undefined when spec.imagePullCredentials wasn't set,
+ * meaning the image is public and no secret/imagePullSecrets reference is
+ * needed at all.
+ */
+export function renderImagePullSecret(spec: TenantStackSpec): V1Secret | undefined {
+  const creds = spec.imagePullCredentials;
+  if (!creds) return undefined;
+  const dockerconfigjson = JSON.stringify({
+    auths: {
+      [creds.registry]: {
+        username: creds.username,
+        password: creds.password,
+        auth: Buffer.from(`${creds.username}:${creds.password}`).toString('base64'),
+      },
+    },
+  });
+  return {
+    apiVersion: 'v1',
+    kind: 'Secret',
+    metadata: { name: IMAGE_PULL_SECRET_NAME, namespace: spec.namespace, labels: labels(spec) },
+    type: 'kubernetes.io/dockerconfigjson',
+    stringData: { '.dockerconfigjson': dockerconfigjson },
+  };
+}
+
 export function renderDeployment(spec: TenantStackSpec): V1Deployment {
   const selector = {
     'app.kubernetes.io/name': 'riogentix',
@@ -101,6 +129,9 @@ export function renderDeployment(spec: TenantStackSpec): V1Deployment {
           // `riogentix` Service), which Riogentix's settings parse as its
           // listen port and crash on. Env must come only from the secret.
           enableServiceLinks: false,
+          ...(spec.imagePullCredentials && {
+            imagePullSecrets: [{ name: IMAGE_PULL_SECRET_NAME }],
+          }),
           containers: [
             {
               name: 'riogentix',
@@ -219,15 +250,19 @@ export function renderIngress(spec: TenantStackSpec): V1Ingress {
 
 /**
  * All objects in apply order — namespace first, then the RoleBinding that
- * grants saas-workers permission to create everything after it.
+ * grants saas-workers permission to create everything after it. The image
+ * pull secret is only present when spec.imagePullCredentials was set (a
+ * private-registry image); a public image needs no such object at all.
  */
 export function renderTenantManifests(
   spec: TenantStackSpec,
-): [V1Namespace, V1RoleBinding, V1Secret, V1Deployment, V1Service, V1Ingress] {
+): (V1Namespace | V1RoleBinding | V1Secret | V1Deployment | V1Service | V1Ingress)[] {
+  const imagePullSecret = renderImagePullSecret(spec);
   return [
     renderNamespace(spec),
     renderRoleBinding(spec),
     renderSecret(spec),
+    ...(imagePullSecret ? [imagePullSecret] : []),
     renderDeployment(spec),
     renderService(spec),
     renderIngress(spec),

@@ -70,6 +70,14 @@ const envSchema = z.object({
   TENANT_CERT_MANAGER_ISSUER: z.string().optional(),
   // Pinned Riogentix image stamped out per tenant, e.g. registry/riogentix:1.4.2
   RIOGENTIX_IMAGE: z.string().optional(),
+  // Credentials for RIOGENTIX_IMAGE's registry, when private (e.g. STACKIT's
+  // Harbor instance at registry.onstackit.cloud) -- rendered into a
+  // kubernetes.io/dockerconfigjson Secret per tenant namespace and
+  // referenced as the Deployment's imagePullSecrets (see manifests.ts).
+  // Both optional: omit entirely for a public registry/image.
+  RIOGENTIX_IMAGE_REGISTRY: z.string().optional(),
+  RIOGENTIX_IMAGE_PULL_USERNAME: z.string().optional(),
+  RIOGENTIX_IMAGE_PULL_PASSWORD: z.string().optional(),
   // Cloudflare API token (DNS edit scope) — also read directly by Traefik
   // from .env for its own DNS-01 resolver (see infra/compose/traefik/traefik.yml).
   // Used here to create the per-tenant grey-cloud wildcard record described

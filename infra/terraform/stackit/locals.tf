@@ -24,10 +24,13 @@ locals {
     git_ref            = var.git_ref
     load_balancer_ip   = stackit_public_ip.lb.ip
 
-    keycloak_admin_username  = var.keycloak_admin_username
-    riogentix_image          = var.riogentix_image
-    cloudflare_dns_api_token = var.cloudflare_dns_api_token
-    ionos_api_key            = var.ionos_api_key
+    keycloak_admin_username       = var.keycloak_admin_username
+    riogentix_image               = var.riogentix_image
+    riogentix_image_registry      = var.riogentix_image_registry
+    riogentix_image_pull_username = var.riogentix_image_pull_username
+    riogentix_image_pull_password = var.riogentix_image_pull_password
+    cloudflare_dns_api_token      = var.cloudflare_dns_api_token
+    ionos_api_key                 = var.ionos_api_key
 
     stripe_secret_key      = var.stripe_secret_key
     stripe_webhook_secret  = var.stripe_webhook_secret

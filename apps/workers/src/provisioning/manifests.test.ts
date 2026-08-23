@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEPLOYMENT_NAME,
+  IMAGE_PULL_SECRET_NAME,
   SECRET_NAME,
   SERVICE_NAME,
   renderDeployment,
+  renderImagePullSecret,
   renderIngress,
   renderNamespace,
   renderRoleBinding,
@@ -47,8 +49,58 @@ describe('renderTenantManifests', () => {
     ]);
   });
 
+  it('inserts the image pull secret (after the app Secret, before the Deployment) when imagePullCredentials is set', () => {
+    const kinds = renderTenantManifests(
+      spec({
+        imagePullCredentials: {
+          registry: 'registry.example.com',
+          username: 'robot$pull',
+          password: 'p@ss',
+        },
+      }),
+    ).map((m) => m.kind);
+    expect(kinds).toEqual([
+      'Namespace',
+      'RoleBinding',
+      'Secret',
+      'Secret',
+      'Deployment',
+      'Service',
+      'Ingress',
+    ]);
+  });
+
   it('is deterministic — same spec renders identical objects', () => {
     expect(renderTenantManifests(spec())).toEqual(renderTenantManifests(spec()));
+  });
+});
+
+describe('renderImagePullSecret', () => {
+  it('returns undefined when the spec has no imagePullCredentials (public image)', () => {
+    expect(renderImagePullSecret(spec())).toBeUndefined();
+  });
+
+  it('renders a dockerconfigjson Secret keyed by the registry host', () => {
+    const secret = renderImagePullSecret(
+      spec({
+        imagePullCredentials: {
+          registry: 'registry.example.com',
+          username: 'robot$pull',
+          password: 'p@ss',
+        },
+      }),
+    );
+    expect(secret?.metadata?.name).toBe(IMAGE_PULL_SECRET_NAME);
+    expect(secret?.metadata?.namespace).toBe('t-acme-co');
+    expect(secret?.type).toBe('kubernetes.io/dockerconfigjson');
+    const config = JSON.parse(secret?.stringData?.['.dockerconfigjson'] ?? '{}') as {
+      auths: Record<string, { username: string; password: string; auth: string }>;
+    };
+    expect(config.auths['registry.example.com']).toEqual({
+      username: 'robot$pull',
+      password: 'p@ss',
+      auth: Buffer.from('robot$pull:p@ss').toString('base64'),
+    });
   });
 });
 
@@ -109,6 +161,24 @@ describe('renderDeployment', () => {
   it('disables service links so RIOGENTIX_PORT is not injected by the Service', () => {
     const podSpec = renderDeployment(spec()).spec?.template.spec;
     expect(podSpec?.enableServiceLinks).toBe(false);
+  });
+
+  it('omits imagePullSecrets for a public image (no imagePullCredentials)', () => {
+    const podSpec = renderDeployment(spec()).spec?.template.spec;
+    expect(podSpec?.imagePullSecrets).toBeUndefined();
+  });
+
+  it('references the image pull secret by name when imagePullCredentials is set', () => {
+    const podSpec = renderDeployment(
+      spec({
+        imagePullCredentials: {
+          registry: 'registry.example.com',
+          username: 'robot$pull',
+          password: 'p@ss',
+        },
+      }),
+    ).spec?.template.spec;
+    expect(podSpec?.imagePullSecrets).toEqual([{ name: IMAGE_PULL_SECRET_NAME }]);
   });
 
   it('boots via the uvicorn factory that serves the prebuilt frontend, not the image default CMD', () => {

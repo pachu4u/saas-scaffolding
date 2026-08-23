@@ -49,7 +49,16 @@ resource "stackit_postgresflex_user" "app_db" {
   project_id  = var.project_id
   instance_id = stackit_postgresflex_instance.app_db.instance_id
   username    = "saas_platform"
-  roles       = ["login"]
+  # createdb: the kubernetes tenant-provisioning driver creates one Postgres
+  # database per tenant on this same user (see apps/workers/src/
+  # provisioning/database.ts) -- STACKIT Postgres Flex doesn't grant
+  # CREATEROLE at all (confirmed via this same CLI: postgresflex user
+  # create/update --role only ever accepts login/createdb), so a per-tenant
+  # database is created under this shared user rather than a dedicated
+  # per-tenant role. Granted via `stackit postgresflex user update` directly
+  # first, 2026-08-23 (this line added after, to bring the resource
+  # declaration back in sync with that live change).
+  roles = ["login", "createdb"]
 }
 
 resource "stackit_postgresflex_database" "app_db" {

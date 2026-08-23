@@ -25,7 +25,15 @@ acme_email  = "platform@riogentix.com"
 cloudflare_dns_api_token = "" # Zone:DNS:Edit scope token, from the Cloudflare dashboard
 ionos_api_key            = "" # "publicPrefix.secret" format, from my.ionos.com (Web Hosting/Domains account) API Keys -- NOT cloud.ionos.com, a separate product with unrelated DNS zones
 
-riogentix_image = "riogentixai/riogentix-backend:latest" # verify this is the correct/current tag before first apply
+riogentix_image = "registry.onstackit.cloud/riogentix/riogentix-backend:latest" # verify this is the correct/current tag before first apply
+# Only needed if riogentix_image is on a private registry (STACKIT's own
+# Harbor instance is private by default) -- leave all three blank for a
+# public image. A Harbor robot account (Administration > Robot Accounts,
+# read-only, scoped to the one project) is a better fit than a personal
+# login for this.
+riogentix_image_registry      = "registry.onstackit.cloud"
+riogentix_image_pull_username = ""
+riogentix_image_pull_password = ""
 
 # STACKIT-managed Redis plan -- no Terraform data source lists these, verify
 # with `stackit redis plans` (STACKIT CLI) or the Portal before first apply.

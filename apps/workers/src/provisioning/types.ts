@@ -63,4 +63,6 @@ export interface TenantStackSpec {
   memoryLimit: string;
   /** Values that land in the per-tenant Secret (injected via envFrom). */
   secretEnv: Record<string, string>;
+  /** Credentials for a private `image` registry; omit for a public one. */
+  imagePullCredentials?: { registry: string; username: string; password: string };
 }

@@ -121,6 +121,15 @@ async function buildSpec(tenant: TenantRef): Promise<TenantStackSpec> {
     }),
     cpuLimit: env.TENANT_POD_CPU_LIMIT,
     memoryLimit: env.TENANT_POD_MEMORY_LIMIT,
+    ...(env.RIOGENTIX_IMAGE_REGISTRY &&
+      env.RIOGENTIX_IMAGE_PULL_USERNAME &&
+      env.RIOGENTIX_IMAGE_PULL_PASSWORD && {
+        imagePullCredentials: {
+          registry: env.RIOGENTIX_IMAGE_REGISTRY,
+          username: env.RIOGENTIX_IMAGE_PULL_USERNAME,
+          password: env.RIOGENTIX_IMAGE_PULL_PASSWORD,
+        },
+      }),
     // Contract with the Riogentix image — injected via envFrom on the pod.
     // The image reads RIOGENTIX_DATABASE_URL (see lfx settings/groups/database.py),
     // not DATABASE_URL — a bare DATABASE_URL silently falls back to sqlite.
