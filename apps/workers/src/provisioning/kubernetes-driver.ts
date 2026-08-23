@@ -57,9 +57,8 @@ function requireEnv(
 /**
  * Credentials live in the tenant's Secret, which is the source of truth so
  * that retries reuse the same generated values instead of rotating them
- * mid-provision (the database role password must match the Secret). Also used
- * by riogentix-client to authenticate plan/usage-lock sync calls against the
- * tenant's instance.
+ * mid-provision. Also used by riogentix-client to authenticate plan/usage-lock
+ * sync calls against the tenant's instance.
  */
 export async function readTenantSecretEnv(slug: string): Promise<Record<string, string> | null> {
   const namespace = tenantNamespace(slug);
