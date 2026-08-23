@@ -25,19 +25,14 @@ export async function GET(req: NextRequest) {
 
   const keycloakIssuer = process.env.KEYCLOAK_ISSUER ?? 'https://auth.lvh.me/realms/saas-platform';
 
-  // Prefer the origin the user came from (e.g. demo.techhanker.com) so they
-  // land back on their tenant's branded sign-in page after logout.
-  const referer = req.headers.get('referer');
-  const postLogoutBase = (() => {
-    if (referer) {
-      try {
-        return new URL(referer).origin;
-      } catch {
-        // ignore
-      }
-    }
-    return appUrl.replace(/\/$/, '');
-  })();
+  // Always the root app origin (saas.<domain>), not the tenant subdomain the
+  // user came from. Keycloak's post_logout_redirect_uri validation -- unlike
+  // regular OAuth redirect_uri -- doesn't support wildcard matching at all
+  // (confirmed directly against this realm: an exact listed URI succeeds,
+  // https://*.riogentix.com/* rejects every match with "Invalid redirect
+  // uri", 2026-08-23), so a per-tenant subdomain can't be registered ahead
+  // of time the way regular sign-in redirect URIs can.
+  const postLogoutBase = appUrl.replace(/\/$/, '');
 
   // Derive shared cookie domain (e.g. ".techhanker.com") — must match what authConfig.ts
   // used when setting the session cookie, otherwise Set-Cookie with maxAge=0 won't clear it.
