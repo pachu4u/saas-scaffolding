@@ -1,13 +1,25 @@
 import { Client } from 'pg';
 
 /**
- * Per-tenant database + role on the shared Postgres server (e.g. STACKIT
+ * Per-tenant database on the shared Postgres server (e.g. STACKIT
  * PostgreSQL Flex). One database per tenant is the isolation boundary: a bug
  * in one instance's queries cannot read another tenant's data.
+ *
+ * Originally also created a dedicated Postgres ROLE (unique login/password)
+ * per tenant, on top of the per-tenant database -- STACKIT's managed
+ * Postgres Flex doesn't grant the app's own DB user CREATEROLE (same
+ * constraint the platform schema's own migrations hit, see
+ * infra/terraform/stackit/scripts/migrate-stackit.sh), so that always 42501s
+ * there. This code path had never actually run end-to-end before a real
+ * kubernetes-driver tenant provision surfaced it, 2026-08-23. Simplified:
+ * every tenant database is now owned by the platform's own shared DB user
+ * (the same one `TENANT_PG_ADMIN_URL` already authenticates as) instead of
+ * a per-tenant role -- isolation stays at the database level (separate
+ * database per tenant), just not a separate login per tenant.
  */
 
-// Tenant slugs are validated at signup, but they become SQL identifiers here —
-// enforce the character set again so quoting can never be subverted.
+// Tenant slugs are validated at signup, but they become a SQL identifier
+// here — enforce the character set again so quoting can never be subverted.
 const SLUG_RE = /^[a-z0-9-]{1,40}$/;
 
 export function assertValidSlug(slug: string): void {
@@ -21,59 +33,33 @@ export function tenantDbName(slug: string): string {
   return `riogentix_${slug.replaceAll('-', '_')}`;
 }
 
-export function tenantDbRole(slug: string): string {
-  assertValidSlug(slug);
-  return `rg_${slug.replaceAll('-', '_')}`;
-}
-
 /**
- * Connection URL the tenant pod uses. Host defaults to the admin URL's
- * host:port; override with `hostForPods` when pods reach Postgres through a
- * different address (private network name, service endpoint, …).
+ * Connection URL the tenant pod uses — the platform's own shared DB
+ * credential (parsed from `adminUrl`), pointed at the tenant's own
+ * database. Host defaults to the admin URL's host:port; override with
+ * `hostForPods` when pods reach Postgres through a different address
+ * (private network name, service endpoint, …).
  */
-export function tenantDatabaseUrl(
-  adminUrl: string,
-  slug: string,
-  password: string,
-  hostForPods?: string,
-): string {
+export function tenantDatabaseUrl(adminUrl: string, slug: string, hostForPods?: string): string {
   const admin = new URL(adminUrl);
   const hostPort = hostForPods ?? admin.host;
   const params = admin.search; // keep sslmode etc. from the admin URL
-  return `postgresql://${encodeURIComponent(tenantDbRole(slug))}:${encodeURIComponent(password)}@${hostPort}/${tenantDbName(slug)}${params}`;
+  return `postgresql://${admin.username}:${admin.password}@${hostPort}/${tenantDbName(slug)}${params}`;
 }
 
 /**
- * Idempotently create the tenant's role + database and converge the role
- * password. Safe to re-run: existing role gets ALTER'd, existing database is
- * left alone.
+ * Idempotently create the tenant's database, owned by whichever user
+ * `adminUrl` connects as. Safe to re-run: an existing database is left
+ * alone.
  */
-export async function ensureTenantDatabase(
-  adminUrl: string,
-  slug: string,
-  password: string,
-): Promise<void> {
-  const role = tenantDbRole(slug);
+export async function ensureTenantDatabase(adminUrl: string, slug: string): Promise<void> {
   const db = tenantDbName(slug);
   const client = new Client({ connectionString: adminUrl });
   await client.connect();
   try {
-    const roleExists = await client.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [role]);
-    // Identifiers can't be bound as parameters; slug validation above pins the
-    // character set, and the password is passed as a quoted literal.
-    const quotedPassword = password.replaceAll("'", "''");
-    if (roleExists.rowCount === 0) {
-      await client.query(`CREATE ROLE "${role}" LOGIN PASSWORD '${quotedPassword}'`);
-    } else {
-      await client.query(`ALTER ROLE "${role}" LOGIN PASSWORD '${quotedPassword}'`);
-    }
-    // PG16 restricts CREATEROLE admins from acting on roles they don't hold
-    // membership in — CREATE DATABASE ... OWNER below needs it. Idempotent.
-    await client.query(`GRANT "${role}" TO CURRENT_USER`);
-
     const dbExists = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [db]);
     if (dbExists.rowCount === 0) {
-      await client.query(`CREATE DATABASE "${db}" OWNER "${role}"`);
+      await client.query(`CREATE DATABASE "${db}"`);
     }
   } finally {
     await client.end();

@@ -101,14 +101,12 @@ async function buildSpec(tenant: TenantRef): Promise<TenantStackSpec> {
 
   const namespace = tenantNamespace(tenant.slug);
   const existing = await readTenantSecretEnv(tenant.slug);
-  const dbPassword = existing?.TENANT_DB_PASSWORD ?? randomBytes(24).toString('base64url');
   const internalSecret =
     existing?.RIOGENTIX_INTERNAL_SECRET ?? randomBytes(24).toString('base64url');
   const saasSecret =
     existing?.RIOGENTIX_SAAS_INTERNAL_SECRET ?? randomBytes(24).toString('base64url');
 
-  // Converge role password to the Secret's value (create DB/role on first run)
-  await ensureTenantDatabase(pgAdminUrl, tenant.slug, dbPassword);
+  await ensureTenantDatabase(pgAdminUrl, tenant.slug);
 
   return {
     tenantId: tenant.id,
@@ -131,10 +129,8 @@ async function buildSpec(tenant: TenantRef): Promise<TenantStackSpec> {
       RIOGENTIX_DATABASE_URL: tenantDatabaseUrl(
         pgAdminUrl,
         tenant.slug,
-        dbPassword,
         env.TENANT_PG_HOST_FOR_PODS,
       ),
-      TENANT_DB_PASSWORD: dbPassword,
       RIOGENTIX_INTERNAL_SECRET: internalSecret,
       RIOGENTIX_SAAS_INTERNAL_SECRET: saasSecret,
       // Without this, auth cookies set by the SSO exchange (which lands on

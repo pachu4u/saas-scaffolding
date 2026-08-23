@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { assertValidSlug, tenantDatabaseUrl, tenantDbName, tenantDbRole } from './database.js';
+import { assertValidSlug, tenantDatabaseUrl, tenantDbName } from './database.js';
 
 describe('slug validation', () => {
   it('accepts lowercase alphanumerics and hyphens', () => {
@@ -24,30 +24,27 @@ describe('slug validation', () => {
 });
 
 describe('naming', () => {
-  it('derives database and role names with hyphens folded to underscores', () => {
+  it('derives the database name with hyphens folded to underscores', () => {
     expect(tenantDbName('acme-co')).toBe('riogentix_acme_co');
-    expect(tenantDbRole('acme-co')).toBe('rg_acme_co');
   });
 });
 
 describe('tenantDatabaseUrl', () => {
   const adminUrl = 'postgresql://admin:root@pg.internal:5432/postgres?sslmode=require';
 
-  it('builds the pod connection URL from the admin host, keeping query params', () => {
-    const url = tenantDatabaseUrl(adminUrl, 'acme-co', 's3cret');
-    expect(url).toBe(
-      'postgresql://rg_acme_co:s3cret@pg.internal:5432/riogentix_acme_co?sslmode=require',
-    );
+  it('builds the pod connection URL from the admin host and credentials, keeping query params', () => {
+    const url = tenantDatabaseUrl(adminUrl, 'acme-co');
+    expect(url).toBe('postgresql://admin:root@pg.internal:5432/riogentix_acme_co?sslmode=require');
   });
 
   it('prefers the pod-facing host override when provided', () => {
-    const url = tenantDatabaseUrl(adminUrl, 'acme-co', 's3cret', 'pg-flex.private:5433');
+    const url = tenantDatabaseUrl(adminUrl, 'acme-co', 'pg-flex.private:5433');
     expect(url).toContain('@pg-flex.private:5433/');
   });
 
-  it('URL-encodes passwords with reserved characters', () => {
-    const url = tenantDatabaseUrl(adminUrl, 'acme-co', 'p@ss/w:rd');
+  it('preserves reserved characters in the admin credentials as already encoded in adminUrl', () => {
+    const encoded = 'postgresql://admin:p%40ss%2Fw%3Ard@pg.internal:5432/postgres?sslmode=require';
+    const url = tenantDatabaseUrl(encoded, 'acme-co');
     expect(url).toContain(':p%40ss%2Fw%3Ard@');
-    expect(new URL(url).password).toBe('p%40ss%2Fw%3Ard');
   });
 });
