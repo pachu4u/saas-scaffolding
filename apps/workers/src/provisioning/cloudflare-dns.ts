@@ -38,6 +38,35 @@ async function zoneId(domain: string): Promise<string> {
   return zone.id;
 }
 
+async function ensureARecord(
+  zone: string,
+  name: string,
+  ip: string,
+  comment: string,
+): Promise<void> {
+  const existing = await cfFetch<CfDnsRecord[]>(`/zones/${zone}/dns_records?name=${name}&type=A`);
+  const record = existing[0];
+
+  if (record) {
+    if (record.content === ip && !record.proxied) {
+      logger.info({ name }, 'Tenant DNS record already correct');
+      return;
+    }
+    await cfFetch(`/zones/${zone}/dns_records/${record.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ content: ip, proxied: false }),
+    });
+    logger.info({ name }, 'Updated tenant DNS record');
+    return;
+  }
+
+  await cfFetch(`/zones/${zone}/dns_records`, {
+    method: 'POST',
+    body: JSON.stringify({ type: 'A', name, content: ip, ttl: 300, proxied: false, comment }),
+  });
+  logger.info({ name }, 'Created tenant DNS record');
+}
+
 /**
  * Cloudflare's free Universal SSL only covers the apex + one wildcard level
  * (TENANT_BASE_DOMAIN and *.TENANT_BASE_DOMAIN), so it can't terminate TLS
@@ -50,6 +79,18 @@ async function zoneId(domain: string): Promise<string> {
  * globex broke on 2026-07-23 because nobody repeated it. Runs on every
  * provision (idempotent — safe on retries) instead of relying on someone
  * remembering the manual step for the next tenant.
+ *
+ * Also ensures the bare `{slug}.{domain}` record itself, which the Ingress
+ * routes as the tenant's primary host. Relying on the zone's own top-level
+ * `*.{domain}` wildcard to cover it doesn't work: creating `*.{slug}.{domain}`
+ * implicitly creates a zone node at `{slug}.{domain}` (the wildcard's own
+ * parent), and per RFC 4592 a wildcard only synthesizes answers for names
+ * that don't otherwise exist in the zone -- so once the second-level
+ * wildcard exists, `{slug}.{domain}` stops matching the parent wildcard and
+ * returns NODATA instead. Found via test-corporation-3.riogentix.com
+ * resolving NODATA while app.test-corporation-3.riogentix.com worked fine
+ * on the IONOS-backed deployment, 2026-08-24 -- same underlying DNS
+ * mechanics apply here regardless of provider.
  */
 export async function ensureTenantWildcardDns(slug: string): Promise<void> {
   const domain = env.TENANT_BASE_DOMAIN;
@@ -62,34 +103,12 @@ export async function ensureTenantWildcardDns(slug: string): Promise<void> {
     return;
   }
 
-  const name = `*.${slug}.${domain}`;
   const zone = await zoneId(domain);
-  const existing = await cfFetch<CfDnsRecord[]>(`/zones/${zone}/dns_records?name=${name}&type=A`);
-  const record = existing[0];
-
-  if (record) {
-    if (record.content === ip && !record.proxied) {
-      logger.info({ slug }, 'Tenant wildcard DNS record already correct');
-      return;
-    }
-    await cfFetch(`/zones/${zone}/dns_records/${record.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ content: ip, proxied: false }),
-    });
-    logger.info({ slug }, 'Updated tenant wildcard DNS record');
-    return;
-  }
-
-  await cfFetch(`/zones/${zone}/dns_records`, {
-    method: 'POST',
-    body: JSON.stringify({
-      type: 'A',
-      name,
-      content: ip,
-      ttl: 300,
-      proxied: false,
-      comment: `grey-cloud: 2nd-level ${slug} subdomains, needs Traefik DNS-01 cert`,
-    }),
-  });
-  logger.info({ slug, name }, 'Created tenant wildcard DNS record');
+  await ensureARecord(zone, `${slug}.${domain}`, ip, `${slug} primary tenant host`);
+  await ensureARecord(
+    zone,
+    `*.${slug}.${domain}`,
+    ip,
+    `grey-cloud: 2nd-level ${slug} subdomains, needs Traefik DNS-01 cert`,
+  );
 }

@@ -39,12 +39,49 @@ async function zoneId(domain: string): Promise<string> {
   return zone.id;
 }
 
+async function ensureARecord(zone: string, name: string, ip: string): Promise<void> {
+  const existing = await ionosFetch<{ records: IonosRecord[] }>(
+    `/zones/${zone}?recordName=${encodeURIComponent(name)}&recordType=A`,
+  );
+  const record = existing.records.find((r) => r.name === name && r.type === 'A');
+
+  if (record) {
+    if (record.content === ip && !record.disabled) {
+      logger.info({ name }, 'Tenant DNS record already correct');
+      return;
+    }
+    await ionosFetch(`/zones/${zone}/records/${record.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name, type: 'A', content: ip, ttl: 300, disabled: false }),
+    });
+    logger.info({ name }, 'Updated tenant DNS record');
+    return;
+  }
+
+  await ionosFetch(`/zones/${zone}/records`, {
+    method: 'POST',
+    body: JSON.stringify([{ name, type: 'A', content: ip, ttl: 300, disabled: false }]),
+  });
+  logger.info({ name }, 'Created tenant DNS record');
+}
+
 /**
  * IONOS equivalent of cloudflare-dns.ts's ensureTenantWildcardDns — same
  * rationale (each tenant needs its own wildcard A record so Traefik's DNS-01
  * resolver can mint a per-SNI cert for two-level tenant hosts). IONOS has no
  * "proxied" concept (that's Cloudflare-specific), so this is just a plain A
  * record create/update, idempotent on every provision.
+ *
+ * Also ensures the bare `{slug}.{domain}` record itself, which the Ingress
+ * routes as the tenant's primary host. Relying on the zone's own top-level
+ * `*.{domain}` wildcard to cover it doesn't work: creating `*.{slug}.{domain}`
+ * implicitly creates a zone node at `{slug}.{domain}` (the wildcard's own
+ * parent), and per RFC 4592 a wildcard only synthesizes answers for names
+ * that don't otherwise exist in the zone -- so once the second-level
+ * wildcard exists, `{slug}.{domain}` stops matching the parent wildcard and
+ * returns NODATA instead. Found via test-corporation-3.riogentix.com
+ * resolving NODATA while app.test-corporation-3.riogentix.com worked fine,
+ * 2026-08-24.
  */
 export async function ensureTenantWildcardDns(slug: string): Promise<void> {
   const domain = env.TENANT_BASE_DOMAIN;
@@ -57,29 +94,7 @@ export async function ensureTenantWildcardDns(slug: string): Promise<void> {
     return;
   }
 
-  const name = `*.${slug}.${domain}`;
   const zone = await zoneId(domain);
-  const existing = await ionosFetch<{ records: IonosRecord[] }>(
-    `/zones/${zone}?recordName=${encodeURIComponent(name)}&recordType=A`,
-  );
-  const record = existing.records.find((r) => r.name === name && r.type === 'A');
-
-  if (record) {
-    if (record.content === ip && !record.disabled) {
-      logger.info({ slug }, 'Tenant wildcard DNS record already correct');
-      return;
-    }
-    await ionosFetch(`/zones/${zone}/records/${record.id}`, {
-      method: 'PUT',
-      body: JSON.stringify({ name, type: 'A', content: ip, ttl: 300, disabled: false }),
-    });
-    logger.info({ slug }, 'Updated tenant wildcard DNS record');
-    return;
-  }
-
-  await ionosFetch(`/zones/${zone}/records`, {
-    method: 'POST',
-    body: JSON.stringify([{ name, type: 'A', content: ip, ttl: 300, disabled: false }]),
-  });
-  logger.info({ slug, name }, 'Created tenant wildcard DNS record');
+  await ensureARecord(zone, `${slug}.${domain}`, ip);
+  await ensureARecord(zone, `*.${slug}.${domain}`, ip);
 }
