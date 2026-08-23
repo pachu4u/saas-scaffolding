@@ -97,7 +97,7 @@ until (exec 3<>"/dev/tcp/$DB_HOST/$DB_PORT") 2>/dev/null; do
   sleep 2
 done
 
-echo "→ Running DB migrations (no seed -- this is a real environment, not fixtures)"
+echo "→ Running DB migrations (demo fixtures skipped -- this is a real environment, not the acme/globex/notes sample data -- but essential system data still needs seeding, see below)"
 # Not a plain `pnpm --filter @platform/db db:migrate`: STACKIT-managed
 # Postgres Flex doesn't grant the app's DB user CREATEROLE (nor expose any
 # superuser credential), and the earliest migrations CREATE ROLE
@@ -105,6 +105,15 @@ echo "→ Running DB migrations (no seed -- this is a real environment, not fixt
 # story and why 0001_init/0002_rls_grants are deliberately left unedited.
 command -v psql &>/dev/null || apt-get install -y -qq postgresql-client
 bash infra/terraform/stackit/scripts/migrate-stackit.sh
+
+echo "→ Seeding essential system data (roles, permissions, plans)"
+# packages/db/src/seed.ts (full db:seed) bundles this together with demo
+# fixtures (acme/globex tenants) that don't belong on a real deployment --
+# db:seed:system is just the essential subset. Skipping this entirely (as
+# earlier versions of this script did) leaves the roles table empty, which
+# silently no-ops role assignment on every tenant invite with no error --
+# found the hard way testing a real tenant, 2026-08-22.
+pnpm --filter @platform/db db:seed:system
 
 echo "→ Pushing realm client config into Keycloak"
 node infra/keycloak/sync-realm.mjs
