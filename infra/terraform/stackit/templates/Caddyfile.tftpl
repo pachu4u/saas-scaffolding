@@ -1,14 +1,11 @@
 {
 	email ${acme_email}
-	# Scoped to the *.${domain_name} site block below via its own host match --
-	# Caddy only ever attempts on-demand issuance for a request that already
-	# matched a server block, so this can't be used to mint certs for
-	# arbitrary/unrelated domains even without an `ask` callback. It CAN still
-	# be used to burn Let's Encrypt rate limits with made-up
-	# *.${domain_name} subdomains (no check that a tenant with that slug
-	# actually exists) -- add an `ask` endpoint backed by a real tenant-lookup
-	# if that becomes a problem.
+	# `ask` gates every on-demand issuance (both the bare *.${domain_name}
+	# block below and the app./admin. block further down) behind a real
+	# tenant-slug lookup, so a made-up subdomain can't burn Let's Encrypt
+	# rate limits -- see apps/web's /api/internal/tls-ask route.
 	on_demand_tls {
+		ask http://web:3000/api/internal/tls-ask
 		interval 2m
 		burst 5
 	}
@@ -44,13 +41,18 @@ oauthproxy.${domain_name} {
 # visit, same mechanism as the named hosts above, just deferred to request
 # time instead of a fixed name list.
 #
-# KNOWN GAP: does NOT cover the two-level app.{slug}.${domain_name} /
-# admin.{slug}.${domain_name} hosts (see
-# dynamic-tenant-app-admin-subdomains.yaml.tftpl) -- a single `*.` host
-# match/cert only ever covers one subdomain level. Add a second on-demand
-# site block for those before any tenant needs its app./admin. subdomains
-# working.
 *.${domain_name} {
+	tls {
+		on_demand
+	}
+	reverse_proxy traefik:80
+}
+
+# Two-level tenant subdomains -- a `*.${domain_name}` cert only ever covers
+# one wildcard label, so app.{slug}/admin.{slug} need their own on-demand
+# site block. The `ask` endpoint above (not just the host match) is what
+# keeps this from minting a cert for an arbitrary app.<anything>.${domain_name}.
+app.*.${domain_name}, admin.*.${domain_name} {
 	tls {
 		on_demand
 	}
