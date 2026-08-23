@@ -16,6 +16,11 @@
       "development": "./src/seed.ts",
       "types": "./src/seed.ts",
       "default": "./dist/seed.js"
+    },
+    "./seed-system": {
+      "development": "./src/seed-system.ts",
+      "types": "./src/seed-system.ts",
+      "default": "./dist/seed-system.js"
     }
   },
   "scripts": {
@@ -26,6 +31,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "tsx src/seed.ts",
+    "db:seed:system": "tsx src/seed-system.ts",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset --force"
   },
