@@ -73,7 +73,23 @@ export async function readTenantSecretEnv(slug: string): Promise<Record<string, 
       ]),
     );
   } catch (err) {
-    if (isNotFound(err)) return null;
+    // A brand-new tenant's namespace doesn't exist yet on its very first
+    // provision, and saas-workers only gets `secrets` access in a tenant's
+    // namespace via the per-namespace RoleBinding stamped in later in this
+    // same provision flow (see rbac.yaml -- direct ServiceAccount
+    // permissions are deliberately namespace/rolebinding-only, everything
+    // else is granted per-tenant at provision time). So the very first call
+    // here for a given tenant gets 403 Forbidden, not 404 NotFound, from
+    // Kubernetes' RBAC check itself -- the object being missing and the SA
+    // having no grant to look yet are indistinguishable from here, and both
+    // mean the same thing to this function's caller: no existing secret,
+    // generate fresh values. Found provisioning a real tenant for the
+    // first time via this driver, 2026-08-23 -- every previous
+    // "successful" provision on this deployment had gone through the
+    // driver-less "shared" fallback instead (see env.tftpl
+    // WORKER_ENABLE_TENANT_PROVISIONING), so this path had never actually
+    // run end-to-end before.
+    if (isNotFound(err) || (err instanceof k8s.ApiException && err.code === 403)) return null;
     throw err;
   }
 }
