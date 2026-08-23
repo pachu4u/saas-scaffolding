@@ -11,6 +11,37 @@ function makePrismaClient(url?: string) {
   });
 }
 
+// adminDb is documented as bypassing RLS unconditionally -- true when this
+// bypassed RLS via `SET LOCAL ROLE platform_admin` (a Postgres role with
+// BYPASSRLS), which applied to every query on the connection with no
+// per-call wrapping needed. Migration 20260821000000_rls_bypass_via_guc_not_role
+// switched to a session GUC (app.bypass_rls) instead -- STACKIT's managed
+// Postgres Flex doesn't grant CREATEROLE, so the role-based approach
+// couldn't create platform_admin there -- but only withPlatformAdmin()
+// actually sets that GUC, in its own transaction. Every OTHER adminDb call
+// across the app (there are dozens) was written against the old
+// always-bypasses semantics and was never updated, so on STACKIT
+// specifically they silently RLS-filtered to empty results with no error --
+// found the hard way: a real, verified-correct tenant_users/role_bindings
+// row existed, but auth/redirect's `adminDb.user.findUnique({..., select:
+// { tenantUsers: {...} } })` still came back with `tenantUsers: []`, so a
+// legitimate tenant admin got told "no workspace yet" on first login.
+//
+// Fixed at the connection level instead of hunting down every call site:
+// Postgres accepts arbitrary GUCs via the `options` connection-string
+// parameter (`-c app.bypass_rls=true`), applied at connection
+// establishment by the server itself -- so every connection in adminDb's
+// pool has bypass_rls on by default, restoring the original "adminDb just
+// bypasses RLS, full stop" behavior without touching call sites.
+// withPlatformAdmin() is now redundant but harmless to keep calling.
+function withBypassRlsOption(url: string): string {
+  const parsed = new URL(url);
+  const existing = parsed.searchParams.get('options') ?? '';
+  const bypassOption = '-c app.bypass_rls=true';
+  parsed.searchParams.set('options', existing ? `${existing} ${bypassOption}` : bypassOption);
+  return parsed.toString();
+}
+
 // Singleton pattern for Next.js hot reload safety
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -20,7 +51,8 @@ const globalForPrisma = globalThis as unknown as {
 export const db = globalForPrisma.prisma ?? makePrismaClient(env.DATABASE_URL);
 
 export const adminDb =
-  globalForPrisma.adminPrisma ?? makePrismaClient(env.DATABASE_URL_MIGRATOR ?? env.DATABASE_URL);
+  globalForPrisma.adminPrisma ??
+  makePrismaClient(withBypassRlsOption(env.DATABASE_URL_MIGRATOR ?? env.DATABASE_URL));
 
 if (env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = db;
