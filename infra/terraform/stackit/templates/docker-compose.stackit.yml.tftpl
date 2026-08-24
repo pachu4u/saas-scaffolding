@@ -111,6 +111,10 @@ services:
       - --skip-auth-route=GET=^/health$$
 
   web:
+    # Pulled from Harbor at bootstrap instead of built from source (see
+    # bootstrap.sh.tftpl) -- build: args below are kept so `--build` still
+    # works as a manual fallback if the CI-pushed image is ever unavailable.
+    image: ${web_image}
     build:
       args:
         - NEXT_PUBLIC_APP_URL=https://saas.${domain_name}
@@ -154,6 +158,8 @@ services:
       RIOGENTIX_PUBLIC_URL: https://riogentix.${domain_name}
 
   workers:
+    # See web's image: comment above.
+    image: ${workers_image}
     depends_on:
       app-db:
         condition: service_started

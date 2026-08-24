@@ -29,6 +29,8 @@ locals {
     riogentix_image_registry      = var.riogentix_image_registry
     riogentix_image_pull_username = var.riogentix_image_pull_username
     riogentix_image_pull_password = var.riogentix_image_pull_password
+    web_image                     = var.web_image
+    workers_image                 = var.workers_image
     cloudflare_dns_api_token      = var.cloudflare_dns_api_token
     ionos_api_key                 = var.ionos_api_key
 
@@ -81,8 +83,15 @@ locals {
   tenant_provisioner_secret_content = templatefile("${path.module}/templates/tenant-provisioner-secret.env.tftpl", local.common_template_vars)
 
   bootstrap_script_content = templatefile("${path.module}/templates/bootstrap.sh.tftpl", {
-    git_repo_url = var.git_repo_url
-    git_ref      = var.git_ref
+    git_repo_url    = var.git_repo_url
+    git_ref         = var.git_ref
+    # Same Harbor account as riogentix_image_pull_username/_password (see
+    # that variable's description) -- reused here for `docker login` on the
+    # VM itself, so it can `pull` web_image/workers_image instead of
+    # building infra/docker/{web,workers}.Dockerfile from source.
+    harbor_registry = var.riogentix_image_registry
+    harbor_username = var.riogentix_image_pull_username
+    harbor_password = var.riogentix_image_pull_password
   })
 
   cloud_init_rendered = templatefile("${path.module}/templates/cloud-init.yaml.tftpl", {

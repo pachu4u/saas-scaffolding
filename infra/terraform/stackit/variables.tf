@@ -154,6 +154,18 @@ variable "riogentix_image_pull_password" {
   default   = ""
 }
 
+variable "web_image" {
+  description = "Pre-built web app image the VM pulls at bootstrap instead of building infra/docker/web.Dockerfile from source -- pushed by the saas-scaffolding repo's .github/workflows/stackit-images.yml. Same registry/credentials as riogentix_image_registry/_pull_username/_pull_password (docker login on the VM uses those same three vars)."
+  type        = string
+  default     = "registry.onstackit.cloud/saas-platform/web:latest"
+}
+
+variable "workers_image" {
+  description = "Pre-built workers image the VM pulls at bootstrap instead of building infra/docker/workers.Dockerfile from source -- see web_image."
+  type        = string
+  default     = "registry.onstackit.cloud/saas-platform/workers:latest"
+}
+
 variable "stripe_secret_key" {
   type      = string
   default   = ""

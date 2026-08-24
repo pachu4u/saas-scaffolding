@@ -35,6 +35,13 @@ riogentix_image_registry      = "registry.onstackit.cloud"
 riogentix_image_pull_username = ""
 riogentix_image_pull_password = ""
 
+# web_image/workers_image default to the saas-scaffolding repo's own CI
+# output (.github/workflows/stackit-images.yml) -- override only if you're
+# pushing to a different registry/project. Same three credentials above are
+# reused for `docker login` on the VM itself (see bootstrap.sh.tftpl).
+# web_image     = "registry.onstackit.cloud/saas-platform/web:latest"
+# workers_image = "registry.onstackit.cloud/saas-platform/workers:latest"
+
 # STACKIT-managed Redis plan -- no Terraform data source lists these, verify
 # with `stackit redis plans` (STACKIT CLI) or the Portal before first apply.
 redis_plan_name = "stackit-redis-1.2.10-single"
