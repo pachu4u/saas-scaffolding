@@ -22,10 +22,12 @@
     "@platform/config": "workspace:*",
     "@platform/db": "workspace:*",
     "@platform/vault": "workspace:*",
+    "nodemailer": "^6.9.14",
     "resend": "^3.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/nodemailer": "^6.4.15",
     "typescript": "^5.5.4"
   }
 }

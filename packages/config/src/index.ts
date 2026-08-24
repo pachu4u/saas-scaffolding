@@ -33,9 +33,14 @@ const envSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().startsWith('whsec_').optional(),
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().startsWith('pk_').optional(),
 
-  // Email
+  // Email -- SMTP (e.g. STACKIT MailOut) takes priority over Resend when
+  // SMTP_HOST is set; see packages/notifications/src/index.ts.
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().email().optional(),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().optional(),
+  SMTP_USERNAME: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
 
   // Observability
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),

@@ -194,6 +194,35 @@ variable "email_from" {
   default = ""
 }
 
+# SMTP (e.g. STACKIT MailOut -- a purpose-built transactional relay with
+# managed SPF/DKIM/DMARC and bounce handling) takes priority over Resend
+# when smtp_host is set -- see packages/notifications/src/index.ts. Set up
+# via STACKIT Portal > Messaging/MailOut > Create Sending Domain, then
+# Authorized Sender on that domain (no CLI/Terraform/API path confirmed for
+# this beta service as of 2026-08-24) -- the DNS records it asks for go in
+# domain_name's zone (IONOS/Cloudflare, whichever ionos_api_key/
+# cloudflare_dns_api_token above targets).
+variable "smtp_host" {
+  type    = string
+  default = ""
+}
+
+variable "smtp_port" {
+  type    = number
+  default = 587
+}
+
+variable "smtp_username" {
+  type    = string
+  default = ""
+}
+
+variable "smtp_password" {
+  type      = string
+  default   = ""
+  sensitive = true
+}
+
 variable "additional_secrets" {
   description = "Arbitrary extra key=value pairs appended to the VM's .env (e.g. OPENAI_API_KEY)."
   type        = map(string)

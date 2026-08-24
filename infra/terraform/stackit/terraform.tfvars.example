@@ -59,6 +59,16 @@ stripe_publishable_key = ""
 resend_api_key         = ""
 email_from             = ""
 
+# SMTP takes priority over Resend when smtp_host is set. STACKIT MailOut
+# (Portal > Messaging/MailOut) is a good fit -- purpose-built transactional
+# relay with managed SPF/DKIM/DMARC, not a personal mailbox. Set up a
+# Sending Domain there, add the DNS records it gives you, then create an
+# Authorized Sender on that domain for the username/password/endpoint below.
+smtp_host     = ""
+smtp_port     = 587
+smtp_username = ""
+smtp_password = ""
+
 additional_secrets = {
   # OPENAI_API_KEY = "sk-..."
 }

@@ -18,11 +18,11 @@ locals {
   app_redis_url    = stackit_redis_credential.app_redis.uri
 
   common_template_vars = {
-    domain_name        = var.domain_name
-    domain_regex       = local.domain_regex
-    acme_email         = var.acme_email
-    git_ref            = var.git_ref
-    load_balancer_ip   = stackit_public_ip.lb.ip
+    domain_name      = var.domain_name
+    domain_regex     = local.domain_regex
+    acme_email       = var.acme_email
+    git_ref          = var.git_ref
+    load_balancer_ip = stackit_public_ip.lb.ip
 
     keycloak_admin_username       = var.keycloak_admin_username
     riogentix_image               = var.riogentix_image
@@ -39,6 +39,10 @@ locals {
     stripe_publishable_key = var.stripe_publishable_key
     resend_api_key         = var.resend_api_key
     email_from             = var.email_from
+    smtp_host              = var.smtp_host
+    smtp_port              = var.smtp_port
+    smtp_username          = var.smtp_username
+    smtp_password          = var.smtp_password
 
     auth_secret                    = random_password.auth_secret.result
     platform_internal_secret       = random_password.platform_internal_secret.result
@@ -83,8 +87,8 @@ locals {
   tenant_provisioner_secret_content = templatefile("${path.module}/templates/tenant-provisioner-secret.env.tftpl", local.common_template_vars)
 
   bootstrap_script_content = templatefile("${path.module}/templates/bootstrap.sh.tftpl", {
-    git_repo_url    = var.git_repo_url
-    git_ref         = var.git_ref
+    git_repo_url = var.git_repo_url
+    git_ref      = var.git_ref
     # Same Harbor account as riogentix_image_pull_username/_password (see
     # that variable's description) -- reused here for `docker login` on the
     # VM itself, so it can `pull` web_image/workers_image instead of

@@ -113,13 +113,40 @@ export class PlatformSecrets {
     };
   }
 
-  async storeEmailConfig(apiKey: string, fromEmail: string): Promise<void> {
-    await this.vault.writeSecret('platform/email', { api_key: apiKey, from_email: fromEmail });
+  async storeEmailConfig(config: {
+    fromEmail: string;
+    apiKey?: string;
+    smtpHost?: string;
+    smtpPort?: number;
+    smtpUsername?: string;
+    smtpPassword?: string;
+  }): Promise<void> {
+    const data: SecretData = { from_email: config.fromEmail };
+    if (config.apiKey) data.api_key = config.apiKey;
+    if (config.smtpHost) data.smtp_host = config.smtpHost;
+    if (config.smtpPort) data.smtp_port = String(config.smtpPort);
+    if (config.smtpUsername) data.smtp_username = config.smtpUsername;
+    if (config.smtpPassword) data.smtp_password = config.smtpPassword;
+    await this.vault.writeSecret('platform/email', data);
   }
 
-  async getEmailConfig(): Promise<{ api_key: string; from_email: string } | null> {
+  async getEmailConfig(): Promise<{
+    api_key?: string;
+    from_email: string;
+    smtp_host?: string;
+    smtp_port?: string;
+    smtp_username?: string;
+    smtp_password?: string;
+  } | null> {
     const data = await this.vault.readSecret('platform/email');
     if (!data) return null;
-    return data as unknown as { api_key: string; from_email: string };
+    return data as unknown as {
+      api_key?: string;
+      from_email: string;
+      smtp_host?: string;
+      smtp_port?: string;
+      smtp_username?: string;
+      smtp_password?: string;
+    };
   }
 }
