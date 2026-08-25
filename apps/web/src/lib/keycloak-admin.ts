@@ -138,6 +138,30 @@ export async function deleteKeycloakUser(kcUserId: string): Promise<void> {
 }
 
 /**
+ * Flips a user's emailVerified flag once they've clicked our own verification
+ * link (see /verify-email/[token]) -- signup creates the Keycloak user with
+ * emailVerified: false and provisioning is gated on this, not on Keycloak's
+ * own VERIFY_EMAIL required action (keeps the verification email on the
+ * same MailOut/Resend path as every other transactional email instead of
+ * depending on the realm's separate, currently-unconfigured SMTP settings).
+ */
+export async function markKeycloakEmailVerified(kcUserId: string): Promise<void> {
+  const token = await getKeycloakAdminToken();
+  const kcUrl = kcBaseUrl();
+  const realm = env.KEYCLOAK_REALM;
+
+  const res = await fetch(`${kcUrl}/admin/realms/${realm}/users/${kcUserId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ emailVerified: true }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Keycloak emailVerified update failed (${String(res.status)}): ${text}`);
+  }
+}
+
+/**
  * Triggers Keycloak's own "execute actions" email (via the realm's configured
  * SMTP) so a newly-created pending user can set their password. Best-effort —
  * callers should treat failure as non-fatal since SMTP may be unconfigured in

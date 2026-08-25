@@ -28,7 +28,6 @@ interface SignupResult {
   tenantId: string;
   slug: string;
   name: string;
-  workspaceUrl: string;
   message: string;
 }
 
@@ -540,44 +539,27 @@ export default function SignupPage() {
                 className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full text-4xl"
                 style={{ background: 'rgba(79,123,255,0.1)' }}
               >
-                🎉
+                📧
               </div>
 
               <h1 className="mb-2 text-2xl font-extrabold" style={{ color: 'var(--text-primary)' }}>
-                Your workspace is ready!
+                Check your email
               </h1>
               <p className="mb-6 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                <strong>{result.name}</strong> has been created and the Riogentix AI builder has
-                been provisioned for your team.
+                We've sent a verification link to activate <strong>{result.name}</strong>'s
+                workspace. Your Riogentix AI builder won't be provisioned until you click it.
               </p>
 
               <div
                 className="mb-6 rounded-xl border p-4 text-left"
                 style={{ background: 'var(--bg-subtle)', borderColor: 'var(--border-light)' }}
               >
-                <p
-                  className="mb-1 text-xs font-semibold uppercase tracking-wider"
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  Workspace URL
-                </p>
-                <p
-                  className="font-mono text-sm font-bold"
-                  style={{ color: 'var(--brand-primary)' }}
-                >
-                  {result.workspaceUrl}
-                </p>
-                <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Sign in with the email and password you just created.
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Didn't get it? Check spam, or the link expires in 48 hours — sign up again with
+                  the same details to get a new one.
                 </p>
               </div>
 
-              <Link
-                href="/auth/signin"
-                className="brand-gradient mb-3 block rounded-xl py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90"
-              >
-                Sign in to your workspace →
-              </Link>
               <Link href="/" className="block text-sm" style={{ color: 'var(--text-muted)' }}>
                 Back to home
               </Link>

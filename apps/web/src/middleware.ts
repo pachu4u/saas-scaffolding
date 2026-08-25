@@ -43,6 +43,7 @@ const PUBLIC_PREFIXES = [
   '/api/signup',
   '/api/tenant-authz',
   '/signup',
+  '/verify-email/',
   '/scim/',
 ];
 

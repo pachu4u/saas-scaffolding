@@ -8,9 +8,10 @@ import {
   checkRateLimit,
   rateLimitHeaders,
 } from '@platform/db';
-import { enqueue, tenantProvisionQueue, type TenantProvisionJob } from '@platform/jobs';
+import { sendEmail } from '@platform/notifications';
 import { type NextRequest, NextResponse } from 'next/server';
 
+import { encodeEmailVerificationToken } from '@/lib/email-verification-token';
 import { getKeycloakAdminToken } from '@/lib/keycloak-admin';
 
 /** Best-effort client IP from the Traefik-forwarded chain; the first entry is the client. */
@@ -55,7 +56,11 @@ async function createKeycloakUser(
       firstName: firstName ?? '',
       lastName,
       enabled: true,
-      emailVerified: true,
+      // Provisioning the tenant stack is gated on this being flipped true by
+      // /verify-email/[token] — see verifyEmailAndProvision. Not Keycloak's
+      // own VERIFY_EMAIL required action, which would need the realm's
+      // separate (currently unconfigured) SMTP settings.
+      emailVerified: false,
       credentials: [{ type: 'password', value: password, temporary: false }],
     }),
   });
@@ -185,7 +190,11 @@ export async function POST(req: NextRequest) {
           slug: slugNorm,
           plan,
           status: 'ACTIVE' as const,
-          provisioningStatus: 'IN_PROGRESS' as const,
+          // Provisioning is deferred to /verify-email/[token] — see
+          // verifyEmailAndProvision. Starting the (multi-minute) kubernetes
+          // stack stamp before we even know the signup email is real would
+          // waste a full tenant provision on every typo/bot signup.
+          provisioningStatus: 'PENDING' as const,
           customDomains: [],
           branding,
         },
@@ -243,37 +252,31 @@ export async function POST(req: NextRequest) {
       return { tenant, userId: dbUser.id };
     });
 
-    // Hand provisioning to the worker (stack stamping can take minutes on the
-    // kubernetes driver — far too long for a signup request). Enqueue failure
-    // is non-fatal: the tenant exists and the admin console can retry.
+    // Send the verification email — provisioning only starts once the link
+    // is clicked (verifyEmailAndProvision). Delivery failure isn't fatal to
+    // the signup response (the tenant/user records already exist and the
+    // account is real), but it does mean the account is stuck un-provisioned
+    // until support reissues a link, so it's logged loudly.
+    const verifyToken = encodeEmailVerificationToken(result.userId, result.tenant.id);
+    const verifyUrl = `${env.AUTH_URL}/verify-email/${verifyToken}`;
     try {
-      const provisionJob: TenantProvisionJob = {
+      await sendEmail({
+        to: emailNorm,
+        subject: 'Verify your email to activate your riogentix workspace',
+        templateId: 'verify-email',
+        data: { companyName: result.tenant.name, verifyUrl },
         tenantId: result.tenant.id,
-        environments: ['PROD'],
-      };
-      await enqueue(tenantProvisionQueue, provisionJob, {
-        idempotencyKey: `tenant-provision:signup:${result.tenant.id}`,
       });
     } catch (err) {
-      console.warn('[POST /api/signup] Failed to enqueue provisioning (non-fatal):', err);
-      await adminDb.tenant.update({
-        where: { id: result.tenant.id },
-        data: {
-          provisioningStatus: 'FAILED',
-          provisioningError: `Failed to enqueue provisioning: ${String(err)}`,
-        },
-      });
+      console.error('[POST /api/signup] Failed to send verification email:', err);
     }
-
-    const workspaceUrl = env.AUTH_URL.replace('saas.', `${slugNorm}.`);
 
     return NextResponse.json(
       {
         tenantId: result.tenant.id,
         slug: result.tenant.slug,
         name: result.tenant.name,
-        workspaceUrl,
-        message: 'Your workspace is ready!',
+        message: 'Check your email to verify your account and activate your workspace.',
       },
       { status: 201 },
     );

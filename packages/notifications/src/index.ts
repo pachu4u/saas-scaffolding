@@ -110,6 +110,9 @@ function renderTemplate(templateId: string, data: Record<string, unknown>): stri
     'invite-user': `<p>You've been invited to join <strong>{{ tenantName }}</strong>.</p>
       <p><a href="{{ inviteUrl }}">Accept Invitation</a></p>`,
     'plan-changed': `<p>Your plan has been changed to <strong>{{ newPlan }}</strong>.</p>`,
+    'verify-email': `<p>Welcome to riogentix! Verify your email to activate <strong>{{ companyName }}</strong>'s workspace.</p>
+      <p><a href="{{ verifyUrl }}">Verify email</a></p>
+      <p>This link expires in 48 hours. Your workspace won't be created until you verify.</p>`,
   };
 
   const template = templates[templateId] ?? `<p>Notification: ${templateId}</p>`;
