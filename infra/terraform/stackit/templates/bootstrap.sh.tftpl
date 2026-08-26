@@ -103,6 +103,9 @@ echo "→ Running DB migrations (demo fixtures skipped -- this is a real environ
 command -v psql &>/dev/null || apt-get install -y -qq postgresql-client
 bash infra/terraform/stackit/scripts/migrate-stackit.sh
 
+echo "→ Generating the Prisma client (host-side pnpm install doesn't run this automatically -- both Dockerfiles call it as an explicit build step, and the seed script below needs it too)"
+pnpm --filter @platform/db db:generate
+
 echo "→ Seeding essential system data (roles, permissions, plans)"
 # packages/db/src/seed.ts (full db:seed) bundles this together with demo
 # fixtures (acme/globex tenants) that don't belong on a real deployment --

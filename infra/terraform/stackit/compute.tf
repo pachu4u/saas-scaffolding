@@ -53,7 +53,22 @@ resource "stackit_server" "app" {
     delete_on_termination = true
   }
 
-  user_data = local.cloud_init_rendered
+  # gzip-compressed -- the raw rendered cloud-init doc is ~70KB (Keycloak
+  # realm export + Traefik dynamic configs + compose override + bootstrap
+  # script all embedded as base64 write_files entries), which STACKIT's API
+  # rejected outright ("user_data ... is too long", 2026-08-26). cloud-init
+  # auto-detects and decompresses a gzip payload, same pattern used with
+  # user_data on every other major cloud's Terraform provider.
+  user_data = base64gzip(local.cloud_init_rendered)
+
+  # Forces the STACKIT Server Agent onto the VM regardless of the image's
+  # own default, enabling `stackit server command` (Run Command / API-based
+  # remote exec) as a recovery path if SSH access is ever lost again -- the
+  # 2026-08-26 VM had no agent and no persisted SSH key, and lost SSH access
+  # entirely with no way back in except a destructive rescue-mode boot.
+  agent = {
+    provisioning_policy = "ALWAYS"
+  }
 
   # user_data only runs once at first boot, and changing it forces a full
   # VM replace (new boot volume, new cloud-init run, brief downtime). Once

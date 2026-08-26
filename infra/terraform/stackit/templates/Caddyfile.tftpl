@@ -6,28 +6,40 @@
 	# rate limits -- see apps/web's /api/internal/tls-ask route.
 	on_demand_tls {
 		ask http://web:3000/api/internal/tls-ask
-		interval 2m
-		burst 5
 	}
 }
 
-# TLS termination + automatic HTTPS live here now, not in Traefik -- see
+# TLS termination lives here now, not in Traefik -- see
 # docker-compose.stackit.yml.tftpl (traefik.ports override) and
-# traefik.yaml.tftpl for why. Caddy gets each cert via ACME HTTP-01 on first
-# request to that host (needs only an A/CNAME record pointed at the load
-# balancer, no DNS API token) and auto-renews forever after -- no ongoing
-# action needed. Traefik still does all the actual HTTP-layer routing
-# (Host/path rules, middlewares, oauth2-proxy forwarding); Caddy just
-# terminates TLS and reverse-proxies the decrypted request to it.
+# traefik.yaml.tftpl for why. Traefik still does all the actual HTTP-layer
+# routing (Host/path rules, middlewares, oauth2-proxy forwarding); Caddy
+# just terminates TLS and reverse-proxies the decrypted request to it.
+#
+# on_demand rather than Caddy's normally-eager automatic HTTPS for named
+# hosts: on a from-scratch VM (2026-08-26) that eager path silently never
+# attempted issuance for these three (no error, no log line -- root cause
+# not identified under time pressure during a live outage), while on_demand
+# was independently confirmed working in the same instance. The `ask`
+# endpoint explicitly allowlists these three fixed hostnames (see
+# apps/web's /api/internal/tls-ask route) since they aren't tenant-derived.
 saas.${domain_name} {
+	tls {
+		on_demand
+	}
 	reverse_proxy traefik:80
 }
 
 auth.${domain_name} {
+	tls {
+		on_demand
+	}
 	reverse_proxy traefik:80
 }
 
 oauthproxy.${domain_name} {
+	tls {
+		on_demand
+	}
 	reverse_proxy traefik:80
 }
 
@@ -50,11 +62,23 @@ oauthproxy.${domain_name} {
 
 # Two-level tenant subdomains -- a `*.${domain_name}` cert only ever covers
 # one wildcard label, so app.{slug}/admin.{slug} need their own on-demand
-# site block. The `ask` endpoint above (not just the host match) is what
-# keeps this from minting a cert for an arbitrary app.<anything>.${domain_name}.
-app.*.${domain_name}, admin.*.${domain_name} {
+# coverage. `app.*.${domain_name}` as a site ADDRESS fails Caddy's own
+# automatic-HTTPS validation ("subject does not qualify for certificate")
+# -- an X.509 wildcard can only be the leftmost label, so a middle-position
+# `*` isn't valid there even though on-demand issuance itself doesn't need
+# a real wildcard cert. Catch-all :443 + a `host` request matcher (which
+# DOES allow a wildcard in any label position, unlike a site address) sidesteps
+# that. The `ask` endpoint above (not just the host match) is what keeps
+# this from minting a cert for an arbitrary app.<anything>.${domain_name}.
+:443 {
 	tls {
 		on_demand
 	}
-	reverse_proxy traefik:80
+	@tenant-app-admin host app.*.${domain_name} admin.*.${domain_name}
+	handle @tenant-app-admin {
+		reverse_proxy traefik:80
+	}
+	handle {
+		respond 404
+	}
 }

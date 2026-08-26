@@ -27,6 +27,21 @@ export async function GET(req: NextRequest) {
   const baseDomain = env.TENANT_BASE_DOMAIN;
   if (!baseDomain || !domain) return deny();
 
+  // Fixed platform hostnames -- not tenant-derived, safe to always allow.
+  // Moved onto on-demand TLS (rather than Caddy's normally-eager automatic
+  // HTTPS for named hosts) after that eager path silently never attempted
+  // issuance for them on a fresh VM (no error, no log line -- root cause
+  // not identified under time pressure during a live outage, 2026-08-26).
+  // On-demand was already proven working in the same Caddy instance/ACME
+  // account moments earlier, so this sidesteps the mystery entirely.
+  if (
+    domain === `saas.${baseDomain}` ||
+    domain === `auth.${baseDomain}` ||
+    domain === `oauthproxy.${baseDomain}`
+  ) {
+    return new NextResponse(null, { status: 200 });
+  }
+
   const match = new RegExp(
     `^(app|admin)\\.([a-z0-9-]+)\\.${baseDomain.replace(/\./g, '\\.')}$`,
   ).exec(domain);
