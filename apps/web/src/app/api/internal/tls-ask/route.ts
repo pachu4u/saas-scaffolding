@@ -10,30 +10,30 @@ function deny() {
 
 /**
  * Caddy on_demand_tls "ask" endpoint (infra/compose/caddy/Caddyfile): before
- * issuing a cert for any SNI matching `app.*.TENANT_BASE_DOMAIN` /
- * `admin.*.TENANT_BASE_DOMAIN`, Caddy GETs this with `?domain=<sni>` and
- * only proceeds on a 200. Without this gate, on-demand TLS would mint a
- * real cert for ANY hostname an attacker points at the load balancer with
- * a matching SNI — this restricts issuance to `app.`/`admin.` subdomains of
- * slugs that are real, ACTIVE tenants.
+ * issuing a cert for any on-demand SNI, Caddy GETs this with `?domain=<sni>`
+ * and only proceeds on a 200. Without this gate, on-demand TLS would mint a
+ * real cert for ANY hostname an attacker points at the load balancer with a
+ * matching SNI.
  *
- * Only the two-level app./admin. hosts need this: the top-level
- * `{slug}.TENANT_BASE_DOMAIN` and `*.TENANT_BASE_DOMAIN` hosts already have
- * a static wildcard cert (see Caddyfile), and per-tenant `*.{slug}.
- * TENANT_BASE_DOMAIN` covers everything else one level deep.
+ * Covers three shapes: the fixed platform hostnames (saas./auth./
+ * oauthproxy., not tenant-derived, always allowed), the bare `{slug}.
+ * TENANT_BASE_DOMAIN` tenant host (matches the `*.TENANT_BASE_DOMAIN` block),
+ * and the two-level `app.`/`admin.{slug}.TENANT_BASE_DOMAIN` hosts (matches
+ * the `:443` catch-all block) -- both of the latter two require `slug` to be
+ * a real, ACTIVE tenant.
+ *
+ * All three moved onto on-demand TLS (rather than a static wildcard cert
+ * for the first two, and Caddy's normally-eager automatic HTTPS for the
+ * fixed hostnames) after a from-scratch VM rebuild (2026-08-26) had no
+ * static cert to fall back on and eager issuance for the named hosts
+ * silently never attempted at all (no error, no log line -- root cause not
+ * identified under time pressure during the live outage this caused).
  */
 export async function GET(req: NextRequest) {
   const domain = req.nextUrl.searchParams.get('domain')?.toLowerCase() ?? '';
   const baseDomain = env.TENANT_BASE_DOMAIN;
   if (!baseDomain || !domain) return deny();
 
-  // Fixed platform hostnames -- not tenant-derived, safe to always allow.
-  // Moved onto on-demand TLS (rather than Caddy's normally-eager automatic
-  // HTTPS for named hosts) after that eager path silently never attempted
-  // issuance for them on a fresh VM (no error, no log line -- root cause
-  // not identified under time pressure during a live outage, 2026-08-26).
-  // On-demand was already proven working in the same Caddy instance/ACME
-  // account moments earlier, so this sidesteps the mystery entirely.
   if (
     domain === `saas.${baseDomain}` ||
     domain === `auth.${baseDomain}` ||
@@ -42,9 +42,8 @@ export async function GET(req: NextRequest) {
     return new NextResponse(null, { status: 200 });
   }
 
-  const match = new RegExp(
-    `^(app|admin)\\.([a-z0-9-]+)\\.${baseDomain.replace(/\./g, '\\.')}$`,
-  ).exec(domain);
+  const escapedBase = baseDomain.replace(/\./g, '\\.');
+  const match = new RegExp(`^(?:(app|admin)\\.)?([a-z0-9-]+)\\.${escapedBase}$`).exec(domain);
   if (!match) return deny();
 
   const slug = match[2];
