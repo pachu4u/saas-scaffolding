@@ -73,9 +73,15 @@ variable "vm_availability_zone" {
 }
 
 variable "vm_image_name_regex" {
-  description = "Regex used to resolve the boot image for the app VM. Match exactly (not a loose prefix) -- STACKIT's arm64 build is named e.g. 'Ubuntu 24.04 ARM64', which a loose '.*' suffix also matches and can sort first, then 400s \"flavor and image architecture do not match\" against an x86_64 machine type."
+  description = "Regex used to resolve the boot image for the app VM. Match exactly (not a loose prefix) -- STACKIT's arm64 build is named e.g. 'Ubuntu 24.04 ARM64', which a loose '.*' suffix also matches and can sort first, then 400s \"flavor and image architecture do not match\" against an x86_64 machine type. Only used to resolve vm_image_id's default when that's unset -- see its own description for why this shouldn't be relied on for an already-running VM."
   type        = string
   default     = "^Ubuntu 24\\.04$"
+}
+
+variable "vm_image_id" {
+  description = "Pins boot_volume.source_id to a fixed image UUID instead of re-resolving vm_image_name_regex on every apply. That data source picks the newest matching point release each time (sort_ascending = false) -- STACKIT republishing a new Ubuntu 24.04 point release between two applies silently changes which image UUID it resolves to, and boot_volume.source_id is ForceNew, so an otherwise-unrelated tfvars edit (e.g. a new API key) can trigger a full VM replacement with no warning. Found the hard way, 2026-08-27: a plain resend_api_key change queued a `-/+ stackit_server.app must be replaced` a few hours after finishing a *previous* full VM replacement. Leave blank only for a genuinely first-ever apply; once the VM exists, pin this to its current image ID (`terraform state show stackit_server.app | grep source_id`) and never let it float again."
+  type        = string
+  default     = ""
 }
 
 # --- Source checkout ---------------------------------------------------------

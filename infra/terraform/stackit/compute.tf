@@ -46,10 +46,13 @@ resource "stackit_server" "app" {
   boot_volume = {
     size        = var.vm_boot_volume_size_gb
     source_type = "image"
-    # data.stackit_image_v2.app_os.id is Terraform's internal composite ID
-    # ("project_id,region,image_id"), not the bare image UUID the API wants
-    # for boot_volume.source_id -- pull the last comma-separated segment.
-    source_id             = element(split(",", data.stackit_image_v2.app_os.id), 2)
+    # var.vm_image_id pins this once the VM exists -- see that variable's
+    # description for why letting it float via the data source is
+    # dangerous. data.stackit_image_v2.app_os.id is Terraform's internal
+    # composite ID ("project_id,region,image_id"), not the bare image UUID
+    # the API wants for boot_volume.source_id -- pull the last
+    # comma-separated segment when falling back to it.
+    source_id = var.vm_image_id != "" ? var.vm_image_id : element(split(",", data.stackit_image_v2.app_os.id), 2)
     delete_on_termination = true
   }
 
