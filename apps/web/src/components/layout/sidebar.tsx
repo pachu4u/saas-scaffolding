@@ -249,7 +249,7 @@ function buildTenantSections(base: string, connectedAppName?: string) {
       ],
     },
     {
-      label: 'WORKSPACE',
+      label: 'APPS',
       items: [
         {
           label: connectedAppName ?? 'App Settings',
