@@ -226,7 +226,7 @@ export default async function AppSettingsPage() {
                 </div>
               ) : (
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  No connected app for this workspace yet.
+                  No connected app yet.
                 </p>
               )}
             </div>
@@ -257,7 +257,7 @@ export default async function AppSettingsPage() {
                 </div>
                 <div className="min-w-0">
                   <div className="truncate text-sm font-bold text-white">{logoText}</div>
-                  <div className="truncate text-xs text-white/80">Workspace branding</div>
+                  <div className="truncate text-xs text-white/80">App branding</div>
                 </div>
               </div>
               <div className="p-4">
