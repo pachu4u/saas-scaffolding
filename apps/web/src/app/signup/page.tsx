@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 
 const STEPS = [
   { id: 'company', label: 'Company' },
@@ -10,19 +10,6 @@ const STEPS = [
 ] as const;
 
 type StepId = (typeof STEPS)[number]['id'];
-
-// Tenant-facing root domain, derived from NEXT_PUBLIC_APP_URL (baked in at
-// build time, e.g. https://saas.riogentix.com → riogentix.com) so the signup
-// copy follows the deployment domain instead of hardcoding one.
-const rootDomain = (() => {
-  try {
-    const host = new URL(process.env.NEXT_PUBLIC_APP_URL ?? '').hostname;
-    const parts = host.split('.');
-    return parts.length > 2 ? parts.slice(1).join('.') : host;
-  } catch {
-    return '';
-  }
-})();
 
 interface SignupResult {
   tenantId: string;
@@ -35,6 +22,18 @@ export default function SignupPage() {
   const [step, setStep] = useState<StepId>('company');
   const [isPending, startTransition] = useTransition();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Tenant-facing root domain, derived from window.location at runtime
+  // rather than NEXT_PUBLIC_APP_URL -- that env var is inlined by webpack
+  // at Docker build time (see PLACEHOLDER_BUILD_ARGS in
+  // .github/workflows/stackit-images.yml), so reading it here would always
+  // return the CI placeholder, not the real deployment domain.
+  const [rootDomain, setRootDomain] = useState('');
+  useEffect(() => {
+    const host = window.location.hostname;
+    const parts = host.split('.');
+    setRootDomain(parts.length > 2 ? parts.slice(1).join('.') : host);
+  }, []);
 
   // Company step
   const [companyName, setCompanyName] = useState('');

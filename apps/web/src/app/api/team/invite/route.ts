@@ -203,8 +203,12 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
   const encodedPayload = Buffer.from(payload).toString('base64url');
   const inviteToken = `${encodedPayload}.${token}`;
 
-  const baseUrl =
-    process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  // Derived from the actual request rather than NEXT_PUBLIC_APP_URL --
+  // NEXT_PUBLIC_* vars are inlined by webpack at Docker build time (see
+  // PLACEHOLDER_BUILD_ARGS in .github/workflows/stackit-images.yml), so
+  // reading it here always returns the CI placeholder, not the real
+  // runtime domain. AUTH_URL is the one runtime-only fallback available.
+  const baseUrl = req.nextUrl.origin || process.env.AUTH_URL || 'http://localhost:3000';
   const inviteUrl = `${baseUrl}/invite/${inviteToken}`;
 
   // Audit log (platform admin bypass)
