@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 
 import { auth } from '@platform/auth';
+import { env } from '@platform/config';
 import { adminDb } from '@platform/db';
 import { NextResponse, type NextRequest } from 'next/server';
 
@@ -57,10 +58,30 @@ function canonicalTenantOrigin(origin: string): string {
 }
 
 /**
- * `app.{host}` origin, e.g. https://app.acme.techhanker.com — Riogentix's
- * own dedicated root host (see renderIngress in manifests.ts and
- * tenant-app-admin-subdomains.yml), as opposed to `{host}/app` on the base
- * tenant origin.
+ * The tenant's own bare host, e.g. https://acme.riogentix.com — the one
+ * Traefik actually wires to Riogentix's /api/v1 (see riogentix-tenants.yml).
+ * Built from the tenant's slug + TENANT_BASE_DOMAIN rather than the
+ * browser's current Host header: this route is also reachable via the
+ * platform's own path-based tenant routing (/t/{slug}/admin/hub on
+ * saas.{domain} itself), where the Host header is saas.{domain} — a host
+ * /api/v1 was never routed to, 404ing the SSO redirect. The tenant's slug is
+ * always known by this point (looked up via getCurrentTenant), so there's no
+ * need to infer the target host from wherever the click happened to occur.
+ */
+function riogentixTenantOrigin(slug: string, fallbackOrigin: string): string {
+  if (!env.TENANT_BASE_DOMAIN) return fallbackOrigin;
+  return `https://${slug}.${env.TENANT_BASE_DOMAIN}`;
+}
+
+/** `app.{slug}.TENANT_BASE_DOMAIN` — Riogentix's own dedicated root host. */
+function riogentixAppOrigin(slug: string, fallbackOrigin: string): string {
+  if (!env.TENANT_BASE_DOMAIN) return appOrigin(fallbackOrigin);
+  return `https://app.${slug}.${env.TENANT_BASE_DOMAIN}`;
+}
+
+/**
+ * `app.{host}` origin, e.g. https://app.acme.techhanker.com — fallback used
+ * only when TENANT_BASE_DOMAIN isn't configured (see riogentixAppOrigin).
  */
 function appOrigin(origin: string): string {
   const url = new URL(origin);
@@ -115,13 +136,14 @@ export async function GET(req: NextRequest) {
     exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
   });
 
-  // The SSO endpoint is reached through the same public tenant origin the
-  // browser is already on (Traefik routes /api/v1 there — see
-  // riogentix-tenants.yml), not instance.scimBaseUrl, which is a
-  // cluster-internal address unreachable from outside.
-  const ssoUrl = new URL(`${origin}/api/v1/internal/saas/sso`);
+  // The SSO endpoint is reached through the tenant's own bare origin (Traefik
+  // routes /api/v1 there — see riogentix-tenants.yml), not instance.scimBaseUrl
+  // (a cluster-internal address unreachable from outside) and not necessarily
+  // the origin the browser is currently on (see riogentixTenantOrigin).
+  const tenantOrigin = riogentixTenantOrigin(tenant.slug, origin);
+  const ssoUrl = new URL(`${tenantOrigin}/api/v1/internal/saas/sso`);
   ssoUrl.searchParams.set('token', token);
-  ssoUrl.searchParams.set('next', `${appOrigin(origin)}/`);
+  ssoUrl.searchParams.set('next', `${riogentixAppOrigin(tenant.slug, origin)}/`);
 
   return NextResponse.redirect(ssoUrl);
 }
