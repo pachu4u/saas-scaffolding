@@ -68,6 +68,31 @@ const filters: FilterConfig[] = [
 export function TeamMembersTable({ data, tenantSlug }: { data: MemberRow[]; tenantSlug: string }) {
   const router = useRouter();
   const [editingMember, setEditingMember] = useState<MemberRow | null>(null);
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+
+  async function setMemberStatus(row: MemberRow, status: 'SUSPENDED' | 'ACTIVE') {
+    if (status === 'SUSPENDED' && !window.confirm(`Remove ${row.email} from this team?`)) {
+      return;
+    }
+    setPendingUserId(row.userId);
+    try {
+      const res = await fetch(`/api/team/members/${row.userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = (await res.json()) as { error?: string };
+        alert(data.error ?? 'Failed to update member');
+      }
+    } catch {
+      alert('Something went wrong. Please try again.');
+    } finally {
+      setPendingUserId(null);
+    }
+  }
 
   const columns: Column<MemberRow>[] = [
     {
@@ -147,12 +172,18 @@ export function TeamMembersTable({ data, tenantSlug }: { data: MemberRow[]; tena
             Edit role
           </button>
           {row.status !== 'SUSPENDED' ? (
-            <button className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-100">
+            <button
+              onClick={() => setMemberStatus(row, 'SUSPENDED')}
+              disabled={pendingUserId === row.userId}
+              className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
+            >
               Remove
             </button>
           ) : (
             <button
-              className="rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-gray-50"
+              onClick={() => setMemberStatus(row, 'ACTIVE')}
+              disabled={pendingUserId === row.userId}
+              className="rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-gray-50 disabled:opacity-50"
               style={{ borderColor: 'var(--border-light)', color: 'var(--text-secondary)' }}
             >
               Reinstate
