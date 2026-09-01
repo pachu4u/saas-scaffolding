@@ -44,6 +44,13 @@ const PUBLIC_PREFIXES = [
   '/api/tenant-authz',
   '/signup',
   '/verify-email/',
+  // Unauthenticated access is intentional: the page itself decides what to
+  // show (create-account form for a brand-new invitee, sign-in prompt for
+  // an existing account, or the accept/decline card once signed in) — see
+  // apps/web/src/app/invite/[token]/page.tsx. Previously this redirected
+  // to /auth/signin unconditionally, which was a dead end for anyone
+  // without a pre-existing Keycloak account (registrationAllowed is false).
+  '/invite/',
   '/scim/',
 ];
 
@@ -215,14 +222,6 @@ export default auth(function middleware(req: NextRequest) {
     // rewritten path, not a fresh browser request — pass it through untouched
     // or it gets wrapped in another /admin + /t/{slug} layer forever.
     if (pathname === `/t/${slug}` || pathname.startsWith(`/t/${slug}/`)) {
-      return NextResponse.next({ request: { headers } });
-    }
-    // /invite/{token} is a global, cross-tenant route, not part of this
-    // tenant's /admin tree — reached whenever an invite is sent from a
-    // client already on this admin host (the invite email link inherits
-    // that Host). Serve it as-is; rewriting it under /t/{slug}/admin 404s
-    // since no such route exists there.
-    if (pathname.startsWith('/invite/')) {
       return NextResponse.next({ request: { headers } });
     }
     // API routes (e.g. /api/settings/branding) live at the top level, not under

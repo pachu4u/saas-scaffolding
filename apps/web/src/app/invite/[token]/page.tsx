@@ -1,13 +1,72 @@
-import { auth } from '@platform/auth';
+import { auth, signIn } from '@platform/auth';
 import { adminDb } from '@platform/db';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { CreateAccountForm, type CreateAccountState } from './create-account-form';
+
 import { acceptInvite as acceptInviteMembership } from '@/lib/accept-invite';
 import { decodeInviteToken } from '@/lib/invite-token';
+import { createKeycloakUserWithPassword } from '@/lib/keycloak-admin';
 
 export const metadata: Metadata = { title: 'Accept Invitation — riogentix' };
+
+/**
+ * Invited members never get a Keycloak account provisioned for them the way
+ * signup's first admin does — the invite token itself is the proof of
+ * eligibility to create one (registrationAllowed is false in this realm, so
+ * there's no other self-service path). Only reachable while User.externalId
+ * still has its placeholder "pending-" value from POST /api/team/invite.
+ */
+async function createAccountAndSignIn(
+  token: string,
+  _prevState: CreateAccountState,
+  formData: FormData,
+): Promise<CreateAccountState> {
+  'use server';
+  const { tenantId, userId } = decodeInviteToken(token);
+  if (!tenantId || !userId) return { error: 'This invitation link is invalid or has expired.' };
+
+  const nameField = formData.get('name');
+  const passwordField = formData.get('password');
+  const confirmPasswordField = formData.get('confirmPassword');
+  const name = typeof nameField === 'string' ? nameField.trim() : '';
+  const password = typeof passwordField === 'string' ? passwordField : '';
+  const confirmPassword = typeof confirmPasswordField === 'string' ? confirmPasswordField : '';
+
+  if (!name) return { error: 'Your name is required.' };
+  if (password.length < 8) return { error: 'Password must be at least 8 characters.' };
+  if (password !== confirmPassword) return { error: 'Passwords do not match.' };
+
+  const user = await adminDb.user.findUnique({ where: { id: userId } });
+  if (!user) return { error: 'This invitation link is invalid or has expired.' };
+
+  if (!user.externalId.startsWith('pending-')) {
+    // An account was already created for this invite since the page loaded
+    // (e.g. a second tab) — sign in with it instead of creating another.
+    redirect(`/auth/signin?callbackUrl=${encodeURIComponent(`/invite/${token}`)}`);
+  }
+
+  let kcUserId: string;
+  try {
+    kcUserId = await createKeycloakUserWithPassword(user.email, password, name);
+  } catch {
+    return {
+      error: 'Could not create your account. Please try again or contact your administrator.',
+    };
+  }
+
+  await adminDb.user.update({ where: { id: userId }, data: { externalId: kcUserId, name } });
+
+  await signIn('keycloak', { redirectTo: `/invite/${token}` });
+  return null;
+}
+
+async function signInToAccept(token: string) {
+  'use server';
+  await signIn('keycloak', { redirectTo: `/invite/${token}` });
+}
 
 async function acceptInvite(token: string) {
   'use server';
@@ -78,7 +137,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
   // Fetch invite details
   const [tenant, user] = await Promise.all([
     adminDb.tenant.findUnique({ where: { id: tenantId }, select: { name: true, slug: true } }),
-    adminDb.user.findUnique({ where: { id: userId }, select: { email: true } }),
+    adminDb.user.findUnique({ where: { id: userId }, select: { email: true, externalId: true } }),
   ]);
 
   const tenantUser = await adminDb.tenantUser.findUnique({
@@ -93,19 +152,86 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
     redirect('/dashboard');
   }
 
+  const session = await auth();
+
+  // Not signed in yet. A brand-new invitee (no Keycloak account — see the
+  // "pending-" externalId set by POST /api/team/invite) needs to create one
+  // before anything else is possible; the invite token is their proof of
+  // eligibility, since this realm has self-registration disabled. Someone
+  // who already has an account (e.g. invited to a second tenant) just needs
+  // to sign in — send them through Keycloak with this URL as the return
+  // target instead of the default post-login tenant redirect, which would
+  // lose the token.
+  if (!session?.user) {
+    const isPending = user.externalId.startsWith('pending-');
+    return (
+      <div
+        className="flex min-h-screen items-center justify-center px-6"
+        style={{ background: 'var(--bg-main)' }}
+      >
+        <div className="w-full max-w-md">
+          <div className="mb-10 flex items-center justify-center gap-2">
+            <div className="brand-gradient flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-white">
+              R
+            </div>
+            <span className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+              riogentix
+            </span>
+          </div>
+          <div
+            className="overflow-hidden rounded-xl border"
+            style={{
+              background: 'var(--bg-white)',
+              borderColor: 'var(--border-light)',
+              boxShadow: 'var(--shadow-card)',
+            }}
+          >
+            <div
+              className="border-b px-8 pb-6 pt-8 text-center"
+              style={{ borderColor: 'var(--border-light)' }}
+            >
+              <div className="brand-gradient mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-xl text-2xl font-bold text-white">
+                {tenant.name[0]?.toUpperCase()}
+              </div>
+              <h1 className="mb-1 text-xl font-extrabold" style={{ color: 'var(--text-primary)' }}>
+                {isPending ? 'Create your account' : "You've been invited"}
+              </h1>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                {isPending
+                  ? `Set a password for ${user.email} to join ${tenant.name}`
+                  : `Sign in as ${user.email} to join ${tenant.name}`}
+              </p>
+            </div>
+            {isPending ? (
+              <CreateAccountForm action={createAccountAndSignIn.bind(null, token)} />
+            ) : (
+              <div className="px-8 pb-8 pt-6">
+                <form action={signInToAccept.bind(null, token)}>
+                  <button
+                    type="submit"
+                    className="brand-gradient w-full rounded-xl py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                  >
+                    Continue with SSO →
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // This invite is only valid for the specific account it was issued to. If the
   // browser's current session belongs to someone else (a stale login left over
   // from a previous account, or the admin who sent the invite), accepting here
   // would activate the membership for the invited user while leaving the wrong
   // person signed in. Require them to sign out and back in as the invited
   // account first.
-  const session = await auth();
-  const sessionDbUser = session?.user
-    ? await adminDb.user.findUnique({
-        where: { externalId: session.user.id },
-        select: { id: true, email: true },
-      })
-    : null;
+  const sessionDbUser = await adminDb.user.findUnique({
+    where: { externalId: session.user.id },
+    select: { id: true, email: true },
+  });
   const wrongAccount = sessionDbUser && sessionDbUser.id !== userId;
 
   if (wrongAccount) {

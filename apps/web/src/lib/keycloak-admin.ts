@@ -126,6 +126,50 @@ export async function createPendingKeycloakUser(email: string, name?: string): P
   return kcUserId;
 }
 
+/**
+ * Creates a Keycloak user with a real, immediately-usable password — for a
+ * team member accepting an invite, who proves eligibility via the invite's
+ * signed token rather than Keycloak's own (disabled, registrationAllowed:
+ * false) self-registration. Mirrors /api/signup's createKeycloakUser.
+ */
+export async function createKeycloakUserWithPassword(
+  email: string,
+  password: string,
+  name?: string,
+): Promise<string> {
+  const token = await getKeycloakAdminToken();
+  const kcUrl = kcBaseUrl();
+  const realm = env.KEYCLOAK_REALM;
+
+  const [firstName, ...rest] = (name ?? email).trim().split(' ');
+  const lastName = rest.join(' ') || firstName;
+
+  const res = await fetch(`${kcUrl}/admin/realms/${realm}/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      username: email.toLowerCase(),
+      email: email.toLowerCase(),
+      firstName: firstName ?? '',
+      lastName,
+      enabled: true,
+      emailVerified: true, // already proven by receiving the invite email itself
+      credentials: [{ type: 'password', value: password, temporary: false }],
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Keycloak user creation failed (${String(res.status)}): ${text}`);
+  }
+
+  const location = res.headers.get('Location') ?? '';
+  const kcUserId = location.split('/').pop();
+  if (!kcUserId)
+    throw new Error('Keycloak user created but could not extract user ID from Location header');
+  return kcUserId;
+}
+
 export async function deleteKeycloakUser(kcUserId: string): Promise<void> {
   const token = await getKeycloakAdminToken();
   const kcUrl = kcBaseUrl();
