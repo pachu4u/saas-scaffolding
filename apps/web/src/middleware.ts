@@ -217,6 +217,14 @@ export default auth(function middleware(req: NextRequest) {
     if (pathname === `/t/${slug}` || pathname.startsWith(`/t/${slug}/`)) {
       return NextResponse.next({ request: { headers } });
     }
+    // /invite/{token} is a global, cross-tenant route, not part of this
+    // tenant's /admin tree — reached whenever an invite is sent from a
+    // client already on this admin host (the invite email link inherits
+    // that Host). Serve it as-is; rewriting it under /t/{slug}/admin 404s
+    // since no such route exists there.
+    if (pathname.startsWith('/invite/')) {
+      return NextResponse.next({ request: { headers } });
+    }
     // API routes (e.g. /api/settings/branding) live at the top level, not under
     // /t/{slug}/admin — pass them through as-is (tenant resolves via the
     // x-tenant-slug header set above) instead of rewriting into a path that
