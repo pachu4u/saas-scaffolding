@@ -203,12 +203,17 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
   const encodedPayload = Buffer.from(payload).toString('base64url');
   const inviteToken = `${encodedPayload}.${token}`;
 
-  // Derived from the actual request rather than NEXT_PUBLIC_APP_URL --
-  // NEXT_PUBLIC_* vars are inlined by webpack at Docker build time (see
-  // PLACEHOLDER_BUILD_ARGS in .github/workflows/stackit-images.yml), so
-  // reading it here always returns the CI placeholder, not the real
-  // runtime domain. AUTH_URL is the one runtime-only fallback available.
-  const baseUrl = req.nextUrl.origin || process.env.AUTH_URL || 'http://localhost:3000';
+  // req.nextUrl.origin reflects the internal Node bind address
+  // (0.0.0.0:3000) behind Traefik, not the public hostname -- same gotcha
+  // documented in riogentix-launch/route.ts's publicOrigin(). The Host
+  // header (forwarded as-is by Traefik/Caddy) is the reliable source.
+  // NEXT_PUBLIC_APP_URL is unusable here too: it's inlined by webpack at
+  // Docker build time (see PLACEHOLDER_BUILD_ARGS in
+  // .github/workflows/stackit-images.yml), so it always reads back as the
+  // CI placeholder regardless of the container's real runtime env.
+  const proto = req.headers.get('x-forwarded-proto') ?? 'https';
+  const host = req.headers.get('host') ?? process.env.AUTH_URL ?? 'localhost:3000';
+  const baseUrl = host.startsWith('http') ? host : `${proto}://${host}`;
   const inviteUrl = `${baseUrl}/invite/${inviteToken}`;
 
   // Audit log (platform admin bypass)
