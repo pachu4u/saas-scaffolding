@@ -9,11 +9,11 @@ import {
   checkRateLimit,
   rateLimitHeaders,
 } from '@platform/db';
-import { sendEmail } from '@platform/notifications';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { decodeInviteToken } from '@/lib/invite-token';
 import { enqueueRoleSync } from '@/lib/role-sync';
+import { buildInviteUrl, sendInviteEmail } from '@/lib/send-invite-email';
 
 class SeatLimitError extends Error {
   constructor(public readonly seatLimit: number) {
@@ -218,27 +218,7 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
     return NextResponse.json({ error: messages[user.status] }, { status: 409 });
   }
 
-  // Generate signed invite token (HMAC-SHA256 over userId:tenantId)
-  const secret = process.env.INVITE_TOKEN_SECRET ?? 'dev-invite-secret';
-  const payload = `${user.id}:${tenantCtx.tenantId}:${String(Date.now())}`;
-  const token = crypto.createHmac('sha256', secret).update(payload).digest('hex');
-  // Store token in a lightweight way — encode the full payload in the token URL
-  // In production, store in a dedicated invitations table with expiry.
-  const encodedPayload = Buffer.from(payload).toString('base64url');
-  const inviteToken = `${encodedPayload}.${token}`;
-
-  // req.nextUrl.origin reflects the internal Node bind address
-  // (0.0.0.0:3000) behind Traefik, not the public hostname -- same gotcha
-  // documented in riogentix-launch/route.ts's publicOrigin(). The Host
-  // header (forwarded as-is by Traefik/Caddy) is the reliable source.
-  // NEXT_PUBLIC_APP_URL is unusable here too: it's inlined by webpack at
-  // Docker build time (see PLACEHOLDER_BUILD_ARGS in
-  // .github/workflows/stackit-images.yml), so it always reads back as the
-  // CI placeholder regardless of the container's real runtime env.
-  const proto = req.headers.get('x-forwarded-proto') ?? 'https';
-  const host = req.headers.get('host') ?? process.env.AUTH_URL ?? 'localhost:3000';
-  const baseUrl = host.startsWith('http') ? host : `${proto}://${host}`;
-  const inviteUrl = `${baseUrl}/invite/${inviteToken}`;
+  const { inviteUrl } = buildInviteUrl(req, user.id, tenantCtx.tenantId);
 
   // Audit log (platform admin bypass)
   await withPlatformAdmin(async (tx) => {
@@ -257,19 +237,7 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
   // Propagate the new member's role binding to the tenant's Riogentix instance.
   await enqueueRoleSync(tenantCtx.tenantId);
 
-  // Send invite email — the invite itself is already persisted above, so a
-  // delivery failure (e.g. Resend sandbox restrictions) must not fail the request.
-  try {
-    await sendEmail({
-      to: normalizedEmail,
-      subject: `You've been invited to join ${tenant.name} on riogentix`,
-      templateId: 'invite-user',
-      data: { tenantName: tenant.name, inviteUrl },
-      tenantId: tenantCtx.tenantId,
-    });
-  } catch (err) {
-    console.error('[team/invite] Failed to send invite email:', err);
-  }
+  await sendInviteEmail(normalizedEmail, tenant.name, inviteUrl, tenantCtx.tenantId);
 
   return NextResponse.json({ success: true, inviteUrl }, { status: 201 });
 });
