@@ -21,6 +21,12 @@ class SeatLimitError extends Error {
   }
 }
 
+class AlreadyMemberError extends Error {
+  constructor(public readonly status: 'ACTIVE' | 'INVITED' | 'SUSPENDED') {
+    super(`User already has ${status} membership in this tenant`);
+  }
+}
+
 /**
  * POST /api/team/invite
  * Body: { email: string; roleId: string }
@@ -92,29 +98,37 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
       },
     });
 
-    // Only a brand-new tenant member consumes a seat — re-inviting an existing
-    // member/invitee is a no-op on seat count.
+    const existingMembership = await tx.tenantUser.findUnique({
+      where: { tenantId_userId: { tenantId: tenantCtx.tenantId, userId: foundUser.id } },
+    });
+
+    // One invite attempt per (tenant, email) at a time — re-inviting an
+    // ACTIVE member would silently demote them back to INVITED via the
+    // upsert below (getActiveMemberships/access checks only ever look at
+    // status === ACTIVE), locking them out until they "accept" an invite
+    // they never needed. An already-INVITED person has a pending invite in
+    // flight; a SUSPENDED one has a dedicated Reinstate action (PATCH
+    // /api/team/members/[userId]) — route them there instead of overloading
+    // invite with resend/reinstate semantics it wasn't built for.
+    if (existingMembership) {
+      throw new AlreadyMemberError(existingMembership.status);
+    }
+
+    // Only a brand-new tenant member consumes a seat.
     if (seatLimit !== null) {
-      const existingMembership = await tx.tenantUser.findUnique({
-        where: { tenantId_userId: { tenantId: tenantCtx.tenantId, userId: foundUser.id } },
-      });
-      if (!existingMembership) {
-        const currentSeats = await tx.tenantUser.count({ where: { tenantId: tenantCtx.tenantId } });
-        if (currentSeats >= seatLimit) {
-          throw new SeatLimitError(seatLimit);
-        }
+      const currentSeats = await tx.tenantUser.count({ where: { tenantId: tenantCtx.tenantId } });
+      if (currentSeats >= seatLimit) {
+        throw new SeatLimitError(seatLimit);
       }
     }
 
-    // Upsert TenantUser as INVITED
-    await tx.tenantUser.upsert({
-      where: { tenantId_userId: { tenantId: tenantCtx.tenantId, userId: foundUser.id } },
-      create: {
+    // Always a fresh row — existingMembership already threw above otherwise.
+    await tx.tenantUser.create({
+      data: {
         tenantId: tenantCtx.tenantId,
         userId: foundUser.id,
         status: 'INVITED',
       },
-      update: { status: 'INVITED' },
     });
 
     // Assign requested role — either a system role or one of this tenant's
@@ -181,7 +195,7 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
 
     return foundUser;
   }).catch((err: unknown) => {
-    if (err instanceof SeatLimitError) return err;
+    if (err instanceof SeatLimitError || err instanceof AlreadyMemberError) return err;
     throw err;
   });
 
@@ -192,6 +206,16 @@ export const POST = withAuthz({ permission: Permission.USERS_CREATE }, async (re
       },
       { status: 402 },
     );
+  }
+
+  if (user instanceof AlreadyMemberError) {
+    const messages: Record<typeof user.status, string> = {
+      ACTIVE: 'This person is already a member of this team.',
+      INVITED: 'An invite is already pending for this person.',
+      SUSPENDED:
+        'This person was removed from the team. Use "Reinstate" to restore their access instead of sending a new invite.',
+    };
+    return NextResponse.json({ error: messages[user.status] }, { status: 409 });
   }
 
   // Generate signed invite token (HMAC-SHA256 over userId:tenantId)
