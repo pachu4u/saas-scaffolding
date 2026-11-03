@@ -4,9 +4,28 @@ import { PrismaClient } from '@prisma/client';
 // Prisma client that applies tenant RLS on every transaction.
 // Use `adminDb` for platform-admin operations that bypass RLS.
 
+// The managed Postgres instance (STACKIT PostgresFlex, reached over the
+// network rather than a local container) intermittently closes a pooled
+// connection out from under Prisma -- logs show repeated
+// `Error in PostgreSQL connection: Error { kind: Closed, cause: None }`.
+// Without explicit bounds, recovering from that (detecting the dead
+// connection, waiting for the pool, opening a fresh one) has been observed
+// taking 30-120+ seconds on a single request instead of failing fast, which
+// is indistinguishable from a hang to anyone hitting the app. Pin
+// `connect_timeout` (seconds to establish a new TCP/TLS connection) and
+// `pool_timeout` (seconds to wait for a pooled connection before erroring)
+// explicitly rather than relying on Prisma's defaults, so a bad connection
+// surfaces as a quick, retriable error instead of a multi-minute stall.
+function withConnectionTimeouts(url: string): string {
+  const parsed = new URL(url);
+  if (!parsed.searchParams.has('connect_timeout')) parsed.searchParams.set('connect_timeout', '10');
+  if (!parsed.searchParams.has('pool_timeout')) parsed.searchParams.set('pool_timeout', '10');
+  return parsed.toString();
+}
+
 function makePrismaClient(url?: string) {
   return new PrismaClient({
-    ...(url !== undefined ? { datasourceUrl: url } : {}),
+    ...(url !== undefined ? { datasourceUrl: withConnectionTimeouts(url) } : {}),
     log: env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });
 }

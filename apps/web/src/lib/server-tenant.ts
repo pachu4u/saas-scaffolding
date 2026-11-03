@@ -3,26 +3,33 @@ import { adminDb } from '@platform/db';
 import { resolveTenant, type TenantContext } from '@platform/tenant';
 import { headers } from 'next/headers';
 import type { NextRequest } from 'next/server';
+import { cache } from 'react';
 
 /**
  * Slugs of tenants the given user has an ACTIVE membership in.
  * Shared by every resolver below so a header/cookie-supplied slug can never
  * be trusted without checking it against the signed-in user's real memberships.
+ *
+ * Wrapped in React's `cache()` so the several call sites that need this per
+ * request (e.g. `t/layout.tsx` and the nested `t/[slug]/admin/layout.tsx`,
+ * which both call `getCurrentTenant` for the same user on one request) share
+ * a single DB round trip instead of issuing it twice — halving how often a
+ * request can land on a connection the pool has let go stale.
  */
-async function getActiveMemberships(
-  externalUserId: string,
-): Promise<{ tenant: { slug: string } }[]> {
-  const userRecord = await adminDb.user.findUnique({
-    where: { externalId: externalUserId },
-    select: {
-      tenantUsers: {
-        where: { status: 'ACTIVE' },
-        select: { tenant: { select: { slug: true } } },
+const getActiveMemberships = cache(
+  async (externalUserId: string): Promise<{ tenant: { slug: string } }[]> => {
+    const userRecord = await adminDb.user.findUnique({
+      where: { externalId: externalUserId },
+      select: {
+        tenantUsers: {
+          where: { status: 'ACTIVE' },
+          select: { tenant: { select: { slug: true } } },
+        },
       },
-    },
-  });
-  return userRecord?.tenantUsers ?? [];
-}
+    });
+    return userRecord?.tenantUsers ?? [];
+  },
+);
 
 /**
  * Resolve tenant context for a Route Handler request.
@@ -70,20 +77,22 @@ export interface CurrentTenantResolution {
  *  3. `NEXT_PUBLIC_DEFAULT_TENANT_SLUG` (or 'acme') — local dev /
  *     single-tenant deployments only.
  */
-export async function getCurrentTenant(externalUserId: string): Promise<CurrentTenantResolution> {
-  const [headerSlug, memberships] = await Promise.all([
-    headers().then((h) => h.get('x-tenant-slug')),
-    getActiveMemberships(externalUserId),
-  ]);
+export const getCurrentTenant = cache(
+  async (externalUserId: string): Promise<CurrentTenantResolution> => {
+    const [headerSlug, memberships] = await Promise.all([
+      headers().then((h) => h.get('x-tenant-slug')),
+      getActiveMemberships(externalUserId),
+    ]);
 
-  const memberSlugs = new Set(memberships.map((tu) => tu.tenant.slug));
+    const memberSlugs = new Set(memberships.map((tu) => tu.tenant.slug));
 
-  const slug =
-    (headerSlug && memberSlugs.has(headerSlug) ? headerSlug : undefined) ??
-    memberships[0]?.tenant.slug ??
-    process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ??
-    'acme';
+    const slug =
+      (headerSlug && memberSlugs.has(headerSlug) ? headerSlug : undefined) ??
+      memberships[0]?.tenant.slug ??
+      process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ??
+      'acme';
 
-  const tenant = await resolveTenant(slug);
-  return { tenant, membershipCount: memberships.length };
-}
+    const tenant = await resolveTenant(slug);
+    return { tenant, membershipCount: memberships.length };
+  },
+);
