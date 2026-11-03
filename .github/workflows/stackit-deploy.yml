@@ -1,0 +1,43 @@
+name: STACKIT Deploy
+
+# Deploys the images STACKIT Images (stackit-images.yml) already built and pushed
+# to Harbor. Deliberately manual-only (workflow_dispatch, no push trigger) -- this
+# repo's production is one shared VM with no staging environment and no automatic
+# rollback, so a human explicitly chooses when new code goes live rather than every
+# push to main/infra/stackit-domain-config rolling it immediately.
+#
+# What this does, on the VM, is exactly the two commands documented in
+# OPS_NOTES.md's "Production VM" section:
+#   docker compose -f docker-compose.yml -f docker-compose.stackit.yml pull <services>
+#   docker compose -f docker-compose.yml -f docker-compose.stackit.yml up -d --force-recreate <services>
+# Always both compose files together -- see OPS_NOTES.md Incident Log #3 for what
+# happens if the stackit.yml overlay is dropped (production silently reverts to dev
+# placeholder config).
+
+on:
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Space-separated compose services to redeploy'
+        required: false
+        default: 'web workers'
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Pull and recreate services on the STACKIT VM
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.STACKIT_VM_HOST }}
+          username: ${{ secrets.STACKIT_VM_USER }}
+          key: ${{ secrets.STACKIT_VM_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /opt/saas-platform/repo/infra/compose
+            sudo docker compose -f docker-compose.yml -f docker-compose.stackit.yml pull ${{ inputs.services }}
+            sudo docker compose -f docker-compose.yml -f docker-compose.stackit.yml up -d --force-recreate ${{ inputs.services }}
+            sleep 5
+            sudo docker compose -f docker-compose.yml -f docker-compose.stackit.yml ps ${{ inputs.services }}
