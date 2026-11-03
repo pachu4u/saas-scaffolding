@@ -11,6 +11,7 @@ coverage/
 
 # Playwright
 playwright-report/
+uat-report/
 test-results/
 
 # Environment
