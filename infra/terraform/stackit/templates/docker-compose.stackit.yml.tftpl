@@ -183,6 +183,7 @@ services:
       DATABASE_URL_MIGRATOR: ${database_url}
       REDIS_URL: ${redis_url}
       KEYCLOAK_ISSUER: https://auth.${domain_name}/realms/saas-platform
+      OTEL_SERVICE_NAME: saas-platform-workers
 
 volumes:
   caddy-data:

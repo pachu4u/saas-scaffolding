@@ -1,0 +1,12 @@
+# Rotation for containers created before /etc/docker/daemon.json set
+# json-file max-size (daemon.json only applies to containers created after
+# the next dockerd restart). copytruncate: dockerd keeps its file handle.
+/var/lib/docker/containers/*/*-json.log {
+    daily
+    rotate 7
+    maxsize 50M
+    compress
+    missingok
+    notifempty
+    copytruncate
+}
