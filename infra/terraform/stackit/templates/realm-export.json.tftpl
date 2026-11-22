@@ -284,12 +284,22 @@
   ],
   "scopeMappings": [],
   "clientScopeMappings": {},
-  "smtpServer": {
-    "host": "mailpit",
-    "port": "1025",
-    "from": "noreply@platform.test",
-    "fromDisplayName": "SaaS Platform"
-  },
+  "smtpServer": ${jsonencode(smtp_host != "" ? {
+    host            = smtp_host
+    port            = tostring(smtp_port)
+    ssl             = smtp_port == 465 ? "true" : "false"
+    starttls        = smtp_port == 465 ? "false" : "true"
+    auth            = "true"
+    user            = smtp_username
+    password        = smtp_password
+    from            = email_from
+    fromDisplayName = "riogentix"
+  } : {
+    host            = "mailpit"
+    port            = "1025"
+    from            = "noreply@platform.test"
+    fromDisplayName = "SaaS Platform"
+  })},
   "eventsEnabled": true,
   "eventsListeners": ["jboss-logging"],
   "enabledEventTypes": [
