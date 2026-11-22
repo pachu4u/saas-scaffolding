@@ -163,11 +163,11 @@ export default async function SignInPage({
 
           <p className="mt-6 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
             By signing in, you agree to our{' '}
-            <a href="#" className="hover:text-brand-primary underline">
+            <a href="/terms" className="hover:text-brand-primary underline">
               Terms
             </a>{' '}
             and{' '}
-            <a href="#" className="hover:text-brand-primary underline">
+            <a href="/privacy" className="hover:text-brand-primary underline">
               Privacy Policy
             </a>
             .

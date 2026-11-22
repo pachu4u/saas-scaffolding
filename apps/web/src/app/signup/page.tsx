@@ -519,11 +519,11 @@ export default function SignupPage() {
 
               <p className="text-center text-xs" style={{ color: 'var(--text-muted)' }}>
                 By creating an account you agree to our{' '}
-                <a href="#" className="hover:text-brand-primary underline">
+                <a href="/terms" target="_blank" className="hover:text-brand-primary underline">
                   Terms
                 </a>{' '}
                 and{' '}
-                <a href="#" className="hover:text-brand-primary underline">
+                <a href="/privacy" target="_blank" className="hover:text-brand-primary underline">
                   Privacy Policy
                 </a>
                 .

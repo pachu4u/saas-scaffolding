@@ -554,15 +554,19 @@ export default function LandingPage() {
             © {new Date().getFullYear()} riogentix. All rights reserved.
           </p>
           <div className="flex items-center gap-6">
-            {['Privacy', 'Terms', 'Status', 'Docs'].map((item) => (
-              <a
-                key={item}
-                href="#"
+            {[
+              { label: 'Impressum', href: '/impressum' },
+              { label: 'Privacy', href: '/privacy' },
+              { label: 'Terms', href: '/terms' },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
                 className="hover:text-brand-primary text-sm transition-colors"
                 style={{ color: 'var(--text-muted)' }}
               >
-                {item}
-              </a>
+                {item.label}
+              </Link>
             ))}
           </div>
         </div>

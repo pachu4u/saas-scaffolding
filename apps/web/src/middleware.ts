@@ -52,6 +52,10 @@ const PUBLIC_PREFIXES = [
   // without a pre-existing Keycloak account (registrationAllowed is false).
   '/invite/',
   '/scim/',
+  // Legal pages must be reachable without signing in.
+  '/terms',
+  '/privacy',
+  '/impressum',
 ];
 
 // Paths that are public only on the root domain (no tenant subdomain)
