@@ -61,6 +61,12 @@ export interface TenantStackSpec {
   certManagerIssuer?: string;
   cpuLimit: string;
   memoryLimit: string;
+  /**
+   * Public IPs/CIDRs tenant pods must not reach even though they're on the
+   * internet (the VM's own public IP, managed Redis endpoints, …). Private
+   * ranges, link-local and CGNAT are always denied.
+   */
+  egressDenyCidrs?: string[];
   /** Values that land in the per-tenant Secret (injected via envFrom). */
   secretEnv: Record<string, string>;
   /** Credentials for a private `image` registry; omit for a public one. */

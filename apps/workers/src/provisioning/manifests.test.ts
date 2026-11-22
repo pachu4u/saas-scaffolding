@@ -5,8 +5,13 @@ import {
   IMAGE_PULL_SECRET_NAME,
   SECRET_NAME,
   SERVICE_NAME,
+  ALWAYS_DENIED_CIDRS,
+  doubleQuantity,
   renderDeployment,
   renderImagePullSecret,
+  renderLimitRange,
+  renderNetworkPolicy,
+  renderResourceQuota,
   renderIngress,
   renderNamespace,
   renderRoleBinding,
@@ -37,11 +42,14 @@ function spec(overrides?: Partial<TenantStackSpec>): TenantStackSpec {
 }
 
 describe('renderTenantManifests', () => {
-  it('renders the six stack objects in apply order (namespace and RoleBinding first)', () => {
+  it('renders the stack objects in apply order (namespace, RoleBinding, isolation first)', () => {
     const kinds = renderTenantManifests(spec()).map((m) => m.kind);
     expect(kinds).toEqual([
       'Namespace',
       'RoleBinding',
+      'NetworkPolicy',
+      'ResourceQuota',
+      'LimitRange',
       'Secret',
       'Deployment',
       'Service',
@@ -62,6 +70,9 @@ describe('renderTenantManifests', () => {
     expect(kinds).toEqual([
       'Namespace',
       'RoleBinding',
+      'NetworkPolicy',
+      'ResourceQuota',
+      'LimitRange',
       'Secret',
       'Secret',
       'Deployment',
@@ -184,9 +195,7 @@ describe('renderDeployment', () => {
   it('boots via the uvicorn factory that serves the prebuilt frontend, not the image default CMD', () => {
     const container = renderDeployment(spec()).spec?.template.spec?.containers[0];
     expect(container?.command).toEqual([
-      'uv',
-      'run',
-      'uvicorn',
+      '/app/.venv/bin/uvicorn',
       '--factory',
       'riogentix.main:setup_app',
       '--host',
@@ -242,5 +251,65 @@ describe('object naming', () => {
     // internal URLs like http://riogentix.t-<slug>.svc.cluster.local rely on it.
     expect(DEPLOYMENT_NAME).toBe('riogentix');
     expect(SERVICE_NAME).toBe('riogentix');
+  });
+});
+
+describe('tenant isolation', () => {
+  it('runs the pod as non-root with no API token, no privilege escalation and no capabilities', () => {
+    const pod = renderDeployment(spec()).spec?.template.spec;
+    expect(pod?.automountServiceAccountToken).toBe(false);
+    expect(pod?.securityContext).toMatchObject({ runAsNonRoot: true, runAsUser: 1001 });
+    expect(pod?.containers[0]?.securityContext).toEqual({
+      allowPrivilegeEscalation: false,
+      capabilities: { drop: ['ALL'] },
+    });
+    expect(pod?.containers[0]?.volumeMounts?.map((m) => m.mountPath)).toContain('/tmp');
+  });
+
+  it('default-denies the namespace and only admits ingress-nginx, the provisioner and kubelet', () => {
+    const np = renderNetworkPolicy(spec());
+    expect(np.spec?.podSelector).toEqual({});
+    expect(np.spec?.policyTypes).toEqual(['Ingress', 'Egress']);
+    const from = np.spec?.ingress?.[0]?._from ?? [];
+    expect(
+      from.map((f) => f.namespaceSelector?.matchLabels?.['kubernetes.io/metadata.name']),
+    ).toEqual(['ingress-nginx', 'saas-platform', undefined]);
+    expect(from[2]?.ipBlock?.cidr).toBe('10.42.0.1/32');
+  });
+
+  it('allows DNS and the public internet but never private ranges or extra denied CIDRs', () => {
+    const np = renderNetworkPolicy(spec({ egressDenyCidrs: ['203.0.113.7/32'] }));
+    const [dns, internet] = np.spec?.egress ?? [];
+    expect(dns?.ports?.map((p) => p.port)).toEqual([53, 53]);
+    const block = internet?.to?.[0]?.ipBlock;
+    expect(block?.cidr).toBe('0.0.0.0/0');
+    expect(block?.except).toEqual([...ALWAYS_DENIED_CIDRS, '203.0.113.7/32']);
+    expect(ALWAYS_DENIED_CIDRS).toEqual(
+      expect.arrayContaining(['10.0.0.0/8', '172.16.0.0/12', '169.254.0.0/16']),
+    );
+  });
+
+  it('quotas the namespace at two pods of the per-pod limit and no PVCs/NodePorts', () => {
+    const q = renderResourceQuota(spec({ cpuLimit: '2', memoryLimit: '4Gi' })).spec?.hard;
+    expect(q).toMatchObject({
+      'limits.cpu': '4',
+      'limits.memory': '8Gi',
+      persistentvolumeclaims: '0',
+      'services.nodeports': '0',
+    });
+  });
+
+  it('caps any single container at the per-pod limit', () => {
+    const lr = renderLimitRange(spec()).spec?.limits[0];
+    expect(lr?.max).toEqual({ cpu: '1', memory: '1Gi' });
+  });
+
+  it.each([
+    ['2', '4'],
+    ['4Gi', '8Gi'],
+    ['500m', '1000m'],
+    ['1.5', '3'],
+  ])('doubleQuantity(%s) = %s', (input, out) => {
+    expect(doubleQuantity(input)).toBe(out);
   });
 });

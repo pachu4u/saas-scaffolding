@@ -113,6 +113,15 @@ const envSchema = z.object({
   RIOGENTIX_CONTAINER_PORT: z.coerce.number().default(8000),
   TENANT_POD_CPU_LIMIT: z.string().default('1'),
   TENANT_POD_MEMORY_LIMIT: z.string().default('1Gi'),
+  // Comma-separated public IPs/CIDRs tenant pods may not reach (e.g. the
+  // VM's public IP, managed Redis endpoints). See manifests.ts
+  // renderNetworkPolicy; private ranges are always denied.
+  TENANT_EGRESS_DENY_CIDRS: z.string().default(''),
+  // Capacity guard: new tenants are refused at signup and at provision time
+  // once this many tenants exist, or once the shared Postgres server's
+  // connections are this full (STACKIT Flex 2.4 allows 100 connections).
+  TENANT_MAX_COUNT: z.coerce.number().int().positive().default(15),
+  TENANT_DB_CONN_MAX_RATIO: z.coerce.number().min(0.1).max(1).default(0.8),
   // Superuser connection to the shared Postgres server used to create the
   // per-tenant database + role (e.g. STACKIT PostgreSQL Flex admin URL)
   TENANT_PG_ADMIN_URL: z.string().optional(),

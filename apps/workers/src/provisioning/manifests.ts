@@ -1,7 +1,10 @@
 import type {
   V1Deployment,
   V1Ingress,
+  V1LimitRange,
   V1Namespace,
+  V1NetworkPolicy,
+  V1ResourceQuota,
   V1RoleBinding,
   V1Secret,
   V1Service,
@@ -23,6 +26,29 @@ export const SECRET_NAME = 'riogentix-env';
 export const TLS_SECRET_NAME = 'riogentix-tls';
 export const ROLE_BINDING_NAME = 'saas-tenant-workload';
 export const IMAGE_PULL_SECRET_NAME = 'riogentix-image-pull';
+export const NETWORK_POLICY_NAME = 'tenant-isolation';
+export const QUOTA_NAME = 'tenant-quota';
+export const LIMIT_RANGE_NAME = 'tenant-limits';
+
+/**
+ * The Riogentix image is a UBI Python image whose home dir
+ * (/opt/app-root/src) is owned by uid 1001, gid 0 -- run as that user
+ * instead of the image's default root.
+ */
+const RUN_AS_USER = 1001;
+const CONFIG_DIR = '/opt/app-root/src/.cache/riogentix';
+
+/** Never reachable from a tenant pod: cluster, node, docker, VPC, metadata. */
+export const ALWAYS_DENIED_CIDRS = [
+  '10.0.0.0/8',
+  '172.16.0.0/12',
+  '192.168.0.0/16',
+  '100.64.0.0/10',
+  '169.254.0.0/16',
+];
+
+/** Pod network gateway on k3s's default flannel CIDR -- where kubelet probes come from. */
+const NODE_PROBE_SOURCE = '10.42.0.1/32';
 
 // Must match infra/k8s/tenant-provisioner/{serviceaccount,rbac}.yaml — the
 // identity every tenant's per-namespace RoleBinding grants workload access
@@ -129,6 +155,19 @@ export function renderDeployment(spec: TenantStackSpec): V1Deployment {
           // `riogentix` Service), which Riogentix's settings parse as its
           // listen port and crash on. Env must come only from the secret.
           enableServiceLinks: false,
+          // Tenant code (user-supplied Python) never needs the Kubernetes API.
+          automountServiceAccountToken: false,
+          securityContext: {
+            runAsNonRoot: true,
+            runAsUser: RUN_AS_USER,
+            runAsGroup: 0,
+            fsGroup: RUN_AS_USER,
+            seccompProfile: { type: 'RuntimeDefault' },
+          },
+          volumes: [
+            { name: 'riogentix-config', emptyDir: { sizeLimit: '1Gi' } },
+            { name: 'tmp', emptyDir: { sizeLimit: '2Gi' } },
+          ],
           ...(spec.imagePullCredentials && {
             imagePullSecrets: [{ name: IMAGE_PULL_SECRET_NAME }],
           }),
@@ -142,10 +181,10 @@ export function renderDeployment(spec: TenantStackSpec): V1Deployment {
               // image already has the frontend prebuilt into the backend's
               // static dir — boot straight into the factory that serves it,
               // matching docker/k8s.start.sh's production entrypoint.
+              // The venv's uvicorn directly, not `uv run`: uv may try to
+              // sync/write the root-owned venv, which fails as non-root.
               command: [
-                'uv',
-                'run',
-                'uvicorn',
+                '/app/.venv/bin/uvicorn',
                 '--factory',
                 'riogentix.main:setup_app',
                 '--host',
@@ -157,6 +196,14 @@ export function renderDeployment(spec: TenantStackSpec): V1Deployment {
               ],
               ports: [{ containerPort: spec.containerPort, name: 'http' }],
               envFrom: [{ secretRef: { name: SECRET_NAME } }],
+              securityContext: {
+                allowPrivilegeEscalation: false,
+                capabilities: { drop: ['ALL'] },
+              },
+              volumeMounts: [
+                { name: 'riogentix-config', mountPath: CONFIG_DIR },
+                { name: 'tmp', mountPath: '/tmp' },
+              ],
               resources: {
                 requests: { cpu: '100m', memory: '256Mi' },
                 limits: { cpu: spec.cpuLimit, memory: spec.memoryLimit },
@@ -249,6 +296,111 @@ export function renderIngress(spec: TenantStackSpec): V1Ingress {
 }
 
 /**
+ * Default-deny for the tenant namespace. In: only ingress-nginx, the
+ * provisioner (saas-platform namespace) and kubelet probes. Out: cluster DNS,
+ * and the public internet minus private ranges and `spec.egressDenyCidrs`
+ * -- so no other tenant, the k8s API, the node, the docker network (Keycloak
+ * admin, web) or cloud metadata. The tenant's Postgres Flex endpoint is a
+ * public address and stays reachable; its login only opens its own DB.
+ * Enforced by k3s's embedded kube-router network-policy controller.
+ */
+export function renderNetworkPolicy(spec: TenantStackSpec): V1NetworkPolicy {
+  const ns = (name: string) => ({
+    namespaceSelector: { matchLabels: { 'kubernetes.io/metadata.name': name } },
+  });
+  return {
+    apiVersion: 'networking.k8s.io/v1',
+    kind: 'NetworkPolicy',
+    metadata: { name: NETWORK_POLICY_NAME, namespace: spec.namespace, labels: labels(spec) },
+    spec: {
+      podSelector: {},
+      policyTypes: ['Ingress', 'Egress'],
+      ingress: [
+        {
+          _from: [
+            ns('ingress-nginx'),
+            ns(WORKER_NAMESPACE),
+            { ipBlock: { cidr: NODE_PROBE_SOURCE } },
+          ],
+        },
+      ],
+      egress: [
+        {
+          to: [{ ...ns('kube-system'), podSelector: { matchLabels: { 'k8s-app': 'kube-dns' } } }],
+          ports: [
+            { protocol: 'UDP', port: 53 },
+            { protocol: 'TCP', port: 53 },
+          ],
+        },
+        {
+          to: [
+            {
+              ipBlock: {
+                cidr: '0.0.0.0/0',
+                except: [...ALWAYS_DENIED_CIDRS, ...(spec.egressDenyCidrs ?? [])],
+              },
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+/** "2" -> "4", "4Gi" -> "8Gi", "500m" -> "1000m": room for a rolling update's second pod. */
+export function doubleQuantity(q: string): string {
+  const m = /^(\d+(?:\.\d+)?)([a-zA-Z]*)$/.exec(q.trim());
+  if (!m) throw new Error(`Unsupported resource quantity ${JSON.stringify(q)}`);
+  const [, num = '0', unit = ''] = m;
+  return `${String(Number(num) * 2)}${unit}`;
+}
+
+/**
+ * Caps the whole namespace at two pods' worth of the per-pod limit (one
+ * running + one during a rolling update), so a tenant can't scale itself
+ * or spawn extra workloads to starve the node.
+ */
+export function renderResourceQuota(spec: TenantStackSpec): V1ResourceQuota {
+  return {
+    apiVersion: 'v1',
+    kind: 'ResourceQuota',
+    metadata: { name: QUOTA_NAME, namespace: spec.namespace, labels: labels(spec) },
+    spec: {
+      hard: {
+        pods: '4',
+        'limits.cpu': doubleQuantity(spec.cpuLimit),
+        'limits.memory': doubleQuantity(spec.memoryLimit),
+        'requests.cpu': doubleQuantity(spec.cpuLimit),
+        'requests.memory': doubleQuantity(spec.memoryLimit),
+        'requests.storage': '0',
+        persistentvolumeclaims: '0',
+        'services.loadbalancers': '0',
+        'services.nodeports': '0',
+      },
+    },
+  };
+}
+
+/** Defaults for any container that doesn't set its own requests/limits (quota requires them). */
+export function renderLimitRange(spec: TenantStackSpec): V1LimitRange {
+  return {
+    apiVersion: 'v1',
+    kind: 'LimitRange',
+    metadata: { name: LIMIT_RANGE_NAME, namespace: spec.namespace, labels: labels(spec) },
+    spec: {
+      limits: [
+        {
+          type: 'Container',
+          _default: { cpu: '500m', memory: '512Mi' },
+          defaultRequest: { cpu: '100m', memory: '128Mi' },
+          max: { cpu: spec.cpuLimit, memory: spec.memoryLimit },
+        },
+      ],
+    },
+  };
+}
+
+/**
  * All objects in apply order — namespace first, then the RoleBinding that
  * grants saas-workers permission to create everything after it. The image
  * pull secret is only present when spec.imagePullCredentials was set (a
@@ -256,11 +408,25 @@ export function renderIngress(spec: TenantStackSpec): V1Ingress {
  */
 export function renderTenantManifests(
   spec: TenantStackSpec,
-): (V1Namespace | V1RoleBinding | V1Secret | V1Deployment | V1Service | V1Ingress)[] {
+): (
+  | V1Namespace
+  | V1RoleBinding
+  | V1NetworkPolicy
+  | V1ResourceQuota
+  | V1LimitRange
+  | V1Secret
+  | V1Deployment
+  | V1Service
+  | V1Ingress
+)[] {
   const imagePullSecret = renderImagePullSecret(spec);
   return [
     renderNamespace(spec),
     renderRoleBinding(spec),
+    // Isolation and limits exist before the first pod is scheduled.
+    renderNetworkPolicy(spec),
+    renderResourceQuota(spec),
+    renderLimitRange(spec),
     renderSecret(spec),
     ...(imagePullSecret ? [imagePullSecret] : []),
     renderDeployment(spec),

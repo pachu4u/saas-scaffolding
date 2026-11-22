@@ -5,6 +5,7 @@ import * as k8s from '@kubernetes/client-node';
 import { env } from '@platform/config';
 import { logger } from '@platform/logger';
 
+import { capacityRefusal, readDbConnections } from './capacity.js';
 import {
   ensureTenantDatabase,
   ensureTenantDbAccess,
@@ -178,6 +179,10 @@ async function buildSpec(tenant: TenantRef): Promise<TenantStackSpec> {
     }),
     cpuLimit: env.TENANT_POD_CPU_LIMIT,
     memoryLimit: env.TENANT_POD_MEMORY_LIMIT,
+    egressDenyCidrs: env.TENANT_EGRESS_DENY_CIDRS.split(',')
+      .map((c) => c.trim())
+      .filter(Boolean)
+      .map((c) => (c.includes('/') ? c : `${c}/32`)),
     ...(env.RIOGENTIX_IMAGE_REGISTRY &&
       env.RIOGENTIX_IMAGE_PULL_USERNAME &&
       env.RIOGENTIX_IMAGE_PULL_PASSWORD && {
@@ -273,10 +278,34 @@ async function provisionInstanceTenant(spec: TenantStackSpec): Promise<void> {
   }
 }
 
+/**
+ * Refuse a brand-new tenant when the VM or the shared Postgres is near
+ * capacity. A tenant whose namespace already exists is a re-provision and
+ * always goes through.
+ */
+async function assertCapacityForNewTenant(slug: string, pgAdminUrl: string): Promise<void> {
+  const core = kc().makeApiClient(k8s.CoreV1Api);
+  const namespaces = await core.listNamespace({
+    labelSelector: 'app.kubernetes.io/managed-by=saas-provisioner',
+  });
+  const names = namespaces.items.map((n) => n.metadata?.name);
+  if (names.includes(tenantNamespace(slug))) return;
+  const db = await readDbConnections(pgAdminUrl);
+  const reason = capacityRefusal(
+    { tenantNamespaces: names.length, dbConnections: db.used, dbMaxConnections: db.max },
+    { maxTenants: env.TENANT_MAX_COUNT, maxDbConnRatio: env.TENANT_DB_CONN_MAX_RATIO },
+  );
+  if (reason) {
+    logger.warn({ slug, reason }, 'Refusing new tenant: platform at capacity');
+    throw new Error(`Platform at capacity, not provisioning ${slug}: ${reason}`);
+  }
+}
+
 export const kubernetesDriver: TenantStackDriver = {
   name: 'kubernetes',
 
   async provision(tenant: TenantRef): Promise<ProvisionOutcome> {
+    await assertCapacityForNewTenant(tenant.slug, requireEnv('TENANT_PG_ADMIN_URL'));
     const spec = await buildSpec(tenant);
     logger.info({ tenantId: tenant.id, namespace: spec.namespace }, 'Applying tenant stack');
     await registerTenantWithKeycloak(spec.host);

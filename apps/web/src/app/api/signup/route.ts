@@ -148,6 +148,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'That slug is already taken' }, { status: 409 });
   }
 
+  // Capacity guard: every tenant gets its own pod on a single VM and its own
+  // connections on one Postgres server. Refuse before creating any identity
+  // rather than leave a tenant stuck in provisioning.
+  const tenantCount = await adminDb.tenant.count({ where: { status: { not: 'DELETED' } } });
+  if (tenantCount >= env.TENANT_MAX_COUNT) {
+    console.warn(
+      `[POST /api/signup] refused: tenant capacity reached (${String(tenantCount)}/${String(env.TENANT_MAX_COUNT)})`,
+    );
+    return NextResponse.json(
+      {
+        error:
+          "We're not accepting new workspaces right now. Please try again later or contact us.",
+      },
+      { status: 503 },
+    );
+  }
+
   let kcToken: string;
   try {
     kcToken = await getKeycloakAdminToken();
