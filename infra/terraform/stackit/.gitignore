@@ -6,3 +6,6 @@ stackit-sa-key.json
 stackit-deploy-key
 stackit-deploy-key.pub
 crash.log
+
+# Remote-state credentials (see state-backend.tf)
+backend.hcl

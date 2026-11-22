@@ -170,3 +170,20 @@ terraform apply
 After `apply`, point DNS at `load_balancer_ip`, wait for cert issuance +
 bootstrap to finish (watch `/var/log/saas-platform-bootstrap.log` over SSH),
 then visit `https://saas.riogentix.com`.
+
+## Remote state (since 2026-11-22)
+
+State lives in the `saas-platform-tfstate` bucket (STACKIT Object Storage,
+versioned, SSE AES256), key `saas-platform/stackit/terraform.tfstate`; see
+`versions.tf` and `state-backend.tf`. On a new machine:
+
+```bash
+# credentials for the bucket (gitignored); if lost, create a new credential
+# for the "saas-platform-tfstate" credentials group in the STACKIT Portal
+terraform output -raw rendered_backend_hcl > backend.hcl   # from a machine that already has access
+terraform init -backend-config=backend.hcl
+```
+
+STACKIT Object Storage ignores S3 conditional writes, so Terraform cannot
+lock the state: only one person/run may `plan`/`apply` at a time. Older
+state versions can be restored from the bucket's version history.
