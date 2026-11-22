@@ -7,14 +7,17 @@ http:
       service: keycloak
       priority: 100
 
-    # The admin console/REST API and the master realm are not reachable from
-    # the internet. Everything that needs them (web, workers, the k3s
+    # The admin console and admin REST API are not reachable from the
+    # internet. Everything that needs the API (web, workers, the k3s
     # provisioner) talks to Keycloak on its internal URL, and the public
     # STACKIT load balancer is plain TCP, so source-IP allowlisting isn't
-    # possible here. Admin access: SSH tunnel to the VM's 127.0.0.1:8081 or
-    # `docker exec keycloak /opt/keycloak/bin/kcadm.sh`.
+    # possible here. Admin console: SSH tunnel to the VM's 127.0.0.1:8081
+    # (KC_HOSTNAME_ADMIN_URL). /realms/master stays public because the
+    # console's own sign-in runs on the realm's frontend (public) URL --
+    # Keycloak 24 drops the port from a localhost frontendUrl, so it can't be
+    # tunnelled too. Master has brute-force protection and a 16-char policy.
     keycloak-admin-blocked:
-      rule: 'Host(`auth.${domain_name}`) && (PathPrefix(`/admin`) || PathPrefix(`/realms/master`))'
+      rule: 'Host(`auth.${domain_name}`) && PathPrefix(`/admin`)'
       entryPoints:
         - web
       service: keycloak
