@@ -65,3 +65,85 @@ export async function ensureTenantDatabase(adminUrl: string, slug: string): Prom
     await client.end();
   }
 }
+
+/**
+ * Per-tenant login name. Same identifier as the database: one login per
+ * tenant, created through the Postgres Flex API (see stackit-flex.ts), since
+ * SQL users there can't CREATE ROLE.
+ */
+export function tenantDbUser(slug: string): string {
+  return tenantDbName(slug);
+}
+
+/** Pod connection URL for a tenant's own login. */
+export function tenantOwnLoginUrl(
+  adminUrl: string,
+  slug: string,
+  creds: { username: string; password: string },
+  hostForPods?: string,
+): string {
+  const admin = new URL(adminUrl);
+  const url = new URL(adminUrl);
+  url.username = encodeURIComponent(creds.username);
+  url.password = encodeURIComponent(creds.password);
+  url.host = hostForPods ?? admin.host;
+  url.pathname = `/${tenantDbName(slug)}`;
+  return url.toString();
+}
+
+/** The login a connection URL authenticates as. */
+export function urlUsername(url: string): string {
+  return decodeURIComponent(new URL(url).username);
+}
+
+/**
+ * STACKIT's own Flex login used for metrics; it must keep CONNECT once
+ * PUBLIC loses it, or instance monitoring breaks.
+ */
+const ALWAYS_ALLOWED = ['monitoring'];
+
+/**
+ * SQL that makes `db` reachable only by its owner, `login` and STACKIT's
+ * monitoring role, and lets `login` create and change objects in `public`.
+ * Run while connected to `db` as its owner (the platform's admin login).
+ */
+export function tenantAccessStatements(db: string, login: string): string[] {
+  const q = (ident: string): string => `"${ident.replaceAll('"', '""')}"`;
+  return [
+    `REVOKE CONNECT, TEMPORARY ON DATABASE ${q(db)} FROM PUBLIC`,
+    `GRANT CONNECT, TEMPORARY ON DATABASE ${q(db)} TO ${q(login)}`,
+    ...ALWAYS_ALLOWED.map((r) => `GRANT CONNECT ON DATABASE ${q(db)} TO ${q(r)}`),
+    `GRANT USAGE, CREATE ON SCHEMA public TO ${q(login)}`,
+    // Tables created by the admin login before the tenant had its own login
+    // (pre-2026-11 tenants); harmless no-ops for a fresh database.
+    `GRANT ALL ON ALL TABLES IN SCHEMA public TO ${q(login)}`,
+    `GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO ${q(login)}`,
+  ];
+}
+
+export async function ensureTenantDbAccess(
+  adminUrl: string,
+  slug: string,
+  login: string,
+): Promise<void> {
+  assertValidSlug(slug);
+  const db = tenantDbName(slug);
+  const url = new URL(adminUrl);
+  url.pathname = `/${db}`;
+  const client = new Client({ connectionString: url.toString() });
+  await client.connect();
+  try {
+    const roles = await client.query<{ rolname: string }>(
+      'SELECT rolname FROM pg_roles WHERE rolname = ANY($1)',
+      [ALWAYS_ALLOWED],
+    );
+    const present = new Set(roles.rows.map((r) => r.rolname));
+    for (const sql of tenantAccessStatements(db, login)) {
+      const missingRole = ALWAYS_ALLOWED.find((r) => !present.has(r) && sql.endsWith(`"${r}"`));
+      if (missingRole) continue;
+      await client.query(sql);
+    }
+  } finally {
+    await client.end();
+  }
+}

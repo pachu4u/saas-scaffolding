@@ -119,6 +119,16 @@ const envSchema = z.object({
   // Hostname pods use to reach that Postgres server, when it differs from the
   // host in TENANT_PG_ADMIN_URL (defaults to the admin URL's host:port)
   TENANT_PG_HOST_FOR_PODS: z.string().optional(),
+  // Per-tenant Postgres logins. STACKIT Postgres Flex doesn't let SQL users
+  // create roles, so logins are created through the Flex API with a
+  // dedicated service account. When TENANT_PG_FLEX_INSTANCE_ID is unset the
+  // provisioner falls back to the shared TENANT_PG_ADMIN_URL login.
+  TENANT_PG_FLEX_INSTANCE_ID: z.string().optional(),
+  STACKIT_PROJECT_ID: z.string().optional(),
+  STACKIT_REGION: z.string().default('eu01'),
+  // The service-account key JSON itself (not a path); needs only
+  // Postgres Flex user management on the project.
+  STACKIT_SERVICE_ACCOUNT_KEY: z.string().optional(),
   // Only the in-cluster workers Deployment (saas-platform/saas-workers) has a
   // path to the k3s API (via its own ServiceAccount/ClusterRoleBinding) — an
   // external `workers` process has no kubeconfig and would fail every

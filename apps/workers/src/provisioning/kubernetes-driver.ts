@@ -5,9 +5,17 @@ import * as k8s from '@kubernetes/client-node';
 import { env } from '@platform/config';
 import { logger } from '@platform/logger';
 
-import { ensureTenantDatabase, tenantDatabaseUrl } from './database.js';
+import {
+  ensureTenantDatabase,
+  ensureTenantDbAccess,
+  tenantDatabaseUrl,
+  tenantDbUser,
+  tenantOwnLoginUrl,
+  urlUsername,
+} from './database.js';
 import { registerTenantWithKeycloak } from './keycloak-sync.js';
 import { DEPLOYMENT_NAME, SECRET_NAME, SERVICE_NAME, renderTenantManifests } from './manifests.js';
+import { FlexClient } from './stackit-flex.js';
 import { ensureTenantWildcardDns } from './tenant-dns.js';
 import { ensureTenantTraefikRouter } from './traefik-router.js';
 import type { ProvisionOutcome, TenantRef, TenantStackDriver, TenantStackSpec } from './types.js';
@@ -93,6 +101,48 @@ export async function readTenantSecretEnv(slug: string): Promise<Record<string, 
   }
 }
 
+/** Flex API client when per-tenant logins are configured, else undefined. */
+export function flexClient(): FlexClient | undefined {
+  const instanceId = env.TENANT_PG_FLEX_INSTANCE_ID;
+  if (!instanceId) return undefined;
+  if (!env.STACKIT_PROJECT_ID || !env.STACKIT_SERVICE_ACCOUNT_KEY) {
+    throw new Error(
+      'TENANT_PG_FLEX_INSTANCE_ID requires STACKIT_PROJECT_ID and STACKIT_SERVICE_ACCOUNT_KEY',
+    );
+  }
+  return new FlexClient({
+    serviceAccountKey: env.STACKIT_SERVICE_ACCOUNT_KEY,
+    projectId: env.STACKIT_PROJECT_ID,
+    region: env.STACKIT_REGION,
+    instanceId,
+  });
+}
+
+/**
+ * The tenant pod's database URL. With per-tenant logins on, the pod gets a
+ * login that can reach only its own database; an existing per-tenant URL in
+ * the tenant Secret is reused so retries don't rotate the password. Without
+ * Flex config this is the legacy shared-admin URL.
+ */
+async function tenantPodDatabaseUrl(
+  pgAdminUrl: string,
+  slug: string,
+  existingUrl: string | undefined,
+): Promise<string> {
+  const flex = flexClient();
+  if (!flex) return tenantDatabaseUrl(pgAdminUrl, slug, env.TENANT_PG_HOST_FOR_PODS);
+
+  const login = tenantDbUser(slug);
+  let url = existingUrl && urlUsername(existingUrl) === login ? existingUrl : undefined;
+  if (!url) {
+    const creds = await flex.ensureUser(login);
+    url = tenantOwnLoginUrl(pgAdminUrl, slug, creds, env.TENANT_PG_HOST_FOR_PODS);
+    logger.info({ slug, login }, 'Per-tenant Postgres login ready');
+  }
+  await ensureTenantDbAccess(pgAdminUrl, slug, login);
+  return url;
+}
+
 async function buildSpec(tenant: TenantRef): Promise<TenantStackSpec> {
   const baseDomain = requireEnv('TENANT_BASE_DOMAIN');
   const image = requireEnv('RIOGENTIX_IMAGE');
@@ -108,6 +158,11 @@ async function buildSpec(tenant: TenantRef): Promise<TenantStackSpec> {
     existing?.RIOGENTIX_SUPERUSER_PASSWORD ?? randomBytes(24).toString('base64url');
 
   await ensureTenantDatabase(pgAdminUrl, tenant.slug);
+  const databaseUrl = await tenantPodDatabaseUrl(
+    pgAdminUrl,
+    tenant.slug,
+    existing?.RIOGENTIX_DATABASE_URL,
+  );
 
   return {
     tenantId: tenant.id,
@@ -136,11 +191,7 @@ async function buildSpec(tenant: TenantRef): Promise<TenantStackSpec> {
     // The image reads RIOGENTIX_DATABASE_URL (see lfx settings/groups/database.py),
     // not DATABASE_URL — a bare DATABASE_URL silently falls back to sqlite.
     secretEnv: {
-      RIOGENTIX_DATABASE_URL: tenantDatabaseUrl(
-        pgAdminUrl,
-        tenant.slug,
-        env.TENANT_PG_HOST_FOR_PODS,
-      ),
+      RIOGENTIX_DATABASE_URL: databaseUrl,
       RIOGENTIX_INTERNAL_SECRET: internalSecret,
       RIOGENTIX_SAAS_INTERNAL_SECRET: saasSecret,
       // Without this, auth cookies set by the SSO exchange (which lands on
@@ -256,6 +307,17 @@ export const kubernetesDriver: TenantStackDriver = {
     } catch (err) {
       if (!isNotFound(err)) throw err;
       logger.info({ tenantId: tenant.id, namespace }, 'Tenant namespace already absent');
+    }
+    // The database stays, but nothing should be able to log in to it any
+    // more; re-provisioning creates a fresh login.
+    const flex = flexClient();
+    if (flex) {
+      const login = tenantDbUser(tenant.slug);
+      const user = await flex.findUser(login);
+      if (user) {
+        await flex.deleteUser(user.id);
+        logger.info({ tenantId: tenant.id, login }, 'Per-tenant Postgres login deleted');
+      }
     }
   },
 };

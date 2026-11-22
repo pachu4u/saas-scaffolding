@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { assertValidSlug, tenantDatabaseUrl, tenantDbName } from './database.js';
+import {
+  assertValidSlug,
+  tenantAccessStatements,
+  tenantDatabaseUrl,
+  tenantDbName,
+  tenantDbUser,
+  tenantOwnLoginUrl,
+  urlUsername,
+} from './database.js';
 
 describe('slug validation', () => {
   it('accepts lowercase alphanumerics and hyphens', () => {
@@ -46,5 +54,42 @@ describe('tenantDatabaseUrl', () => {
     const encoded = 'postgresql://admin:p%40ss%2Fw%3Ard@pg.internal:5432/postgres?sslmode=require';
     const url = tenantDatabaseUrl(encoded, 'acme-co');
     expect(url).toContain(':p%40ss%2Fw%3Ard@');
+  });
+});
+
+describe('per-tenant login helpers', () => {
+  const adminUrl = 'postgresql://admin:root@pg.internal:5432/postgres?sslmode=require';
+
+  it('uses the database name as the login name', () => {
+    expect(tenantDbUser('acme-co')).toBe('riogentix_acme_co');
+  });
+
+  it('builds a URL with the tenant login, encoding the password, keeping params', () => {
+    const url = tenantOwnLoginUrl(adminUrl, 'acme-co', {
+      username: 'riogentix_acme_co',
+      password: 'p@ss/w:rd',
+    });
+    expect(url).toBe(
+      'postgresql://riogentix_acme_co:p%40ss%2Fw%3Ard@pg.internal:5432/riogentix_acme_co?sslmode=require',
+    );
+    expect(urlUsername(url)).toBe('riogentix_acme_co');
+  });
+
+  it('never leaves the admin credentials in the tenant URL', () => {
+    const url = tenantOwnLoginUrl(adminUrl, 'acme-co', { username: 'u', password: 'p' }, 'h:1');
+    expect(url).not.toContain('admin');
+    expect(url).not.toContain('root');
+    expect(url).toContain('@h:1/');
+  });
+
+  it('revokes PUBLIC connect and grants only the tenant login and monitoring', () => {
+    const sql = tenantAccessStatements('riogentix_acme_co', 'riogentix_acme_co');
+    expect(sql[0]).toBe('REVOKE CONNECT, TEMPORARY ON DATABASE "riogentix_acme_co" FROM PUBLIC');
+    expect(sql).toContain(
+      'GRANT CONNECT, TEMPORARY ON DATABASE "riogentix_acme_co" TO "riogentix_acme_co"',
+    );
+    expect(sql).toContain('GRANT CONNECT ON DATABASE "riogentix_acme_co" TO "monitoring"');
+    expect(sql).toContain('GRANT USAGE, CREATE ON SCHEMA public TO "riogentix_acme_co"');
+    expect(sql.some((s) => s.includes('saas_platform'))).toBe(false);
   });
 });
