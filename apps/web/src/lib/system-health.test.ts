@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   queryRaw: vi.fn(),
-  jobCount: vi.fn(),
+  jobCounts: vi.fn<(name: string) => Promise<Record<string, number>>>(),
   ping: vi.fn(),
   emailWorkers: vi.fn(),
   provisionWorkers: vi.fn(),
@@ -14,15 +14,21 @@ vi.mock('@platform/config', () => ({
     KEYCLOAK_ISSUER: 'https://auth.example.test/realms/saas-platform',
     KEYCLOAK_INTERNAL_ISSUER: undefined,
     KEYCLOAK_REALM: 'saas-platform',
+    GIT_SHA: 'branch-name',
+    BUILD_SHA: 'abc1234',
   },
 }));
 vi.mock('@platform/db', () => ({
-  adminDb: { $queryRaw: mocks.queryRaw, job: { count: mocks.jobCount } },
+  adminDb: { $queryRaw: mocks.queryRaw },
   redis: { ping: mocks.ping },
 }));
 vi.mock('@platform/jobs', () => ({
   emailQueue: { getWorkersCount: mocks.emailWorkers },
   tenantProvisionQueue: { getWorkersCount: mocks.provisionWorkers },
+  allQueues: [
+    { name: 'email', queue: { getJobCounts: () => mocks.jobCounts('email') } },
+    { name: 'app-sync', queue: { getJobCounts: () => mocks.jobCounts('app-sync') } },
+  ],
 }));
 vi.mock('@platform/vault', () => ({
   getVaultClient: () => ({ isHealthy: mocks.vaultHealthy }),
@@ -42,7 +48,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubGlobal('fetch', fetchMock);
   mocks.queryRaw.mockResolvedValue([{ '?column?': 1 }]);
-  mocks.jobCount.mockResolvedValue(0);
+  mocks.jobCounts.mockResolvedValue({ waiting: 0, active: 0, failed: 0, delayed: 0 });
   mocks.ping.mockResolvedValue('PONG');
   mocks.emailWorkers.mockResolvedValue(1);
   mocks.provisionWorkers.mockResolvedValue(1);
@@ -63,6 +69,7 @@ describe('getSystemHealth', () => {
       'vault',
     ]);
     expect(report.checks.every((c) => c.status === 'healthy')).toBe(true);
+    expect(report.checks[0]?.detail).toBe('serving abc1234');
     expect(fetchMock).toHaveBeenCalledWith(
       'https://auth.example.test/realms/saas-platform/.well-known/openid-configuration',
       expect.anything(),
@@ -103,15 +110,17 @@ describe('getSystemHealth', () => {
     expect(byKey(await getSystemHealth(), 'workers').status).toBe('down');
 
     mocks.emailWorkers.mockResolvedValue(2);
-    mocks.jobCount.mockResolvedValue(3);
+    mocks.jobCounts.mockImplementation((name: string) =>
+      Promise.resolve({ waiting: 0, active: 0, failed: name === 'app-sync' ? 3 : 0, delayed: 0 }),
+    );
     const degraded = await getSystemHealth();
     expect(byKey(degraded, 'workers')).toMatchObject({
       status: 'degraded',
-      detail: '2 main / 1 provisioner workers connected, 3 dead jobs',
+      detail: '2 main / 1 provisioner workers connected, 3 failed jobs (app-sync 3)',
     });
     expect(degraded.status).toBe('degraded');
 
-    mocks.jobCount.mockResolvedValue(0);
+    mocks.jobCounts.mockResolvedValue({ waiting: 0, active: 0, failed: 0, delayed: 0 });
     mocks.provisionWorkers.mockResolvedValue(0);
     expect(byKey(await getSystemHealth(), 'workers').status).toBe('degraded');
   });

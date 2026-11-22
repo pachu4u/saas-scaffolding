@@ -4,6 +4,7 @@ import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
 
 import { Topbar } from '@/components/layout/topbar';
+import { getQueueTotals } from '@/lib/queue-stats';
 
 export const metadata = { title: 'Settings — Platform Admin' };
 
@@ -58,10 +59,10 @@ export default async function AdminSettingsPage() {
   const session = await auth();
   if (!session) redirect('/auth/signin');
 
-  const [tenantCount, userCount, jobCount] = await Promise.all([
+  const [tenantCount, userCount, queues] = await Promise.all([
     adminDb.tenant.count(),
     adminDb.user.count(),
-    adminDb.job.count(),
+    getQueueTotals(),
   ]);
 
   return (
@@ -89,12 +90,17 @@ export default async function AdminSettingsPage() {
           </div>
           <div className="divide-y" style={{ borderColor: 'var(--border-light)' }}>
             <InfoRow label="Environment" value={env.NODE_ENV} />
-            <InfoRow label="Build SHA" value={env.GIT_SHA} />
+            <InfoRow label="Build SHA" value={env.BUILD_SHA ?? env.GIT_SHA} />
+            <InfoRow label="Deployed branch" value={env.GIT_SHA} />
             <InfoRow label="App URL" value={env.NEXT_PUBLIC_APP_URL} />
             <InfoRow label="Keycloak issuer" value={env.KEYCLOAK_ISSUER} />
             <InfoRow label="Total tenants" value={String(tenantCount)} />
             <InfoRow label="Total users" value={String(userCount)} />
-            <InfoRow label="Total jobs processed" value={String(jobCount)} />
+            <InfoRow
+              label="Jobs queued / running"
+              value={`${String(queues.waiting + queues.delayed)} / ${String(queues.active)}`}
+            />
+            <InfoRow label="Failed jobs" value={String(queues.failed)} />
           </div>
         </div>
 

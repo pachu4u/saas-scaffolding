@@ -1,5 +1,9 @@
 import { auth } from '@platform/auth';
+import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
+
+import { PlanEntitlementsTable } from '@/components/admin/plan-entitlements-table';
+import { getPlanPrices } from '@/lib/plan-prices';
 
 function isPlatformAdmin(session: { groups?: unknown }): boolean {
   return (
@@ -105,14 +109,54 @@ export default async function PlansPage() {
   if (!session) redirect('/auth/signin');
   if (!isPlatformAdmin(session)) redirect('/dashboard');
 
+  const [plans, tenantsByPlan, planPrices] = await Promise.all([
+    adminDb.plan.findMany({
+      select: { code: true, name: true, features: true, priceIdStripe: true },
+    }),
+    adminDb.tenant.groupBy({
+      by: ['plan'],
+      where: { status: { not: 'DELETED' } },
+      _count: { id: true },
+    }),
+    getPlanPrices(),
+  ]);
+  const order = ['free', 'pro', 'enterprise'];
+  const entitlementRows = plans
+    .sort((a, b) => order.indexOf(a.code) - order.indexOf(b.code))
+    .map((p) => ({
+      code: p.code,
+      name: p.name,
+      features: (p.features ?? {}) as Record<string, unknown>,
+      hasStripePrice: Boolean(p.priceIdStripe),
+      price: planPrices.prices[p.code],
+      priceError: planPrices.errors[p.code],
+      tenantCount: tenantsByPlan.find((t) => t.plan === p.code)?._count.id ?? 0,
+    }));
+
   return (
     <div className="space-y-8 p-6">
       <div>
-        <h1 className="text-xl font-semibold text-zinc-900">Plans &amp; Riogentix Features</h1>
+        <h1 className="text-xl font-semibold text-zinc-900">Plans</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Which Riogentix feature-permission slugs each plan tier unlocks. These slugs are enforced
-          by the Riogentix API on every request via the{' '}
-          <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs">saas_plan</code> JWT claim.
+          Live from the <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs">plans</code>{' '}
+          table. These limits are what this platform enforces (seat limits on invite, SCIM,
+          webhooks, custom domains). Prices come from Stripe.
+        </p>
+      </div>
+
+      <PlanEntitlementsTable rows={entitlementRows} />
+
+      <div>
+        <h2 className="text-base font-semibold text-zinc-900">Riogentix features by plan</h2>
+        <p className="mt-1 text-sm text-zinc-500">
+          Which Riogentix feature-permission slugs each plan tier unlocks. The Riogentix API
+          enforces these on every request via the{' '}
+          <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs">saas_plan</code> JWT claim. This
+          table mirrors{' '}
+          <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs">
+            riogentix/services/saas_features.py
+          </code>
+          , where the mapping lives, so change it there first.
         </p>
       </div>
 

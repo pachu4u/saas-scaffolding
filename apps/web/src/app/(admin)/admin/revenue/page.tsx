@@ -2,6 +2,8 @@ import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
 import { redirect } from 'next/navigation';
 
+import { formatMoney, getPlanPrices } from '@/lib/plan-prices';
+
 export const metadata = { title: 'Revenue Analytics — Admin' };
 
 function isPlatformAdmin(session: { groups?: unknown }): boolean {
@@ -13,28 +15,27 @@ function isPlatformAdmin(session: { groups?: unknown }): boolean {
   );
 }
 
-const PLAN_MRR: Record<string, number> = {
-  free: 0,
-  pro: 49,
-  enterprise: 999,
-};
-
 export default async function AdminRevenuePage() {
   const session = await auth();
   if (!session) redirect('/auth/signin');
   if (!isPlatformAdmin(session)) redirect('/dashboard');
 
   // Pull all subscriptions + tenants
-  const [subscriptions, tenants] = await Promise.all([
+  const [subscriptions, tenants, planPrices] = await Promise.all([
     adminDb.subscription.findMany({
-      where: { status: 'ACTIVE' },
-      include: { tenant: { select: { plan: true, createdAt: true } } },
+      where: { status: { in: ['ACTIVE', 'TRIALING', 'PAST_DUE'] } },
+      include: {
+        tenant: { select: { name: true, slug: true } },
+        plan: { select: { code: true, name: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
     }),
     adminDb.tenant.findMany({
       where: { status: { not: 'DELETED' } },
       select: { id: true, plan: true, status: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     }),
+    getPlanPrices(),
   ]);
 
   // Plan distribution
@@ -43,8 +44,17 @@ export default async function AdminRevenuePage() {
     planCounts[t.plan] = (planCounts[t.plan] ?? 0) + 1;
   }
 
-  // MRR from active subscriptions
-  const mrr = subscriptions.reduce((sum, s) => sum + (PLAN_MRR[s.tenant.plan] ?? 0), 0);
+  // MRR: only subscriptions Stripe actually bills (has a Stripe subscription,
+  // is ACTIVE, on a plan whose Stripe price we could read). Trialing and
+  // past-due subscriptions are listed below but don't count as revenue.
+  const { stripeConfigured, prices } = planPrices;
+  const paidSubs = subscriptions.filter(
+    (s) => s.status === 'ACTIVE' && s.stripeSubscriptionId && s.plan.code !== 'free',
+  );
+  const mrr = paidSubs.reduce((sum, s) => sum + (prices[s.plan.code]?.monthly ?? 0), 0);
+  const unpricedPaid = paidSubs.filter((s) => !prices[s.plan.code]).length;
+  const currency = Object.values(prices)[0]?.currency ?? 'USD';
+  const money = (n: number) => formatMoney(n, currency);
 
   // New tenants per month (last 6 months)
   const sixMonthsAgo = new Date();
@@ -68,13 +78,21 @@ export default async function AdminRevenuePage() {
 
   // Totals
   const totalTenants = tenants.length;
-  const activePaid = subscriptions.length;
-
+  const activePaid = paidSubs.length;
+  const mrrSub = !stripeConfigured
+    ? 'Stripe not connected'
+    : unpricedPaid > 0
+      ? `${String(unpricedPaid)} paid subscription(s) on a plan with no Stripe price`
+      : 'From Stripe prices × active paid subscriptions';
   const statCards = [
-    { label: 'MRR', value: `$${mrr.toLocaleString()}`, sub: 'Monthly recurring revenue' },
-    { label: 'ARR (est.)', value: `$${(mrr * 12).toLocaleString()}`, sub: 'Annualised run rate' },
-    { label: 'Paid tenants', value: String(activePaid), sub: 'Active subscriptions' },
-    { label: 'Total workspaces', value: String(totalTenants), sub: 'All statuses' },
+    { label: 'MRR', value: stripeConfigured ? money(mrr) : '—', sub: mrrSub },
+    {
+      label: 'ARR (est.)',
+      value: stripeConfigured ? money(mrr * 12) : '—',
+      sub: 'Annualised run rate',
+    },
+    { label: 'Paid tenants', value: String(activePaid), sub: 'Active Stripe subscriptions' },
+    { label: 'Total workspaces', value: String(totalTenants), sub: 'Excluding deleted' },
   ];
 
   return (
@@ -93,6 +111,22 @@ export default async function AdminRevenuePage() {
       </div>
 
       <main className="space-y-6 p-6">
+        {!stripeConfigured && (
+          <div
+            className="rounded-lg border px-4 py-3 text-xs"
+            style={{ borderColor: 'var(--border-light)', color: 'var(--text-secondary)' }}
+          >
+            Stripe isn&apos;t connected, so there&apos;s no revenue to report yet.{' '}
+            <a
+              href="/admin/billing"
+              className="font-semibold hover:underline"
+              style={{ color: 'var(--brand-primary)' }}
+            >
+              Connect Stripe →
+            </a>
+          </div>
+        )}
+
         {/* Stat cards */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {statCards.map((card) => (
@@ -228,13 +262,13 @@ export default async function AdminRevenuePage() {
         >
           <div className="border-b px-6 py-4" style={{ borderColor: 'var(--border-light)' }}>
             <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-              Active subscriptions
+              Subscriptions
             </h2>
           </div>
           {subscriptions.length === 0 ? (
             <div className="px-6 py-8 text-center">
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                No active subscriptions yet.
+                No subscriptions yet.
               </p>
             </div>
           ) : (
@@ -243,16 +277,20 @@ export default async function AdminRevenuePage() {
                 <div key={sub.tenantId} className="flex items-center justify-between px-6 py-3">
                   <div>
                     <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                      {sub.tenantId}
+                      {sub.tenant.name}
                     </div>
                     <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      Plan: {sub.tenant.plan} · Renews:{' '}
+                      {sub.plan.name} · /{sub.tenant.slug} · Renews:{' '}
                       {sub.currentPeriodEnd ? sub.currentPeriodEnd.toLocaleDateString() : 'N/A'}
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                      ${PLAN_MRR[sub.tenant.plan] ?? 0}/mo
+                      {prices[sub.plan.code]
+                        ? `${money(prices[sub.plan.code]?.monthly ?? 0)}/mo`
+                        : sub.plan.code === 'free'
+                          ? 'Free'
+                          : 'No price'}
                     </div>
                     <div
                       className="text-xs"

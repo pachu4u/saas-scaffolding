@@ -159,6 +159,10 @@ const envSchema = z.object({
 
   // Git
   GIT_SHA: z.string().default('dev'),
+  // Commit baked into the image at build time (web/workers Dockerfiles). The
+  // VM's .env sets GIT_SHA to the deployed branch name and wins over the image
+  // ENV, so this is the only reliable record of which commit is running.
+  BUILD_SHA: z.string().optional(),
 
   // HashiCorp Vault
   VAULT_ADDR: z.string().url().optional(),

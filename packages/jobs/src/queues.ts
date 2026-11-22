@@ -84,6 +84,24 @@ export const appSyncQueue = lazyQueue<AppSyncJob>('app-sync');
 // tick queries current tenant state itself.
 export const appSyncReconcileQueue = lazyQueue<AppSyncReconcileJob>('app-sync-reconcile');
 
+/**
+ * Every queue the platform produces to, in display order. The admin Jobs page,
+ * dashboard counters and health checks iterate this so a new queue can't be
+ * silently left out of monitoring.
+ */
+export const allQueues = [
+  { name: 'email', queue: emailQueue },
+  { name: 'webhook-inbound', queue: webhookInboundQueue },
+  { name: 'webhook-outbound', queue: webhookOutboundQueue },
+  { name: 'usage-rollup', queue: usageRollupQueue },
+  { name: 'plan-changed', queue: planChangedQueue },
+  { name: 'tenant-provision', queue: tenantProvisionQueue },
+  { name: 'tenant-deprovision', queue: tenantDeprovisionQueue },
+  { name: 'role-sync', queue: roleSyncQueue },
+  { name: 'app-sync', queue: appSyncQueue },
+  { name: 'app-sync-reconcile', queue: appSyncReconcileQueue },
+] as const;
+
 export interface EmailJob {
   to: string;
   subject: string;

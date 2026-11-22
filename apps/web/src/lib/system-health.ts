@@ -3,6 +3,8 @@ import { adminDb, redis } from '@platform/db';
 import { emailQueue, tenantProvisionQueue } from '@platform/jobs';
 import { getVaultClient } from '@platform/vault';
 
+import { getQueueTotals } from './queue-stats';
+
 /**
  * Real dependency checks for the admin dashboard's System Health panel and the
  * /admin/health report. Each check runs in parallel with its own timeout, so a
@@ -108,18 +110,23 @@ async function checkKeycloak(): Promise<CheckOutcome> {
 
 /**
  * Workers are healthy when at least one BullMQ worker is connected to the main
- * queue and nothing is stuck in the DEAD state. The tenant-provision worker
+ * queue and no queue has failed jobs waiting in its dead-letter set. The tenant-provision worker
  * runs separately in k3s, so it's reported in the detail but a missing one is
  * only "degraded" (tenant signups would stall, everything else still works).
  */
 async function checkWorkers(): Promise<CheckOutcome> {
-  const [mainWorkers, provisionWorkers, deadJobs] = await Promise.all([
+  const [mainWorkers, provisionWorkers, queues] = await Promise.all([
     emailQueue.getWorkersCount(),
     tenantProvisionQueue.getWorkersCount(),
-    adminDb.job.count({ where: { status: 'DEAD' } }),
+    getQueueTotals(),
   ]);
+  const deadJobs = queues.failed;
+  const failing = queues.byQueue
+    .filter((q) => q.failed > 0)
+    .map((q) => `${q.name} ${String(q.failed)}`)
+    .join(', ');
 
-  const detail = `${String(mainWorkers)} main / ${String(provisionWorkers)} provisioner workers connected, ${String(deadJobs)} dead jobs`;
+  const detail = `${String(mainWorkers)} main / ${String(provisionWorkers)} provisioner workers connected, ${String(deadJobs)} failed jobs${failing ? ` (${failing})` : ''}`;
   if (mainWorkers === 0) return { status: 'down', detail };
   if (provisionWorkers === 0 || deadJobs > 0) return { status: 'degraded', detail };
   return { status: 'healthy', detail };
@@ -157,7 +164,7 @@ export async function getSystemHealth(timeoutMs = CHECK_TIMEOUT_MS): Promise<Hea
       service: 'Web (Next.js)',
       status: 'healthy',
       latencyMs: 0,
-      detail: `serving ${process.env.GIT_SHA ?? 'dev'}`,
+      detail: `serving ${env.BUILD_SHA ?? env.GIT_SHA}`,
     },
     ...dependencyChecks,
   ];

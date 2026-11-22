@@ -1,11 +1,5 @@
 import { auth } from '@platform/auth';
-import {
-  emailQueue,
-  planChangedQueue,
-  usageRollupQueue,
-  webhookInboundQueue,
-  webhookOutboundQueue,
-} from '@platform/jobs';
+import { allQueues } from '@platform/jobs';
 import { type NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
@@ -19,13 +13,9 @@ function isPlatformAdmin(session: { groups?: unknown }): boolean {
   );
 }
 
-const QUEUES = [
-  { name: 'email', queue: emailQueue },
-  { name: 'webhook-inbound', queue: webhookInboundQueue },
-  { name: 'webhook-outbound', queue: webhookOutboundQueue },
-  { name: 'usage-rollup', queue: usageRollupQueue },
-  { name: 'plan-changed', queue: planChangedQueue },
-] as const;
+// Every queue, including tenant provisioning, role sync and app sync, which
+// this page previously didn't list at all.
+const QUEUES = allQueues;
 
 /**
  * GET /api/admin/jobs

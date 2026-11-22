@@ -7,6 +7,7 @@ import { STATUS_BADGE, STATUS_DOT, STATUS_LABEL } from '@/components/admin/healt
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
+import { getQueueTotals } from '@/lib/queue-stats';
 import { getSystemHealth } from '@/lib/system-health';
 
 export const metadata = { title: 'Platform Admin' };
@@ -19,12 +20,11 @@ export default async function AdminPage() {
   // with them rather than adding their latency on top.
   const healthPromise = getSystemHealth();
 
-  const [totalTenants, totalUsers, activeJobs, deadJobs, recentTenants, planDistribution] =
+  const [totalTenants, totalUsers, queueTotals, recentTenants, planDistribution] =
     await Promise.all([
       adminDb.tenant.count({ where: { status: { not: 'DELETED' } } }),
       adminDb.user.count({ where: { status: 'ACTIVE' } }),
-      adminDb.job.count({ where: { status: { in: ['PENDING', 'RUNNING'] } } }),
-      adminDb.job.count({ where: { status: 'DEAD' } }),
+      getQueueTotals(),
       adminDb.tenant.findMany({
         where: { status: { not: 'DELETED' } },
         orderBy: { createdAt: 'desc' },
@@ -41,6 +41,9 @@ export default async function AdminPage() {
         _count: { id: true },
       }),
     ]);
+
+  const activeJobs = queueTotals.active + queueTotals.waiting;
+  const deadJobs = queueTotals.failed;
 
   const [activeTenants, suspendedTenants] = await Promise.all([
     adminDb.tenant.count({ where: { status: 'ACTIVE' } }),

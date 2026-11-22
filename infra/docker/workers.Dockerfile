@@ -135,4 +135,10 @@ COPY --from=builder /app/apps/workers/package.json ./apps/workers/package.json
 # Root package.json (pnpm workspace marker)
 COPY --from=builder /app/package.json ./package.json
 
+# Commit this image was built from, surfaced in the admin UI. Separate from
+# GIT_SHA because the VM's .env overrides GIT_SHA with the branch name. Kept
+# last so a new SHA doesn't invalidate the cached layers above.
+ARG GIT_SHA=unknown
+ENV BUILD_SHA=${GIT_SHA}
+
 CMD ["node", "apps/workers/dist/index.js"]
