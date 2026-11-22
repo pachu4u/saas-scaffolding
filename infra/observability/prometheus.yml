@@ -37,6 +37,9 @@ scrape_configs:
       - targets:
           - https://saas.riogentix.com/_health
           - https://auth.riogentix.com/realms/saas-platform/.well-known/openid-configuration
+          # One live tenant, end to end through k3s ingress-nginx (caught a
+          # stuck ingress controller after the 2026-11-22 reboot).
+          - https://test-corporation-3.riogentix.com/health
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target
