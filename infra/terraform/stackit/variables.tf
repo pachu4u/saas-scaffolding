@@ -298,3 +298,21 @@ variable "managed_services_acl_cidrs" {
   type        = list(string)
   default     = []
 }
+
+variable "backup_retention_days" {
+  description = "Days to keep nightly Keycloak/config/k3s backup archives in the backups bucket (pruned by saas-backup.sh)."
+  type        = number
+  default     = 30
+}
+
+variable "enable_vm_backups" {
+  description = "Create a daily STACKIT server backup schedule for the app VM. Billed per GB of backup storage."
+  type        = bool
+  default     = false
+}
+
+variable "vm_backup_retention_days" {
+  description = "Retention for STACKIT server backups when enable_vm_backups = true."
+  type        = number
+  default     = 7
+}
