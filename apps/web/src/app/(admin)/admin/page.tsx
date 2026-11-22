@@ -1,12 +1,13 @@
 import { auth } from '@platform/auth';
 import { adminDb } from '@platform/db';
-import { getVaultClient } from '@platform/vault';
 import { redirect } from 'next/navigation';
 
 import { AdminTenantsTable } from '@/components/admin/admin-tenants-table';
+import { STATUS_BADGE, STATUS_DOT, STATUS_LABEL } from '@/components/admin/health-status';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
+import { getSystemHealth } from '@/lib/system-health';
 
 export const metadata = { title: 'Platform Admin' };
 
@@ -14,8 +15,9 @@ export default async function AdminPage() {
   const session = await auth();
   if (!session) redirect('/auth/signin');
 
-  const vaultClient = getVaultClient();
-  const vaultHealthy = await vaultClient.isHealthy();
+  // Started before the DB queries so the dependency checks run in parallel
+  // with them rather than adding their latency on top.
+  const healthPromise = getSystemHealth();
 
   const [totalTenants, totalUsers, activeJobs, deadJobs, recentTenants, planDistribution] =
     await Promise.all([
@@ -73,16 +75,9 @@ export default async function AdminPage() {
     customDomains: t.customDomains,
   }));
 
-  const systemServices = [
-    { service: 'Web (Next.js)', status: 'Healthy' },
-    { service: 'Database (Postgres)', status: 'Healthy' },
-    { service: 'Redis', status: 'Healthy' },
-    { service: 'Keycloak (IAM)', status: 'Healthy' },
-    { service: 'Workers (BullMQ)', status: deadJobs > 0 ? 'Degraded' : 'Healthy' },
-    { service: 'HashiCorp Vault', status: vaultHealthy ? 'Healthy' : 'Degraded' },
-  ];
-
-  const degradedCount = systemServices.filter((s) => s.status !== 'Healthy').length;
+  const health = await healthPromise;
+  const systemServices = health.checks;
+  const unhealthyCount = systemServices.filter((s) => s.status !== 'healthy').length;
 
   return (
     <div>
@@ -278,20 +273,21 @@ export default async function AdminPage() {
               <h2 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
                 System Health
               </h2>
-              {degradedCount === 0 ? (
+              {unhealthyCount === 0 ? (
                 <Badge variant="success" dot>
                   All systems operational
                 </Badge>
               ) : (
-                <Badge variant="warning" dot>
-                  {degradedCount} degraded
+                <Badge variant={health.status === 'down' ? 'error' : 'warning'} dot>
+                  {unhealthyCount} {health.status === 'down' ? 'unhealthy' : 'degraded'}
                 </Badge>
               )}
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {systemServices.map((s) => (
                 <div
-                  key={s.service}
+                  key={s.key}
+                  title={s.detail}
                   className="flex items-center justify-between rounded-lg border px-3 py-2.5"
                   style={{ borderColor: 'var(--border-light)', background: 'var(--bg-main)' }}
                 >
@@ -299,22 +295,19 @@ export default async function AdminPage() {
                     <span
                       className="h-2 w-2 flex-shrink-0 rounded-full"
                       style={{
-                        background:
-                          s.status === 'Healthy'
-                            ? 'var(--status-success)'
-                            : 'var(--status-warning)',
+                        background: STATUS_DOT[s.status],
                       }}
                     />
                     <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
                       {s.service}
                     </span>
                   </div>
-                  <Badge variant={s.status === 'Healthy' ? 'success' : 'warning'}>{s.status}</Badge>
+                  <Badge variant={STATUS_BADGE[s.status]}>{STATUS_LABEL[s.status]}</Badge>
                 </div>
               ))}
             </div>
             <a
-              href="/_health"
+              href="/admin/health"
               className="mt-4 block text-center text-xs font-semibold hover:underline"
               style={{ color: 'var(--brand-primary)' }}
             >
