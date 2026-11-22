@@ -96,4 +96,10 @@ done
 
 # Heartbeat for monitoring: last successful run.
 date -u +%s >/var/lib/saas-backup.last-success
+if [ -d /var/lib/node-exporter ]; then
+  printf '# HELP saas_backup_last_success_timestamp_seconds Unix time of the last successful off-VM backup.\n# TYPE saas_backup_last_success_timestamp_seconds gauge\nsaas_backup_last_success_timestamp_seconds %s\n' \
+    "$(cat /var/lib/saas-backup.last-success)" >/var/lib/node-exporter/saas_backup.prom.tmp
+  chmod 0644 /var/lib/node-exporter/saas_backup.prom.tmp
+  mv /var/lib/node-exporter/saas_backup.prom.tmp /var/lib/node-exporter/saas_backup.prom
+fi
 log "done: $NAME"

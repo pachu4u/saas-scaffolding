@@ -37,8 +37,10 @@ services:
       - --storage.tsdb.path=/prometheus
       - --web.enable-remote-write-receiver
       - --enable-feature=exemplar-storage
+      - --web.enable-lifecycle
     volumes:
       - ../observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../observability/rules:/etc/prometheus/rules:ro
       - prometheus-data:/prometheus
 
   # ─── Loki ────────────────────────────────────────────────────────────────

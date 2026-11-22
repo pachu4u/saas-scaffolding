@@ -1,0 +1,49 @@
+# Alerting add-on for the STACKIT app VM. Separate compose project so it
+# doesn't depend on which -f files a deploy passes:
+#   cd /opt/saas-platform/repo/infra/alerting
+#   docker compose -p saas-alerting -f docker-compose.alerting.yml up -d
+# alertmanager.yml + smtp_password are rendered on the VM by install.sh from
+# the app's own SMTP settings in /opt/saas-platform/repo/.env.
+networks:
+  platform:
+    name: platform
+    external: true
+
+services:
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: node-exporter
+    restart: unless-stopped
+    networks: [platform]
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --collector.textfile.directory=/textfile
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+|var/lib/kubelet/.+|run/k3s/.+)($|/)
+    volumes:
+      - /:/host:ro,rslave
+      - /var/lib/node-exporter:/textfile:ro
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.25.0
+    container_name: blackbox-exporter
+    restart: unless-stopped
+    networks: [platform]
+    command: ['--config.file=/etc/blackbox/blackbox.yml']
+    volumes:
+      - ./blackbox.yml:/etc/blackbox/blackbox.yml:ro
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    restart: unless-stopped
+    networks: [platform]
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - /etc/saas-alerting:/etc/alertmanager:ro
+      - alertmanager-data:/alertmanager
+
+volumes:
+  alertmanager-data:

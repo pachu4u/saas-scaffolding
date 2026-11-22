@@ -7,6 +7,29 @@ http:
       service: keycloak
       priority: 100
 
+    # The admin console/REST API and the master realm are not reachable from
+    # the internet. Everything that needs them (web, workers, the k3s
+    # provisioner) talks to Keycloak on its internal URL, and the public
+    # STACKIT load balancer is plain TCP, so source-IP allowlisting isn't
+    # possible here. Admin access: SSH tunnel to the VM's 127.0.0.1:8081 or
+    # `docker exec keycloak /opt/keycloak/bin/kcadm.sh`.
+    keycloak-admin-blocked:
+      rule: 'Host(`auth.${domain_name}`) && (PathPrefix(`/admin`) || PathPrefix(`/realms/master`))'
+      entryPoints:
+        - web
+      service: keycloak
+      middlewares:
+        - deny-all
+      priority: 200
+
+  middlewares:
+    # Every public request reaches Traefik from Caddy's container IP, never
+    # from loopback, so this rejects all of them with 403.
+    deny-all:
+      ipAllowList:
+        sourceRange:
+          - '127.0.0.1/32'
+
   services:
     keycloak:
       loadBalancer:
