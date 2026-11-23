@@ -23,6 +23,7 @@ F="-f docker-compose.yml -f docker-compose.observability.yml -f docker-compose.t
 | k3s state (tenant namespaces, secrets) | `/var/lib/rancher/k3s/server` | nightly `saas-backup` archive |
 | TLS certs | Caddy volume | nightly `saas-backup` archive (re-issuable anyway) |
 | Terraform state | bucket `saas-platform-tfstate` (versioned) | bucket version history |
+| App secrets (Stripe, tenant webhook/SCIM/API keys) | STACKIT Secrets Manager `saas-platform-secrets` (Vault API, KV v2 at the instance id) | managed by STACKIT |
 
 Nightly archives: bucket `saas-platform-backups`, prefix `saas-platform-app/`,
 30 days. Restore details: `infra/terraform/stackit/scripts/backup/restore.md`.
@@ -125,6 +126,7 @@ backups; UptimeRobot covers the VM being gone entirely.
 | `saas_platform` DB password | `stackit postgresflex user reset-password 16679`, replace it in `/opt/saas-platform/repo/.env`, `render/*`, `infra/compose/docker-compose.stackit.yml`, `infra/k8s/tenant-provisioner/secret.env` and the `saas-workers-env` secret; recreate web/workers and restart `saas-workers`; then fix the copy in Terraform state (it can't read passwords back) |
 | Keycloak admin | change it in the admin console, then in `.env` (`KEYCLOAK_ADMIN_PASSWORD`) and recreate web/workers |
 | STACKIT SA keys | `stackit service-account key create --email <sa>`; replace the key file(s) / k8s secret; delete the old key |
+| Secrets Manager app login | `terraform apply -replace=stackit_secretsmanager_user.app`, then put `terraform output -raw rendered_vault_env` into the VM `.env` and the `saas-workers-env` secret; recreate web/workers, restart `saas-workers` |
 | Backup passphrase | don't, unless leaked: old archives need the old one. If you must, `terraform apply -replace=random_password.backup_encryption_passphrase` and rerun the backup install script |
 
 ## 9. Deploy
