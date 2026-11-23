@@ -188,6 +188,9 @@ const envSchema = z.object({
   VAULT_TOKEN: z.string().optional(),
   VAULT_ROLE_ID: z.string().optional(),
   VAULT_SECRET_ID: z.string().optional(),
+  // userpass login, e.g. STACKIT Secrets Manager (VAULT_MOUNT_PATH = instance id)
+  VAULT_USERNAME: z.string().optional(),
+  VAULT_PASSWORD: z.string().optional(),
   VAULT_NAMESPACE: z.string().optional(),
   VAULT_MOUNT_PATH: z.string().default('secret'),
 });

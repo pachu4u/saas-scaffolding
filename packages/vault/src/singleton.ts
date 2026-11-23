@@ -17,21 +17,27 @@ function getVaultConfig(): VaultConfig {
   const token = process.env.VAULT_TOKEN;
   const roleId = process.env.VAULT_ROLE_ID;
   const secretId = process.env.VAULT_SECRET_ID;
+  const username = process.env.VAULT_USERNAME;
+  const password = process.env.VAULT_PASSWORD;
   const namespace = process.env.VAULT_NAMESPACE;
   const mountPath = process.env.VAULT_MOUNT_PATH ?? 'secret';
 
-  if (!token && (!roleId || !secretId)) {
+  if (!token && (!roleId || !secretId) && (!username || !password)) {
     // In dev mode, use a default dev token; in prod this will fail
     if (process.env.NODE_ENV !== 'production') {
       return { endpoint, token: 'root', mountPath, ...(namespace !== undefined && { namespace }) };
     }
-    throw new Error('Vault: VAULT_TOKEN or VAULT_ROLE_ID+VAULT_SECRET_ID must be set');
+    throw new Error(
+      'Vault: VAULT_TOKEN, VAULT_USERNAME+VAULT_PASSWORD or VAULT_ROLE_ID+VAULT_SECRET_ID must be set',
+    );
   }
 
   const cfg: VaultConfig = { endpoint, mountPath };
   if (token !== undefined) cfg.token = token;
   if (roleId !== undefined) cfg.roleId = roleId;
   if (secretId !== undefined) cfg.secretId = secretId;
+  if (username !== undefined) cfg.username = username;
+  if (password !== undefined) cfg.password = password;
   if (namespace !== undefined) cfg.namespace = namespace;
   return cfg;
 }

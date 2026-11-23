@@ -3,7 +3,9 @@
  *
  * Supports:
  * - Token authentication (dev/test)
- * - AppRole authentication (production)
+ * - AppRole authentication
+ * - Userpass authentication (STACKIT Secrets Manager, which is Vault's API
+ *   with KV v2 mounted at the instance id)
  * - KV v2 read/write/delete
  * - Health checks
  */
@@ -13,6 +15,8 @@ export interface VaultConfig {
   token?: string; // Static token (dev mode)
   roleId?: string; // AppRole role_id
   secretId?: string; // AppRole secret_id
+  username?: string; // userpass login (STACKIT Secrets Manager)
+  password?: string; // userpass password
   namespace?: string; // Vault namespace (Enterprise)
   mountPath?: string; // KV mount path, defaults to 'secret'
   timeout?: number; // Request timeout ms
@@ -91,16 +95,26 @@ export class VaultClient {
       return;
     }
 
-    if (!this.config.roleId || !this.config.secretId) {
-      throw new VaultError('Vault: either token or roleId+secretId must be provided', 400);
+    let response: { auth: { client_token: string; lease_duration: number } };
+    if (this.config.username && this.config.password) {
+      this.token = null;
+      response = await this.request(
+        'POST',
+        `auth/userpass/login/${encodeURIComponent(this.config.username)}`,
+        { password: this.config.password },
+      );
+    } else if (this.config.roleId && this.config.secretId) {
+      this.token = null;
+      response = await this.request('POST', 'auth/approle/login', {
+        role_id: this.config.roleId,
+        secret_id: this.config.secretId,
+      });
+    } else {
+      throw new VaultError(
+        'Vault: one of token, username+password or roleId+secretId must be provided',
+        400,
+      );
     }
-
-    const response = await this.request<{
-      auth: { client_token: string; lease_duration: number };
-    }>('POST', 'auth/approle/login', {
-      role_id: this.config.roleId,
-      secret_id: this.config.secretId,
-    });
 
     this.token = response.auth.client_token;
     this.tokenExpiry = Date.now() + response.auth.lease_duration * 1_000 - 60_000; // 1min buffer

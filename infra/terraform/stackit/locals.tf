@@ -18,6 +18,10 @@ locals {
   app_redis_url    = stackit_redis_credential.app_redis.uri
 
   common_template_vars = {
+    vault_addr       = local.vault_addr
+    vault_username   = stackit_secretsmanager_user.app.username
+    vault_password   = stackit_secretsmanager_user.app.password
+    vault_mount_path = stackit_secretsmanager_instance.app.instance_id
     domain_name      = var.domain_name
     domain_regex     = local.domain_regex
     acme_email       = var.acme_email
