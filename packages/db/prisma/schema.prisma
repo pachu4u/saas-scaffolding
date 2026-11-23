@@ -437,6 +437,9 @@ enum TenantStatus {
   ACTIVE
   SUSPENDED
   DELETED
+  /// Self-service signup waiting for a platform admin to approve it. No
+  /// provisioning and no workspace access until approved.
+  PENDING_APPROVAL
 }
 
 enum UserStatus {

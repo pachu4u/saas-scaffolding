@@ -121,6 +121,9 @@ const envSchema = z.object({
   // once this many tenants exist, or once the shared Postgres server's
   // connections are this full (STACKIT Flex 2.4 allows 100 connections).
   TENANT_MAX_COUNT: z.coerce.number().int().positive().default(15),
+  // Where "new workspace awaiting approval" notices go (comma-separated).
+  // Unset: no email, the request still shows in Admin > Tenants.
+  PLATFORM_ADMIN_NOTIFY_EMAIL: z.string().optional(),
   TENANT_DB_CONN_MAX_RATIO: z.coerce.number().min(0.1).max(1).default(0.8),
   // Superuser connection to the shared Postgres server used to create the
   // per-tenant database + role (e.g. STACKIT PostgreSQL Flex admin URL)

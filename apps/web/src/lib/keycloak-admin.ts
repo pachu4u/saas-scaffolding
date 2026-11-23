@@ -328,3 +328,20 @@ export async function syncBrandingApiPathToKeycloak(path: string): Promise<void>
   }
   logger.info({ path }, 'Synced brandingApiPath to Keycloak web client');
 }
+
+/** Keycloak user id + emailVerified flag for an email, or null if no such user. */
+export async function findKeycloakUserByEmail(
+  email: string,
+): Promise<{ id: string; emailVerified: boolean } | null> {
+  const token = await getKeycloakAdminToken();
+  const kcUrl = kcBaseUrl();
+  const realm = env.KEYCLOAK_REALM;
+  const res = await fetch(
+    `${kcUrl}/admin/realms/${realm}/users?email=${encodeURIComponent(email)}&exact=true`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) throw new Error(`Keycloak user lookup failed (${String(res.status)})`);
+  const users = (await res.json()) as { id: string; email?: string; emailVerified?: boolean }[];
+  const u = users.find((x) => x.email?.toLowerCase() === email.toLowerCase());
+  return u ? { id: u.id, emailVerified: u.emailVerified === true } : null;
+}

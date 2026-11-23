@@ -15,6 +15,10 @@ export function TenantStatusButton({
   const isSuspended = currentStatus === 'SUSPENDED';
   const action = isSuspended ? 'reinstate' : 'suspend';
 
+  if (currentStatus === 'PENDING_APPROVAL') {
+    return <TenantApprovalButtons tenantId={tenantId} />;
+  }
+
   function handleClick() {
     startTransition(async () => {
       await fetch(`/api/admin/tenants/${tenantId}`, {
@@ -62,7 +66,7 @@ export function TenantDeleteButton({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  if (currentStatus === 'DELETED') return null;
+  if (currentStatus === 'DELETED' || currentStatus === 'PENDING_APPROVAL') return null;
 
   function handleClick() {
     if (
@@ -91,5 +95,56 @@ export function TenantDeleteButton({
     >
       {isPending ? '…' : 'Delete'}
     </button>
+  );
+}
+
+export function TenantApprovalButtons({ tenantId }: { tenantId: string }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function act(action: 'approve' | 'reject') {
+    if (
+      action === 'reject' &&
+      !window.confirm(
+        'Reject this workspace request? The applicant is emailed and their login is removed.',
+      )
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      const res = await fetch(`/api/admin/tenants/${tenantId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        window.alert(body.error ?? `Request failed (${String(res.status)})`);
+      }
+      router.refresh();
+    });
+  }
+
+  return (
+    <span className="inline-flex gap-1.5">
+      <button
+        onClick={() => {
+          act('approve');
+        }}
+        disabled={isPending}
+        className="rounded-lg border border-green-200 bg-green-50 px-2 py-1 text-xs font-medium text-green-700 transition-colors hover:bg-green-100 disabled:opacity-50"
+      >
+        {isPending ? '…' : 'Approve'}
+      </button>
+      <button
+        onClick={() => {
+          act('reject');
+        }}
+        disabled={isPending}
+        className="rounded-lg border border-red-100 bg-red-50 px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
+      >
+        Reject
+      </button>
+    </span>
   );
 }

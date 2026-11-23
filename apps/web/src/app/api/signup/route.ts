@@ -151,7 +151,9 @@ export async function POST(req: NextRequest) {
   // Capacity guard: every tenant gets its own pod on a single VM and its own
   // connections on one Postgres server. Refuse before creating any identity
   // rather than leave a tenant stuck in provisioning.
-  const tenantCount = await adminDb.tenant.count({ where: { status: { not: 'DELETED' } } });
+  const tenantCount = await adminDb.tenant.count({
+    where: { status: { in: ['ACTIVE', 'SUSPENDED'] } },
+  });
   if (tenantCount >= env.TENANT_MAX_COUNT) {
     console.warn(
       `[POST /api/signup] refused: tenant capacity reached (${String(tenantCount)}/${String(env.TENANT_MAX_COUNT)})`,
@@ -206,7 +208,9 @@ export async function POST(req: NextRequest) {
           name: companyName.trim(),
           slug: slugNorm,
           plan,
-          status: 'ACTIVE' as const,
+          // Self-service signups wait for a platform admin (Admin > Tenants)
+          // before anything is provisioned or the workspace can be opened.
+          status: 'PENDING_APPROVAL' as const,
           // Provisioning is deferred to /verify-email/[token] — see
           // verifyEmailAndProvision. Starting the (multi-minute) kubernetes
           // stack stamp before we even know the signup email is real would
@@ -293,7 +297,9 @@ export async function POST(req: NextRequest) {
         tenantId: result.tenant.id,
         slug: result.tenant.slug,
         name: result.tenant.name,
-        message: 'Check your email to verify your account and activate your workspace.',
+        message:
+          'Check your email to verify your address. A platform admin will then review your request, and we will email you once your workspace is approved.',
+        pendingApproval: true,
       },
       { status: 201 },
     );

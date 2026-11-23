@@ -81,7 +81,9 @@ export default async function VerifyEmailPage({ params }: { params: Promise<{ to
         <p className="mb-6 text-sm" style={{ color: 'var(--text-secondary)' }}>
           {result.status === 'verified'
             ? "We're setting up your workspace now — this usually takes a couple of minutes. If it's not ready the moment you sign in, give it a bit longer and try again."
-            : 'Your workspace is already set up.'}
+            : result.status === 'awaiting-approval'
+              ? "Thanks! Your workspace request is now with our team for review. We'll email you as soon as it's approved."
+              : 'Your workspace is already set up.'}
         </p>
         <Link
           href="/auth/signin"

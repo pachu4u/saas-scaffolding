@@ -113,6 +113,14 @@ function renderTemplate(templateId: string, data: Record<string, unknown>): stri
     'verify-email': `<p>Welcome to riogentix! Verify your email to activate <strong>{{ companyName }}</strong>'s workspace.</p>
       <p><a href="{{ verifyUrl }}">Verify email</a></p>
       <p>This link expires in 48 hours. Your workspace won't be created until you verify.</p>`,
+    'signup-pending-admin': `<p>A new workspace is waiting for approval.</p>
+      <p><strong>{{ companyName }}</strong> ({{ slug }}) requested by {{ email }}.</p>
+      <p><a href="{{ reviewUrl }}">Review it in the admin console</a></p>`,
+    'tenant-approved': `<p>Good news: your riogentix workspace <strong>{{ companyName }}</strong> has been approved.</p>
+      <p>{{ nextStep }}</p>
+      <p><a href="{{ signInUrl }}">Sign in</a></p>`,
+    'tenant-rejected': `<p>Thanks for your interest in riogentix. Your request for the workspace <strong>{{ companyName }}</strong> was not approved.</p>
+      <p>If you think this is a mistake, just reply to this email.</p>`,
   };
 
   const template = templates[templateId] ?? `<p>Notification: ${templateId}</p>`;

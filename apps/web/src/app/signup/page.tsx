@@ -545,8 +545,9 @@ export default function SignupPage() {
                 Check your email
               </h1>
               <p className="mb-6 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                We've sent a verification link to activate <strong>{result.name}</strong>'s
-                workspace. Your Riogentix AI builder won't be provisioned until you click it.
+                We've sent a verification link for <strong>{result.name}</strong>'s workspace. Once
+                you've verified, our team reviews the request and we'll email you as soon as it's
+                approved.
               </p>
 
               <div

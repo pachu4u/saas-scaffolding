@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 
 import { PlanLimitsPanel } from '@/components/admin/plan-limits-panel';
 import { ProvisioningPanel } from '@/components/admin/provisioning-panel';
-import { TenantDeleteButton } from '@/components/admin/tenant-status-button';
+import { TenantApprovalButtons, TenantDeleteButton } from '@/components/admin/tenant-status-button';
 import { Topbar } from '@/components/layout/topbar';
 import { Badge } from '@/components/ui/badge';
 import { formatDate, timeAgo } from '@/lib/time';
@@ -158,7 +158,9 @@ export default async function AdminTenantDetailPage({
             </dl>
 
             <div className="mt-6 flex gap-2">
-              {tenant.status === 'ACTIVE' ? (
+              {tenant.status === 'PENDING_APPROVAL' ? (
+                <TenantApprovalButtons tenantId={tenant.id} />
+              ) : tenant.status === 'ACTIVE' ? (
                 <form
                   action={async () => {
                     'use server';
@@ -190,7 +192,7 @@ export default async function AdminTenantDetailPage({
                   </button>
                 </form>
               )}
-              {tenant.status !== 'DELETED' && (
+              {tenant.status !== 'DELETED' && tenant.status !== 'PENDING_APPROVAL' && (
                 <TenantDeleteButton
                   tenantId={tenant.id}
                   tenantName={tenant.name}

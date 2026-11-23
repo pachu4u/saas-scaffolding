@@ -22,6 +22,12 @@ export default async function AdminTenantsPage() {
     },
   });
 
+  // Pending approvals first so they're the first thing an admin sees.
+  tenants.sort(
+    (a, b) => Number(b.status === 'PENDING_APPROVAL') - Number(a.status === 'PENDING_APPROVAL'),
+  );
+  const pendingCount = tenants.filter((t) => t.status === 'PENDING_APPROVAL').length;
+
   const tableData = tenants.map((t) => ({
     id: t.id,
     name: t.name,
@@ -38,7 +44,11 @@ export default async function AdminTenantsPage() {
     <div>
       <Topbar
         title="Tenants"
-        subtitle="All workspaces across the platform"
+        subtitle={
+          pendingCount > 0
+            ? `${String(pendingCount)} workspace request${pendingCount === 1 ? '' : 's'} awaiting approval`
+            : 'All workspaces across the platform'
+        }
         breadcrumb={['Admin']}
         userEmail={session.user.email}
         userName={session.user.name ?? undefined}

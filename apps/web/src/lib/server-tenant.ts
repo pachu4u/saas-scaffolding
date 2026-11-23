@@ -22,7 +22,11 @@ const getActiveMemberships = cache(
       where: { externalId: externalUserId },
       select: {
         tenantUsers: {
-          where: { status: 'ACTIVE' },
+          // A workspace awaiting approval isn't usable yet (see /no-workspace).
+          where: {
+            status: 'ACTIVE',
+            tenant: { status: { notIn: ['PENDING_APPROVAL', 'DELETED'] } },
+          },
           select: { tenant: { select: { slug: true } } },
         },
       },
@@ -53,7 +57,7 @@ export async function getTenantFromRequest(req: NextRequest): Promise<TenantCont
   if (!memberships.some((tu) => tu.tenant.slug === slug)) return null;
 
   const tenant = await resolveTenant(slug);
-  if (tenant?.status === 'SUSPENDED') return null;
+  if (tenant?.status === 'SUSPENDED' || tenant?.status === 'PENDING_APPROVAL') return null;
   return tenant;
 }
 

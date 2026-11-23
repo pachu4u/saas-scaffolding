@@ -107,11 +107,19 @@ const columns: Column<TenantRow>[] = [
     render: (row) => (
       <Badge
         variant={
-          row.status === 'ACTIVE' ? 'success' : row.status === 'SUSPENDED' ? 'error' : 'gray'
+          row.status === 'ACTIVE'
+            ? 'success'
+            : row.status === 'SUSPENDED'
+              ? 'error'
+              : row.status === 'PENDING_APPROVAL'
+                ? 'warning'
+                : 'gray'
         }
         dot
       >
-        {row.status.charAt(0) + row.status.slice(1).toLowerCase()}
+        {row.status === 'PENDING_APPROVAL'
+          ? 'Pending approval'
+          : row.status.charAt(0) + row.status.slice(1).toLowerCase()}
       </Badge>
     ),
   },
@@ -173,6 +181,7 @@ const filters: FilterConfig[] = [
     options: [
       { label: 'Active', value: 'ACTIVE' },
       { label: 'Suspended', value: 'SUSPENDED' },
+      { label: 'Pending approval', value: 'PENDING_APPROVAL' },
     ],
   },
 ];

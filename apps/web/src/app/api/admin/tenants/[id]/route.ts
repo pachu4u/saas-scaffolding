@@ -5,6 +5,7 @@ import { enqueue, planChangedQueue, tenantDeprovisionQueue } from '@platform/job
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { enqueueRoleSync } from '@/lib/role-sync';
+import { approveTenant, rejectTenant } from '@/lib/tenant-approval';
 
 const RESOURCE_LIMIT_FIELDS = ['pipes', 'storageBytes', 'apiKeys', 'seats'] as const;
 type ResourceLimitField = (typeof RESOURCE_LIMIT_FIELDS)[number];
@@ -60,6 +61,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const actorUserId = await resolveActorUserId(session.user.id);
 
+  if (action === 'approve' || action === 'reject') {
+    const outcome =
+      action === 'approve'
+        ? await approveTenant(id, actorUserId)
+        : await rejectTenant(id, actorUserId);
+    if (!outcome.ok) {
+      return NextResponse.json({ error: outcome.error }, { status: outcome.httpStatus });
+    }
+    return NextResponse.json(outcome);
+  }
+
   if (action === 'suspend') {
     await adminDb.tenant.update({ where: { id }, data: { status: 'SUSPENDED' } });
     await withPlatformAdmin(async (tx) => {
@@ -78,6 +90,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ ok: true, status: 'SUSPENDED' });
   }
   if (action === 'reinstate') {
+    if (tenant.status !== 'SUSPENDED') {
+      return NextResponse.json(
+        { error: 'Only a suspended tenant can be reinstated' },
+        { status: 422 },
+      );
+    }
     await adminDb.tenant.update({ where: { id }, data: { status: 'ACTIVE' } });
     await withPlatformAdmin(async (tx) => {
       await tx.auditLog.create({
