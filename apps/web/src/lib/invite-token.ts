@@ -1,5 +1,7 @@
 import crypto from 'crypto';
 
+import { tokenSecret } from '@/lib/token-secret';
+
 export function decodeInviteToken(token: string): {
   tenantId: string | null;
   userId: string | null;
@@ -18,7 +20,7 @@ export function decodeInviteToken(token: string): {
     if (Date.now() - ts > 7 * 24 * 60 * 60 * 1000) return { tenantId: null, userId: null };
 
     // Verify signature
-    const secret = process.env.INVITE_TOKEN_SECRET ?? 'dev-invite-secret';
+    const secret = tokenSecret();
     const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
     if (!crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expected, 'hex'))) {
       return { tenantId: null, userId: null };

@@ -56,3 +56,9 @@ resource "random_password" "keycloak_db_password" {
   length  = 32
   special = false
 }
+
+# HMAC key for invite and email-verification links (apps/web/src/lib/token-secret.ts).
+resource "random_password" "invite_token_secret" {
+  length  = 48
+  special = false
+}

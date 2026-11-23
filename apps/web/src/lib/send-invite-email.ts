@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import { sendEmail } from '@platform/notifications';
 import type { NextRequest } from 'next/server';
 
+import { tokenSecret } from '@/lib/token-secret';
+
 /**
  * Signs a fresh invite token (HMAC-SHA256 over userId:tenantId:timestamp) and
  * builds the absolute /invite/{token} URL. Shared by POST /api/team/invite
@@ -14,7 +16,7 @@ export function buildInviteUrl(
   userId: string,
   tenantId: string,
 ): { inviteUrl: string; inviteToken: string } {
-  const secret = process.env.INVITE_TOKEN_SECRET ?? 'dev-invite-secret';
+  const secret = tokenSecret();
   const payload = `${userId}:${tenantId}:${String(Date.now())}`;
   const token = crypto.createHmac('sha256', secret).update(payload).digest('hex');
   // Store token in a lightweight way — encode the full payload in the token URL
