@@ -162,6 +162,10 @@ services:
       DATABASE_URL_MIGRATOR: ${database_url}
       REDIS_URL: ${redis_url}
       KEYCLOAK_ISSUER: https://auth.${domain_name}/realms/saas-platform
+      # STACKIT Secrets Manager (userpass creds come from .env); blank the
+      # base file's dev-Vault token so the client logs in instead.
+      VAULT_ADDR: ${vault_addr}
+      VAULT_TOKEN: ''
       AUTH_URL: https://saas.${domain_name}
       NEXT_PUBLIC_APP_URL: https://saas.${domain_name}
       KEYCLOAK_ADMIN: ${keycloak_admin_username}
@@ -183,6 +187,10 @@ services:
       DATABASE_URL_MIGRATOR: ${database_url}
       REDIS_URL: ${redis_url}
       KEYCLOAK_ISSUER: https://auth.${domain_name}/realms/saas-platform
+      # STACKIT Secrets Manager (userpass creds come from .env); blank the
+      # base file's dev-Vault token so the client logs in instead.
+      VAULT_ADDR: ${vault_addr}
+      VAULT_TOKEN: ''
       OTEL_SERVICE_NAME: saas-platform-workers
 
 volumes:
