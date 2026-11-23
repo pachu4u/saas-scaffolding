@@ -135,8 +135,8 @@ async function checkWorkers(): Promise<CheckOutcome> {
 async function checkVault(): Promise<CheckOutcome> {
   const healthy = await getVaultClient().isHealthy();
   return healthy
-    ? { status: 'healthy', detail: 'sys/health reports unsealed' }
-    : { status: 'down', detail: 'sys/health unreachable, sealed or uninitialised' };
+    ? { status: 'healthy', detail: 'reachable and accepting the app login' }
+    : { status: 'down', detail: 'unreachable, sealed or rejecting the app login' };
 }
 
 const CHECKS: { key: string; service: string; fn: () => Promise<CheckOutcome> }[] = [
@@ -144,7 +144,7 @@ const CHECKS: { key: string; service: string; fn: () => Promise<CheckOutcome> }[
   { key: 'redis', service: 'Redis', fn: checkRedis },
   { key: 'keycloak', service: 'Keycloak (IAM)', fn: checkKeycloak },
   { key: 'workers', service: 'Workers (BullMQ)', fn: checkWorkers },
-  { key: 'vault', service: 'HashiCorp Vault', fn: checkVault },
+  { key: 'vault', service: 'Secrets store (Vault API)', fn: checkVault },
 ];
 
 export function overallStatus(checks: HealthCheckResult[]): HealthStatus {

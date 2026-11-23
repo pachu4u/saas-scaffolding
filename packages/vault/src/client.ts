@@ -190,7 +190,14 @@ export class VaultClient {
       // 429 = standby
       // 501 = not initialized
       // 503 = sealed
-      return response.status === 200 || response.status === 429;
+      if (response.status === 200 || response.status === 429) return true;
+      // STACKIT Secrets Manager doesn't expose sys/health (404): healthy
+      // means we can log in.
+      if (response.status === 404 && (this.config.username || this.config.roleId)) {
+        await this.authenticate();
+        return true;
+      }
+      return false;
     } catch {
       return false;
     }
